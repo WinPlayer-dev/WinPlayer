@@ -668,16 +668,18 @@ onBeforeUnmount(() => {
               <span class="wp-icon">&#xF2AB;</span>
             </button>
             <span class="full-header-title">正在播放</span>
-            <button class="full-icon-button" title="更多" @click="showMore = true">
-              <span class="wp-icon">&#xE825;</span>
-            </button>
-            <button
-              class="full-icon-button"
-              :title="liked ? '取消喜欢' : '添加到我喜欢'"
-              @click="toggleLikeCurrent"
-            >
-              <span class="wp-icon" :class="{ filled: liked }">{{ liked ? "&#xF47E;" : "&#xF47A;" }}</span>
-            </button>
+            <div class="full-header-actions">
+              <button class="full-icon-button" title="更多" @click="showMore = true">
+                <span class="wp-icon">&#xE825;</span>
+              </button>
+              <button
+                class="full-icon-button"
+                :title="liked ? '取消喜欢' : '添加到我喜欢'"
+                @click="toggleLikeCurrent"
+              >
+                <span class="wp-icon" :class="{ filled: liked }">{{ liked ? "&#xF47E;" : "&#xF47A;" }}</span>
+              </button>
+            </div>
           </div>
 
           <div class="full-hero">
@@ -1082,19 +1084,26 @@ onBeforeUnmount(() => {
 
 .full-header {
   flex: none;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: var(--space-xs);
   padding: var(--space-sm) var(--space-md);
 }
 
 .full-header-title {
-  flex: 1;
   text-align: center;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: rgba(255, 255, 255, 0.72);
+}
+
+.full-header-actions {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
 }
 
 .full-icon-button {
