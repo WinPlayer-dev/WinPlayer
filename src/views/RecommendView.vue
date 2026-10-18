@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { usePluginsStore, type AggregatedSourceResult, type PluginRecord } from "@/stores/plugins";
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
+import { useDownloadsStore } from "@/stores/downloads";
 import { openContextMenu, openContextMenuAt, type ContextMenuItem } from "@/services/contextMenu";
 import { useLongPress } from "@/composables/useLongPress";
 import { openPlaylistPicker } from "@/services/playlistPicker";
@@ -22,6 +23,7 @@ const router = useRouter();
 const plugins = usePluginsStore();
 const player = usePlayerStore();
 const library = useLibraryStore();
+const downloads = useDownloadsStore();
 const isMobile = useIsMobile();
 
 const loading = ref(false);
@@ -112,6 +114,16 @@ function songMenuItems(song: UnifiedTrack): ContextMenuItem[] {
     filled: liked,
     action: () => library.toggleLike(song),
   });
+  if (downloads.isDownloaded(song)) {
+    items.push({ key: "download", label: "已下载", icon: "&#xF151;", disabled: true, action: () => {} });
+  } else {
+    items.push({
+      key: "download",
+      label: "下载到本地",
+      icon: "&#xF151;",
+      action: () => void downloads.downloadTrack(song),
+    });
+  }
   items.push({
     key: "copy-name",
     label: "复制歌曲名",

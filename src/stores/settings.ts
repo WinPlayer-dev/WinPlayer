@@ -31,6 +31,18 @@ export type SourcePreference = string;
 /** 播放源/歌词源搜索关键词的默认拼接格式 */
 export const DEFAULT_SOURCE_SEARCH_FORMAT = "{歌曲名} - {歌手名}";
 
+/** 下载文件名默认模板（`/` 可建子目录） */
+export const DEFAULT_DOWNLOAD_NAME_TEMPLATE = "{artist} - {name}";
+
+/** 下载文件名模板可用变量（设置页展示用） */
+export const DOWNLOAD_TEMPLATE_VARS = [
+  "{name}",
+  "{artist}",
+  "{album}",
+  "{source}",
+  "{id}",
+] as const;
+
 export const useSettingsStore = defineStore("settings", () => {
   const theme = ref<ThemePreference>("system");
   const marketSources = ref<MarketSource[]>([]);
@@ -68,6 +80,14 @@ export const useSettingsStore = defineStore("settings", () => {
   const coverAccent = ref(false);
   /** 缓存项策略：歌单（页面数据）/ 图片缓存开关组合 */
   const cachePolicy = ref<CachePolicy>("both");
+  /** 下载目录（绝对路径；空串 = 使用平台默认目录） */
+  const downloadDir = ref("");
+  /** 下载文件名模板（`/` 可建子目录） */
+  const downloadNameTemplate = ref(DEFAULT_DOWNLOAD_NAME_TEMPLATE);
+  /** 下载时同时保存歌词（同名 .lrc 边车） */
+  const downloadSaveLyrics = ref(true);
+  /** 下载时同时缓存封面等元数据（供离线列表展示） */
+  const downloadSaveMeta = ref(true);
   /** 是否在启动时自动检查更新 */
   const autoCheckUpdate = ref(true);
   /** 自动检查更新的频率 */
@@ -151,6 +171,13 @@ export const useSettingsStore = defineStore("settings", () => {
     hapticsEnabled.value = await getSetting<boolean>("settings.hapticsEnabled", true);
     coverAccent.value = await getSetting<boolean>("settings.coverAccent", false);
     cachePolicy.value = await getSetting<CachePolicy>("settings.cachePolicy", "both");
+    downloadDir.value = await getSetting<string>("settings.downloadDir", "");
+    downloadNameTemplate.value = await getSetting<string>(
+      "settings.downloadNameTemplate",
+      DEFAULT_DOWNLOAD_NAME_TEMPLATE,
+    );
+    downloadSaveLyrics.value = await getSetting<boolean>("settings.downloadSaveLyrics", true);
+    downloadSaveMeta.value = await getSetting<boolean>("settings.downloadSaveMeta", true);
     autoCheckUpdate.value = await getSetting<boolean>("settings.autoCheckUpdate", true);
     updateCheckFrequency.value = await getSetting<UpdateCheckFrequency>(
       "settings.updateCheckFrequency",
@@ -229,8 +256,31 @@ export const useSettingsStore = defineStore("settings", () => {
     if (wasImages && !isImages) await invoke("cache_clear").catch(() => {});
   }
 
-  /* ------------------------------ 自动更新 ------------------------------ */
+  /* ------------------------------ 下载与离线 ------------------------------ */
 
+  /** 设置下载目录（空串 = 平台默认）；目录切换不影响已下载文件 */
+  async function setDownloadDir(value: string): Promise<void> {
+    downloadDir.value = value.trim();
+    await setSetting("settings.downloadDir", downloadDir.value);
+  }
+
+  /** 设置文件名模板（空串回退默认模板） */
+  async function setDownloadNameTemplate(value: string): Promise<void> {
+    downloadNameTemplate.value = value;
+    await setSetting("settings.downloadNameTemplate", value);
+  }
+
+  async function setDownloadSaveLyrics(value: boolean): Promise<void> {
+    downloadSaveLyrics.value = value;
+    await setSetting("settings.downloadSaveLyrics", value);
+  }
+
+  async function setDownloadSaveMeta(value: boolean): Promise<void> {
+    downloadSaveMeta.value = value;
+    await setSetting("settings.downloadSaveMeta", value);
+  }
+
+  /* ------------------------------ 自动更新 ------------------------------ */
   async function setAutoCheckUpdate(value: boolean): Promise<void> {
     autoCheckUpdate.value = value;
     await setSetting("settings.autoCheckUpdate", value);
@@ -346,6 +396,10 @@ export const useSettingsStore = defineStore("settings", () => {
     githubMirror,
     smtcEnabled,
     cachePolicy,
+    downloadDir,
+    downloadNameTemplate,
+    downloadSaveLyrics,
+    downloadSaveMeta,
     autoCheckUpdate,
     updateCheckFrequency,
     updateIncludePrerelease,
@@ -372,6 +426,10 @@ export const useSettingsStore = defineStore("settings", () => {
     setGithubMirror,
     setSmtcEnabled,
     setCachePolicy,
+    setDownloadDir,
+    setDownloadNameTemplate,
+    setDownloadSaveLyrics,
+    setDownloadSaveMeta,
     setAutoCheckUpdate,
     setUpdateCheckFrequency,
     setUpdateIncludePrerelease,

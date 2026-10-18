@@ -6,6 +6,7 @@ import CachedImage from "@/components/common/CachedImage.vue";
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
 import { useSettingsStore } from "@/stores/settings";
+import { useDownloadsStore } from "@/stores/downloads";
 import { getAudioEngine } from "@/services/audio";
 import {
   PLAYBACK_RATES,
@@ -19,10 +20,12 @@ import {
 } from "@/types/player";
 import QueuePanel from "./QueuePanel.vue";
 import LyricsPanel from "./LyricsPanel.vue";
+import DownloadPanel from "./DownloadPanel.vue";
 
 const player = usePlayerStore();
 const library = useLibraryStore();
 const settings = useSettingsStore();
+const downloads = useDownloadsStore();
 const router = useRouter();
 
 /** 拖动进度滑块时的本地预览值（拖动结束才 seek，期间屏蔽 timeupdate 覆盖） */
@@ -97,6 +100,16 @@ function onSeekPointerCancel(): void {
 
 async function toggleLikeCurrent() {
   if (player.currentTrack) await library.toggleLike(player.currentTrack);
+}
+
+/** 下载管理面板：与播放队列 / 歌词面板互斥 */
+function toggleDownloads(): void {
+  const next = !downloads.panelOpen;
+  downloads.panelOpen = next;
+  if (next) {
+    player.showQueue = false;
+    player.showLyrics = false;
+  }
 }
 
 /** 「更多」二级菜单：一级列出不常用入口，二级展开倍速档位 / 输出设备 */
@@ -282,7 +295,7 @@ onUnmounted(() => {
           :class="{ active: player.showLyrics }"
           title="歌词"
           :disabled="!player.currentTrack"
-          @click="player.showLyrics = !player.showLyrics; player.showQueue = false"
+          @click="player.showLyrics = !player.showLyrics; player.showQueue = false; downloads.panelOpen = false"
         >
           <span class="wp-icon">&#xF801;</span>
         </button>
@@ -314,10 +327,19 @@ onUnmounted(() => {
     <!-- 右：音量与队列 -->
     <div class="extras">
       <button
+        class="wp-icon-button download-button"
+        :class="{ active: downloads.panelOpen }"
+        title="下载管理"
+        @click="toggleDownloads"
+      >
+        <span class="wp-icon">&#xF151;</span>
+        <span v-if="downloads.downloadingCount" class="download-dot" aria-hidden="true" />
+      </button>
+      <button
         class="wp-icon-button"
         :class="{ active: player.showQueue }"
         title="播放队列"
-        @click="player.showQueue = !player.showQueue; player.showLyrics = false"
+        @click="player.showQueue = !player.showQueue; player.showLyrics = false; downloads.panelOpen = false"
       >
         <span class="wp-icon">&#xF4EE;</span>
       </button>
@@ -403,6 +425,7 @@ onUnmounted(() => {
     </div>
 
     <QueuePanel />
+    <DownloadPanel />
     <LyricsPanel />
   </footer>
 </template>
@@ -638,6 +661,22 @@ onUnmounted(() => {
   width: 300px;
   justify-content: flex-end;
   flex: none;
+}
+
+/* 下载管理按钮：有进行中的任务时右上角显示强调色小圆点 */
+.download-button {
+  position: relative;
+}
+
+.download-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wp-accent);
+  pointer-events: none;
 }
 
 /* 「更多」二级菜单：图标按钮 + 锚定上方的浮出面板 */

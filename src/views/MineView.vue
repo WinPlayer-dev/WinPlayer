@@ -9,6 +9,7 @@ import { useRouter } from "vue-router";
 import { ContentDialog, PersonPicture, TextBox } from "@/components/winui";
 import { useLibraryStore, type LocalPlaylist } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
+import { useDownloadsStore } from "@/stores/downloads";
 import { pluginDisplayName, usePluginsStore, type AggregatedSourceResult, type AppAvatar } from "@/stores/plugins";
 import { openContextMenuAt } from "@/services/contextMenu";
 import { useRefreshable } from "@/composables/useRefreshable";
@@ -19,6 +20,7 @@ const router = useRouter();
 const library = useLibraryStore();
 const player = usePlayerStore();
 const plugins = usePluginsStore();
+const downloads = useDownloadsStore();
 
 /* ------------------------------ 头像（插件能力） ------------------------------ */
 
@@ -255,6 +257,14 @@ function onPlaylistClick(playlist: LocalPlaylist) {
       <span class="wp-icon liked-chevron">&#xF2B1;</span>
     </button>
 
+    <!-- 离线音乐 -->
+    <button class="liked-entry offline-entry" @click="router.push({ name: 'offline' })">
+      <span class="wp-icon liked-icon">&#xF151;</span>
+      <span class="liked-label">离线音乐</span>
+      <span v-if="downloads.downloadedCount" class="liked-badge">{{ downloads.downloadedCount }} 首</span>
+      <span class="wp-icon liked-chevron">&#xF2B1;</span>
+    </button>
+
     <!-- 本地歌单 -->
     <div class="section-header">
       <span class="section-title">歌单</span>
@@ -426,6 +436,10 @@ function onPlaylistClick(playlist: LocalPlaylist) {
 
 .liked-entry:active {
   background: var(--wp-card-active);
+}
+
+.offline-entry {
+  margin-top: var(--space-sm);
 }
 
 .liked-icon {

@@ -32,6 +32,12 @@ const router = createRouter({
       meta: { title: "我喜欢的音乐" },
     },
     {
+      path: "/offline",
+      name: "offline",
+      component: () => import("@/views/OfflineView.vue"),
+      meta: { title: "离线音乐" },
+    },
+    {
       path: "/playlist/:id",
       name: "playlist",
       component: () => import("@/views/PlaylistView.vue"),

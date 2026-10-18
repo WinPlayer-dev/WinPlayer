@@ -60,15 +60,16 @@
   text-align: center;
 }
 
-/* 播放全部 / 随机播放：两个按钮等宽平分整行 */
+/* 播放全部 / 随机播放 / 缓存全部：等宽平分整行，按钮较多时自动换行（2 + 1） */
 .wp-page.is-mobile .header-actions {
   width: 100%;
   margin-top: var(--space-sm);
+  flex-wrap: wrap;
 }
 
 .wp-page.is-mobile .header-actions .wp-accent-button,
 .wp-page.is-mobile .header-actions .wp-standard-button {
-  flex: 1 1 0;
+  flex: 1 1 40%;
   min-width: 0;
   justify-content: center;
 }

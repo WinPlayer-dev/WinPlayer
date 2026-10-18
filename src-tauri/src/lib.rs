@@ -6,12 +6,20 @@ mod updater;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 fn db_migrations() -> Vec<Migration> {
-    vec![Migration {
-        version: 1,
-        description: "init schema",
-        sql: include_str!("../migrations/001_init.sql"),
-        kind: MigrationKind::Up,
-    }]
+    vec![
+        Migration {
+            version: 1,
+            description: "init schema",
+            sql: include_str!("../migrations/001_init.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 2,
+            description: "offline songs",
+            sql: include_str!("../migrations/002_offline.sql"),
+            kind: MigrationKind::Up,
+        },
+    ]
 }
 
 // 移动端通过动态库入口启动，需要导出 tauri 的 mobile entry point 符号
@@ -42,6 +50,15 @@ pub fn run() {
                 commands::cache::cover_dominant_color,
                 commands::cache::image_cache_prefetch,
                 commands::http::http_fetch,
+                commands::download::download_default_dir,
+                commands::download::download_song,
+                commands::download::download_cancel,
+                commands::download::download_delete,
+                commands::download::download_write_text,
+                commands::download::download_read_text,
+                commands::download::download_copy,
+                commands::download::download_reveal,
+                commands::download::download_check,
                 commands::plugins::plugin_list,
                 commands::plugins::plugin_read_code,
                 commands::plugins::plugin_install_from_path,

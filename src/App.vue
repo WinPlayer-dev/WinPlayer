@@ -17,6 +17,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { usePluginsStore } from "@/stores/plugins";
 import { useLibraryStore } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
+import { useDownloadsStore } from "@/stores/downloads";
 import { useShortcutsStore } from "@/stores/shortcuts";
 import { useUpdaterStore } from "@/stores/updater";
 import { disposeSmtc, initSmtc, setSmtcEnabled } from "@/services/smtc";
@@ -26,6 +27,7 @@ const settings = useSettingsStore();
 const plugins = usePluginsStore();
 const library = useLibraryStore();
 const player = usePlayerStore();
+const downloads = useDownloadsStore();
 const shortcuts = useShortcutsStore();
 const updater = useUpdaterStore();
 const isMobile = useIsMobile();
@@ -48,6 +50,8 @@ onMounted(async () => {
   await Promise.all([library.loadAll(), player.restore(), shortcuts.load()]);
   await plugins.loadInstalled();
   initSmtc(player);
+  // 离线下载：订阅进度、解析默认目录、载入离线索引（不阻塞首屏）
+  void downloads.init();
   // 自动更新与播放无关：放在最后并静默执行，不阻塞首屏
   void updater.init().then(() => updater.maybeAutoCheck());
 });

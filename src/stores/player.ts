@@ -8,6 +8,7 @@ import { getSetting, setSetting } from "@/services/db";
 import { toast } from "@/services/toast";
 import { hapticTap } from "@/services/haptics";
 import { usePluginsStore } from "./plugins";
+import { useDownloadsStore } from "./downloads";
 import { createQueueUid, type LyricLine, type PlayMode, type QueueItem } from "@/types/player";
 import type { UnifiedTrack } from "@/types/plugin";
 
@@ -16,6 +17,7 @@ const MODE_ORDER: PlayMode[] = ["sequential", "loop-all", "loop-one", "shuffle"]
 export const usePlayerStore = defineStore("player", () => {
   const engine = getAudioEngine();
   const plugins = usePluginsStore();
+  const downloads = useDownloadsStore();
 
   const queue = ref<QueueItem[]>([]);
   const currentIndex = ref(-1);
@@ -164,6 +166,14 @@ export const usePlayerStore = defineStore("player", () => {
     return `${track.sourceId ?? ""}:${track.id}`;
   }
 
+  /** 解析播放地址：已下载曲目优先本地文件（离线可播），否则走插件直链 */
+  async function resolvePlayUrl(track: UnifiedTrack): Promise<string> {
+    const local = downloads.localUrl(track);
+    if (local) return local;
+    const result = await plugins.getSongUrl(track);
+    return result.url;
+  }
+
   /** 播放队列中指定位置的曲目 */
   async function playAt(index: number): Promise<void> {
     if (index < 0 || index >= queue.value.length) return;
@@ -173,11 +183,11 @@ export const usePlayerStore = defineStore("player", () => {
     console.log(`[player] 播放请求 #${index}: ${track.sourceId}:${track.id} 《${track.name}》`);
     loading.value = true;
     try {
-      const result = await plugins.getSongUrl(track);
+      const url = await resolvePlayUrl(track);
       loadedTrackKey = trackUid(track);
       // 先重置时长，防止上一曲的时长残留（新时长由引擎事件上报）
       duration.value = track.duration ? track.duration / 1000 : 0;
-      engine.load(result.url);
+      engine.load(url);
       engine.volume = volume.value;
       engine.muted = muted.value;
       engine.setRate(rate.value);
@@ -315,10 +325,10 @@ export const usePlayerStore = defineStore("player", () => {
     if (!item) return;
     preload = { index, url: "" };
     try {
-      const result = await plugins.getSongUrl(item.track);
+      const url = await resolvePlayUrl(item.track);
       if (!preload || preload.index !== index) return; // 期间被重置
-      preload.url = result.url;
-      engine.preload(result.url);
+      preload.url = url;
+      engine.preload(url);
     } catch {
       preload = null; // 解析失败：放弃预加载，播完走 ended 回退换曲
     }
@@ -521,6 +531,12 @@ export const usePlayerStore = defineStore("player", () => {
     lyricsLoading.value = true;
     lyrics.value = [];
     try {
+      // 已下载且有歌词边车：离线优先读本地文件（无需插件/网络）
+      const localLrc = await downloads.readLyrics(track);
+      if (localLrc) {
+        lyrics.value = parseLrc(localLrc);
+        return;
+      }
       const result = await plugins.getLyrics(track);
       if (result?.lrc) {
         const lines = parseLrc(result.lrc);

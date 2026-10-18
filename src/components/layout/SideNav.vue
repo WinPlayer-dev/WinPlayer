@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { ContentDialog, TextBox } from "@/components/winui";
 import { useLibraryStore, type LocalPlaylist } from "@/stores/library";
 import { usePluginsStore, type AggregatedSourceResult } from "@/stores/plugins";
+import { useDownloadsStore } from "@/stores/downloads";
 import { openContextMenu, type ContextMenuItem } from "@/services/contextMenu";
 import type { UnifiedPlaylist } from "@/types/plugin";
 
@@ -11,6 +12,7 @@ const router = useRouter();
 const route = useRoute();
 const library = useLibraryStore();
 const plugins = usePluginsStore();
+const downloads = useDownloadsStore();
 
 /** ContentDialog 通过 ShowAsync() 打开（库没有 IsOpen prop） */
 interface DialogRef {
@@ -225,6 +227,13 @@ function isActive(name: string): boolean {
             <span class="wp-icon nav-icon">&#xF47A;</span>
             <span class="nav-label">我喜欢的音乐</span>
             <span v-if="library.liked.length" class="nav-badge">{{ library.liked.length }}</span>
+          </router-link>
+        </li>
+        <li>
+          <router-link :to="{ name: 'offline' }" class="nav-item" :class="{ active: isActive('offline') }">
+            <span class="wp-icon nav-icon">&#xF151;</span>
+            <span class="nav-label">离线音乐</span>
+            <span v-if="downloads.downloadedCount" class="nav-badge">{{ downloads.downloadedCount }}</span>
           </router-link>
         </li>
       </ul>

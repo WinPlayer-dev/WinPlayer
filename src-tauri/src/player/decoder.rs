@@ -11,6 +11,7 @@
 //! 被替换。所有事件广播（progress/duration/state/error/ended）仅由活跃
 //! 会话发出，避免 crossfade 期间新旧进度互相干扰。
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -18,13 +19,14 @@ use symphonia::core::audio::SampleBuffer;
 use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_NULL};
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::{FormatOptions, SeekMode, SeekTo};
-use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
+use symphonia::core::io::{MediaSource, MediaSourceStream, MediaSourceStreamOptions};
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 use symphonia::core::units::Time;
 
 use super::eq::EqChain;
 use super::http_source::HttpMediaSource;
+use super::local_source::LocalFileSource;
 use super::output::RingSource;
 use super::stretch::TimeStretch;
 use super::PlayerEngine;
@@ -37,16 +39,22 @@ fn ring_capacity(sample_rate: u32, channels: usize) -> usize {
     (sample_rate as usize * channels.max(1)).max(65_536)
 }
 
-/// 从 URL 提取扩展名作为 probe 提示
+/// 从 URL / 本地路径提取扩展名作为 probe 提示
 fn extension_hint(url: &str) -> Option<String> {
     let path = url.split(['?', '#']).next()?;
-    let name = path.rsplit('/').next()?;
+    // 同时兼容 URL 的正斜杠与 Windows 本地路径的反斜杠
+    let name = path.rsplit(['/', '\\']).next()?;
     let ext = name.rsplit('.').next()?;
     if !ext.is_empty() && ext.len() <= 5 && ext.chars().all(|c| c.is_ascii_alphanumeric()) {
         Some(ext.to_ascii_lowercase())
     } else {
         None
     }
+}
+
+/// 离线播放标记：`local://` 前缀后为本地文件绝对路径（见前端 resolvePlayUrl）
+fn local_path_from_url(url: &str) -> Option<PathBuf> {
+    url.strip_prefix("local://").map(PathBuf::from)
 }
 
 /// 启动 Live 解码会话线程（engine.load 调用）
@@ -93,26 +101,38 @@ fn run_session(
     url: &str,
     preload: bool,
 ) -> Result<SessionOutcome, String> {
-    let dir = engine
-        .buffer_dir()
-        .ok_or_else(|| "无法定位音频缓冲目录".to_string())?;
-
-    // 创建流式源（同步等待首块数据，保证 probe 立即有数据可读）
-    let source = HttpMediaSource::new(engine.client(), url.to_string(), &dir)
-        .map_err(|e| format!("加载音频失败: {e}"))?;
+    // 创建音源：local:// 前缀走本地文件（离线播放），否则走 HTTP 流式缓冲
+    let (source, cleanup): (Box<dyn MediaSource>, Option<TempFileGuard>) =
+        match local_path_from_url(url) {
+            Some(path) => {
+                let file =
+                    LocalFileSource::open(&path).map_err(|e| format!("打开本地音频失败: {e}"))?;
+                (Box::new(file), None)
+            }
+            None => {
+                let dir = engine
+                    .buffer_dir()
+                    .ok_or_else(|| "无法定位音频缓冲目录".to_string())?;
+                // 同步等待首块数据，保证 probe 立即有数据可读
+                let http = HttpMediaSource::new(engine.client(), url.to_string(), &dir)
+                    .map_err(|e| format!("加载音频失败: {e}"))?;
+                let guard = TempFileGuard(http.temp_path());
+                (Box::new(http), Some(guard))
+            }
+        };
     if engine.is_retired(id, generation) {
         return Ok(SessionOutcome::Superseded);
     }
 
-    // 退出时清理缓冲临时文件（结束/错误/被取代都经过这里）
-    let _cleanup = TempFileGuard(source.temp_path());
+    // 退出时清理缓冲临时文件（仅 HTTP 源；结束/错误/被取代都经过这里）
+    let _cleanup = cleanup;
 
     let mut hint = Hint::new();
     if let Some(ext) = extension_hint(url) {
         hint.with_extension(&ext);
     }
 
-    let mss = MediaSourceStream::new(Box::new(source), MediaSourceStreamOptions::default());
+    let mss = MediaSourceStream::new(source, MediaSourceStreamOptions::default());
     let probed = symphonia::default::get_probe()
         .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())
         .map_err(describe_probe_error)?;

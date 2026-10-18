@@ -11,6 +11,7 @@ import { useRoute, useRouter } from "vue-router";
 import { ContentDialog, ProgressRing, TextBox } from "@/components/winui";
 import { useLibraryStore } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
+import { useDownloadsStore } from "@/stores/downloads";
 import { pluginDisplayName, usePluginsStore } from "@/stores/plugins";
 import { toast } from "@/services/toast";
 import { getCachedData, setCachedData } from "@/services/cache";
@@ -27,6 +28,7 @@ const router = useRouter();
 const library = useLibraryStore();
 const player = usePlayerStore();
 const plugins = usePluginsStore();
+const downloads = useDownloadsStore();
 /** 移动端判定：用于挂 .is-mobile 类，切换移动端布局 */
 const isMobile = useIsMobile();
 
@@ -166,6 +168,21 @@ function shufflePlay() {
   }
 }
 
+/** 缓存全部到本地（已下载的自动跳过），并记录来源歌单用于离线分组 */
+function downloadAll() {
+  if (!tracks.value.length) return;
+  const name = header.value?.name ?? "歌单";
+  if (isRemote.value) {
+    void downloads.enqueue(tracks.value, [
+      { kind: "playlist", sourceId: sourceId.value, id: String(route.params.id ?? ""), name },
+    ]);
+  } else {
+    void downloads.enqueue(tracks.value, [
+      { kind: "playlist", id: String(playlistId.value), name },
+    ]);
+  }
+}
+
 async function onRemove(track: UnifiedTrack) {
   // 平台个人歌单：调用插件把歌曲从平台歌单移除，成功后重新拉取
   if (isMine.value && sourceId.value) {
@@ -241,6 +258,9 @@ async function openDelete() {
           </button>
           <button class="wp-standard-button" :disabled="!tracks.length" @click="shufflePlay">
             <span class="wp-icon">&#xEF37;</span>随机播放
+          </button>
+          <button class="wp-standard-button" :disabled="!tracks.length" @click="downloadAll">
+            <span class="wp-icon">&#xF151;</span>
           </button>
         </div>
       </div>
@@ -398,6 +418,7 @@ async function openDelete() {
 .header-actions {
   display: flex;
   gap: var(--space-md);
+  flex-wrap: wrap;
 }
 
 .loading-wrap {

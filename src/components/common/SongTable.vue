@@ -8,6 +8,7 @@ import { useIsMobile } from "@/composables/useIsMobile";
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
 import { usePluginsStore } from "@/stores/plugins";
+import { useDownloadsStore } from "@/stores/downloads";
 import { openContextMenu, openContextMenuAt, type ContextMenuItem } from "@/services/contextMenu";
 import { useLongPress } from "@/composables/useLongPress";
 import CachedImage from "@/components/common/CachedImage.vue";
@@ -39,6 +40,7 @@ const emit = defineEmits<{
 const player = usePlayerStore();
 const library = useLibraryStore();
 const plugins = usePluginsStore();
+const downloads = useDownloadsStore();
 const router = useRouter();
 /** 移动端判定：决定走卡片式两行布局、单击播放等交互 */
 const isMobile = useIsMobile();
@@ -77,6 +79,7 @@ const rows = computed(() =>
     track,
     key: `${track.sourceId ?? ""}:${track.id}`,
     liked: library.isLiked(track),
+    downloaded: downloads.isDownloaded(track),
     playing: player.currentTrack !== null && `${player.currentTrack.sourceId ?? ""}:${player.currentTrack.id}` === `${track.sourceId ?? ""}:${track.id}`,
     sourceName: track.sourceId
       ? plugins.records.find((r) => r.entry.id === track.sourceId)?.entry.manifest.name ?? track.sourceId
@@ -145,6 +148,22 @@ function rowMenuItems(track: UnifiedTrack): ContextMenuItem[] {
     icon: "&#xF10A;",
     action: () => addSingle(track),
   });
+  if (downloads.isDownloaded(track)) {
+    items.push({
+      key: "download",
+      label: "已下载",
+      icon: "&#xF151;",
+      disabled: true,
+      action: () => {},
+    });
+  } else {
+    items.push({
+      key: "download",
+      label: "下载到本地",
+      icon: "&#xF151;",
+      action: () => void downloads.downloadTrack(track),
+    });
+  }
   if (props.removable) {
     items.push({
       key: "remove",
@@ -228,6 +247,12 @@ function onRowPointerDown(event: PointerEvent, track: UnifiedTrack) {
         <span class="title-main">
           <span class="title-text ellipsis">{{ trackTitle(row.track) }}</span>
           <span v-if="row.track.alias" class="title-alias ellipsis">（{{ row.track.alias }}）</span>
+          <span
+            v-if="row.downloaded"
+            class="title-downloaded wp-icon"
+            title="已下载到本地"
+            aria-label="已下载"
+          >&#xF151;</span>
         </span>
         <span v-if="row.track.vip" class="title-vip">VIP</span>
       </span>
@@ -413,6 +438,13 @@ function onRowPointerDown(event: PointerEvent, track: UnifiedTrack) {
   color: var(--wp-accent);
   font-weight: 600;
   letter-spacing: 0.5px;
+}
+
+/* 「已下载到本地」指示：跟在标题（与别名）之后 */
+.title-downloaded {
+  flex: none;
+  font-size: 12px;
+  color: var(--wp-accent);
 }
 
 .col-artist {

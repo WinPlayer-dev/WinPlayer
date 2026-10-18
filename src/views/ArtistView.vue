@@ -9,6 +9,7 @@ import { computed, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ProgressRing } from "@/components/winui";
 import { usePlayerStore } from "@/stores/player";
+import { useDownloadsStore } from "@/stores/downloads";
 import { pluginDisplayName, usePluginsStore } from "@/stores/plugins";
 import SongTable from "@/components/common/SongTable.vue";
 import MobilePageHeader from "@/components/layout/MobilePageHeader.vue";
@@ -23,6 +24,7 @@ const route = useRoute();
 const router = useRouter();
 const player = usePlayerStore();
 const plugins = usePluginsStore();
+const downloads = useDownloadsStore();
 /** 移动端判定：用于挂 .is-mobile 类，切换移动端布局 */
 const isMobile = useIsMobile();
 
@@ -141,6 +143,19 @@ function shufflePlay() {
     void player.playTracks(hotTracks.value, Math.floor(Math.random() * hotTracks.value.length));
   }
 }
+
+/** 缓存热门歌曲到本地（已下载的自动跳过），记录歌手用于离线分组 */
+function downloadAll() {
+  if (!hotTracks.value.length) return;
+  void downloads.enqueue(hotTracks.value, [
+    {
+      kind: "artist",
+      sourceId: sourceId.value,
+      id: artistId.value,
+      name: artist.value?.name ?? "歌手",
+    },
+  ]);
+}
 </script>
 
 <template>
@@ -170,6 +185,9 @@ function shufflePlay() {
             </button>
             <button class="wp-standard-button" :disabled="!hotTracks.length" @click="shufflePlay">
               <span class="wp-icon">&#xEF37;</span>随机播放
+            </button>
+            <button class="wp-standard-button" :disabled="!hotTracks.length" @click="downloadAll">
+              <span class="wp-icon">&#xF151;</span>缓存热门
             </button>
           </div>
         </div>

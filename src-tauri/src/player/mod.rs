@@ -26,6 +26,7 @@
 pub mod decoder;
 pub mod eq;
 pub mod http_source;
+pub mod local_source;
 pub mod output;
 pub mod stretch;
 

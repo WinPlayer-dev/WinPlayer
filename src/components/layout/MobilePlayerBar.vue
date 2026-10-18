@@ -9,6 +9,7 @@
  */
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { onBackButtonPress } from "@tauri-apps/api/app";
+import { useRouter } from "vue-router";
 import type { PluginListener } from "@tauri-apps/api/core";
 import CachedImage from "@/components/common/CachedImage.vue";
 import { useAutoCenter } from "@/composables/useAutoCenter";
@@ -29,6 +30,7 @@ import {
 
 const player = usePlayerStore();
 const library = useLibraryStore();
+const router = useRouter();
 
 const showFull = ref(false);
 const showQueue = ref(false);
@@ -42,6 +44,12 @@ const showMore = ref(false);
 function selectRate(value: number): void {
   void player.setRate(value);
   showRate.value = false;
+}
+
+/** 打开离线音乐页并逐层收起浮层 */
+function openOffline(): void {
+  showMore.value = false;
+  void router.push({ name: "offline" });
 }
 
 const liked = computed(() => (player.currentTrack ? library.isLiked(player.currentTrack) : false));
@@ -809,6 +817,11 @@ onBeforeUnmount(() => {
                   <span class="wp-icon more-row-icon">&#xF831;</span>
                   <span class="more-row-label">播放速度</span>
                   <span class="more-row-value">{{ formatRate(player.rate) }}</span>
+                  <span class="wp-icon more-row-chevron">&#xF2B0;</span>
+                </button>
+                <button class="more-row" @click="openOffline">
+                  <span class="wp-icon more-row-icon">&#xF151;</span>
+                  <span class="more-row-label">离线音乐</span>
                   <span class="wp-icon more-row-chevron">&#xF2B0;</span>
                 </button>
               </div>

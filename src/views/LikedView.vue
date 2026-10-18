@@ -2,6 +2,7 @@
 import { useRouter } from "vue-router";
 import { useLibraryStore } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
+import { useDownloadsStore } from "@/stores/downloads";
 import SongTable from "@/components/common/SongTable.vue";
 import MobilePageHeader from "@/components/layout/MobilePageHeader.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
@@ -11,6 +12,7 @@ import { useRefreshable } from "@/composables/useRefreshable";
 const router = useRouter();
 const library = useLibraryStore();
 const player = usePlayerStore();
+const downloads = useDownloadsStore();
 /** 移动端判定：用于挂 .is-mobile 类，切换移动端布局 */
 const isMobile = useIsMobile();
 
@@ -27,6 +29,13 @@ function shufflePlay() {
       library.likedTracks,
       Math.floor(Math.random() * library.likedTracks.length),
     );
+  }
+}
+
+/** 缓存全部到本地（已下载的自动跳过） */
+function downloadAll() {
+  if (library.likedTracks.length) {
+    void downloads.enqueue(library.likedTracks, [{ kind: "liked", name: "我喜欢的音乐" }]);
   }
 }
 </script>
@@ -49,6 +58,9 @@ function shufflePlay() {
           </button>
           <button class="wp-standard-button" @click="shufflePlay">
             <span class="wp-icon">&#xEF37;</span>随机播放
+          </button>
+          <button class="wp-standard-button" @click="downloadAll">
+            <span class="wp-icon">&#xF151;</span>
           </button>
         </div>
       </div>
