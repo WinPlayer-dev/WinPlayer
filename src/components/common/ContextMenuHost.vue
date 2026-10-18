@@ -15,6 +15,7 @@ import {
   type ContextMenuItem,
 } from "@/services/contextMenu";
 import { useIsMobile } from "@/composables/useIsMobile";
+import { registerBackInterceptor } from "@/services/backButton";
 
 const isMobile = useIsMobile();
 const menuRef = ref<HTMLElement | null>(null);
@@ -98,11 +99,20 @@ function onWindowBlur() {
   if (contextMenuState.visible) closeContextMenu();
 }
 
+/** 返回键拦截器的注销函数（Android） */
+let unregisterBack: (() => void) | null = null;
+
 onMounted(() => {
   window.addEventListener("pointerdown", onWindowPointerDown, true);
   window.addEventListener("keydown", onWindowKeydown);
   window.addEventListener("contextmenu", onWindowContextMenu);
   window.addEventListener("blur", onWindowBlur);
+  // Android 返回键：面板开着时先收起它，而不是让返回键去关页面 / 退应用
+  unregisterBack = registerBackInterceptor(() => {
+    if (!contextMenuState.visible) return false;
+    closeContextMenu();
+    return true;
+  });
 });
 
 onUnmounted(() => {
@@ -110,6 +120,8 @@ onUnmounted(() => {
   window.removeEventListener("keydown", onWindowKeydown);
   window.removeEventListener("contextmenu", onWindowContextMenu);
   window.removeEventListener("blur", onWindowBlur);
+  unregisterBack?.();
+  unregisterBack = null;
   cleanupSwallow();
 });
 </script>

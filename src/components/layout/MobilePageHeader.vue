@@ -2,6 +2,7 @@
 /** 移动端二级页顶部返回栏（桌面端不渲染） */
 import { useRouter } from "vue-router";
 import { useIsMobile } from "@/composables/useIsMobile";
+import { navigateBack } from "@/services/backButton";
 
 withDefaults(defineProps<{ title?: string }>(), { title: "" });
 
@@ -11,7 +12,8 @@ const isMobile = useIsMobile();
 
 <template>
   <div v-if="isMobile" class="mobile-page-header">
-    <button class="back-button" title="返回" @click="router.back()">
+    <!-- 没有历史栈时（通知 / 外链直达、冷启动）回首页，而不是退出应用 -->
+    <button class="back-button" title="返回" @click="navigateBack(router)">
       <span class="wp-icon">&#xF2AB;</span>
     </button>
     <span v-if="title" class="header-title ellipsis">{{ title }}</span>

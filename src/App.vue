@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, watch } from "vue";
-import { RouterView } from "vue-router";
+import { RouterView, useRouter } from "vue-router";
 import TitleBar from "@/components/layout/TitleBar.vue";
 import SideNav from "@/components/layout/SideNav.vue";
 import PlayerBar from "@/components/layout/PlayerBar.vue";
@@ -22,6 +22,10 @@ import { useShortcutsStore } from "@/stores/shortcuts";
 import { useUpdaterStore } from "@/stores/updater";
 import { disposeSmtc, initSmtc, setSmtcEnabled } from "@/services/smtc";
 import { refreshAccentFromCover } from "@/services/coverAccent";
+import { installBackButton, uninstallBackButton } from "@/services/backButton";
+import { toast } from "@/services/toast";
+
+const router = useRouter();
 
 const settings = useSettingsStore();
 const plugins = usePluginsStore();
@@ -54,6 +58,10 @@ onMounted(async () => {
   void downloads.init();
   // 自动更新与播放无关：放在最后并静默执行，不阻塞首屏
   void updater.init().then(() => updater.maybeAutoCheck());
+  // Android 返回键：全局只在这里接管一次，其余页面通过拦截器插入
+  if (isMobile) {
+    void installBackButton(router, () => toast("再按一次返回键退出应用", "info"));
+  }
 });
 
 onUnmounted(() => {
@@ -62,6 +70,7 @@ onUnmounted(() => {
   stopSmtcWatch();
   stopAccentWatch();
   disposeSmtc();
+  void uninstallBackButton();
 });
 </script>
 
