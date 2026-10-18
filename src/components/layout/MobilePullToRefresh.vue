@@ -5,9 +5,12 @@
  * 监听 .app-content 上的触摸事件：当主滚动容器（.app-content 的第一个子元素）
  * 处于顶部且继续下拉时接管手势并显示指示器，松手超过阈值就执行当前页面
  * 通过 useRefreshable() 注册的刷新动作。
+ *
+ * 页面没有注册刷新动作（设置页 / 插件页等）时完全不接管手势：
+ * 否则用户会看到完整的「下拉刷新 → 正在刷新…」动画，实际什么也没做。
  */
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { runActiveRefresh } from "@/services/pullToRefresh";
+import { hasActiveRefresh, runActiveRefresh } from "@/services/pullToRefresh";
 import { hapticImpact } from "@/services/haptics";
 
 /** 触发刷新所需的下拉距离（像素） */
@@ -34,7 +37,10 @@ function scroller(): HTMLElement | null {
 }
 
 function onStart(event: TouchEvent): void {
-  if (refreshing.value) return;
+  if (refreshing.value || !hasActiveRefresh()) {
+    active = false;
+    return;
+  }
   const el = scroller();
   const touch = event.touches[0];
   if (!el || !touch || el.scrollTop > 0) {

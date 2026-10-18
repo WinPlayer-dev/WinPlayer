@@ -15,6 +15,15 @@ export function setActiveRefresh(handler: RefreshHandler | null): void {
   active = handler;
 }
 
+/**
+ * 当前页面是否注册了刷新动作。
+ * 设置页、插件页等没有可刷新内容的页面靠它让手势直接不接管，
+ * 否则用户下拉会看到完整的「下拉刷新 → 正在刷新…」动画却什么也没发生。
+ */
+export function hasActiveRefresh(): boolean {
+  return active !== null;
+}
+
 /** 执行当前页面注册的刷新动作；没有则直接返回 */
 export async function runActiveRefresh(): Promise<void> {
   if (!active) return;
