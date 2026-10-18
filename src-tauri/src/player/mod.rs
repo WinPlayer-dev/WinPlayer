@@ -27,6 +27,7 @@ pub mod decoder;
 pub mod eq;
 pub mod http_source;
 pub mod output;
+pub mod stretch;
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -136,6 +137,8 @@ pub struct PlayerEngine {
     eq_master: EqChain,
     /// 横向淡入淡出配置（启用 + 时长秒）
     crossfade: Mutex<(bool, f64)>,
+    /// 播放倍速（0.5–2.0）：解码线程据此做保持音调的时间伸缩
+    playback_rate: Mutex<f32>,
 }
 
 impl PlayerEngine {
@@ -169,6 +172,7 @@ impl PlayerEngine {
             client,
             eq_master: EqChain::new(),
             crossfade: Mutex::new((true, 6.0)),
+            playback_rate: Mutex::new(1.0),
         });
         // 空闲状态广播一次，前端据此复位
         let _ = app.emit(EVENT_STATE, StatePayload { state: "idle" });
@@ -557,6 +561,13 @@ pub fn player_set_eq(engine: State<Arc<PlayerEngine>>, enabled: bool, gains: Vec
     });
 }
 
+/// 设置播放倍速（0.5–2.0）：解码线程据此做保持音调的时间伸缩
+#[tauri::command]
+pub fn player_set_rate(engine: State<Arc<PlayerEngine>>, rate: f32) {
+    let rate = rate.clamp(0.5, 2.0);
+    *engine.playback_rate.lock().unwrap() = rate;
+}
+
 /// setup 阶段创建引擎并挂到应用状态
 pub fn init(app: &tauri::App) {
     let engine = PlayerEngine::new(app.handle().clone());
@@ -576,6 +587,11 @@ impl PlayerEngine {
 
     pub(crate) fn is_playing(&self) -> bool {
         self.is_playing.load(Ordering::Acquire)
+    }
+
+    /// 当前播放倍速（解码线程每次处理包时读取，支持实时变更）
+    pub(crate) fn playback_rate(&self) -> f32 {
+        *self.playback_rate.lock().unwrap()
     }
 
     pub(crate) fn take_pending_seek(&self) -> Option<f64> {

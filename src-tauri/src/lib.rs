@@ -64,6 +64,7 @@ pub fn run() {
                 player::player_seek,
                 player::player_set_volume,
                 player::player_set_eq,
+                player::player_set_rate,
             ])
             .setup(|app| {
                 // 主窗口此时已创建，可在其上挂接系统媒体传输控件（SMTC）

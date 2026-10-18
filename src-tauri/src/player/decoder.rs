@@ -26,6 +26,7 @@ use symphonia::core::units::Time;
 use super::eq::EqChain;
 use super::http_source::HttpMediaSource;
 use super::output::RingSource;
+use super::stretch::TimeStretch;
 use super::PlayerEngine;
 
 /// progress 事件的发射间隔
@@ -152,6 +153,9 @@ fn run_session(
     // 首帧解码前采样率/声道未知，ring 延迟创建
     let mut ring: Option<(rtrb::Producer<f32>, usize)> = None;
     let mut sample_buf: Option<SampleBuffer<f32>> = None;
+    // 保持音调的时间伸缩器（首帧确定流参数后创建；复用输出缓冲避免频繁分配）
+    let mut stretch: Option<TimeStretch> = None;
+    let mut stretch_out: Vec<f32> = Vec::new();
     let mut channels = 0usize;
     let mut sample_rate = 0u32;
 
@@ -199,6 +203,7 @@ fn run_session(
                     sample_rate,
                     &mut ring,
                     &mut sample_buf,
+                    &mut stretch,
                     &mut current_time,
                     &mut was_buffering,
                     duration_secs,
@@ -232,6 +237,17 @@ fn run_session(
                     duration_secs = current_time;
                     engine.emit_duration(duration_secs);
                     engine.emit_progress(current_time, duration_secs);
+                }
+                // 冲刷变速器尾部样本（不足一帧的部分零填充合成，避免截断尾声）
+                if let Some(st) = stretch.as_mut() {
+                    st.finish(engine.playback_rate(), &mut stretch_out);
+                    if !stretch_out.is_empty() {
+                        if let PushOutcome::Superseded =
+                            push_all(engine, id, generation, &mut ring, &stretch_out)
+                        {
+                            return Ok(SessionOutcome::Superseded);
+                        }
+                    }
                 }
                 // 等 ring 排空（退休时提前返回）
                 if let Some((producer, capacity)) = ring.as_ref() {
@@ -285,10 +301,21 @@ fn run_session(
                 engine.swap_sink(ring_source)?;
             }
             ring = Some((producer, capacity));
+            stretch = Some(TimeStretch::new(channels, sample_rate));
 
             let mut buffer = SampleBuffer::<f32>::new(decoded.capacity() as u64, spec);
             buffer.copy_interleaved_ref(decoded);
-            match apply_eq_and_push(engine, id, generation, &eq, &mut eq_version, &mut ring, &mut buffer) {
+            match apply_eq_and_push(
+                engine,
+                id,
+                generation,
+                &eq,
+                &mut eq_version,
+                &mut ring,
+                &mut buffer,
+                &mut stretch,
+                &mut stretch_out,
+            ) {
                 PushOutcome::Superseded => return Ok(SessionOutcome::Superseded),
                 // 首帧期间收到 seek：回到主循环顶部统一应用
                 PushOutcome::SeekRequested => continue,
@@ -325,7 +352,17 @@ fn run_session(
         }
         let buffer = sample_buf.as_mut().unwrap();
         buffer.copy_interleaved_ref(decoded);
-        match apply_eq_and_push(engine, id, generation, &eq, &mut eq_version, &mut ring, &mut *buffer) {
+        match apply_eq_and_push(
+            engine,
+            id,
+            generation,
+            &eq,
+            &mut eq_version,
+            &mut ring,
+            &mut *buffer,
+            &mut stretch,
+            &mut stretch_out,
+        ) {
             PushOutcome::Superseded => return Ok(SessionOutcome::Superseded),
             // ring 满阻塞期间收到 seek：样本丢弃，回到主循环顶部应用
             PushOutcome::SeekRequested => continue,
@@ -340,7 +377,8 @@ fn run_session(
     }
 }
 
-/// EQ 配置同步 + 均衡器处理 + 推入 ring（含中断检查）
+/// EQ 配置同步 + 均衡器处理 + 时间伸缩 + 推入 ring（含中断检查）
+#[allow(clippy::too_many_arguments)]
 fn apply_eq_and_push(
     engine: &Arc<PlayerEngine>,
     id: u64,
@@ -349,6 +387,8 @@ fn apply_eq_and_push(
     eq_version: &mut u64,
     ring: &mut Option<(rtrb::Producer<f32>, usize)>,
     buffer: &mut SampleBuffer<f32>,
+    stretch: &mut Option<TimeStretch>,
+    stretch_out: &mut Vec<f32>,
 ) -> PushOutcome {
     // 主配置版本变化（用户调 EQ）：同步到本会话链
     let master_version = engine.eq_master.version();
@@ -361,7 +401,23 @@ fn apply_eq_and_push(
         });
     }
     eq.process(buffer.samples_mut());
-    push_all(engine, id, generation, ring, buffer.samples())
+    // 保持音调的时间伸缩（倍速实时读取）；原速直通（透明且零开销）
+    let rate = engine.playback_rate();
+    let identity = (rate - 1.0).abs() < 1e-3;
+    match stretch.as_mut() {
+        Some(st) if !identity => {
+            st.process(buffer.samples(), rate, stretch_out);
+            push_all(engine, id, generation, ring, stretch_out)
+        }
+        Some(st) => {
+            // 由变速回到原速：丢弃伸缩器内残留样本，改直通原始样本
+            if !st.is_idle() {
+                st.reset();
+            }
+            push_all(engine, id, generation, ring, buffer.samples())
+        }
+        None => push_all(engine, id, generation, ring, buffer.samples()),
+    }
 }
 
 /// push_all 的结果：ring 满阻塞期间可能发生会话退休或收到新 seek
@@ -424,6 +480,7 @@ fn apply_seek(
     sample_rate: u32,
     ring: &mut Option<(rtrb::Producer<f32>, usize)>,
     sample_buf: &mut Option<SampleBuffer<f32>>,
+    stretch: &mut Option<TimeStretch>,
     current_time: &mut f64,
     was_buffering: &mut bool,
     duration_secs: f64,
@@ -434,6 +491,10 @@ fn apply_seek(
     }
     decoder.reset();
     sample_buf.take();
+    // 清空变速器状态，避免拖动后残留旧位置的样本
+    if let Some(st) = stretch.as_mut() {
+        st.reset();
+    }
 
     // 换新 ring + Sink，瞬时切断旧数据
     let capacity = ring_capacity(sample_rate, channels);

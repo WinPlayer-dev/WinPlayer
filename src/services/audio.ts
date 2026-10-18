@@ -205,6 +205,12 @@ export class AudioEngine {
     void invoke("player_set_eq", { enabled, gains }).catch(() => {});
   }
 
+  /** 设置播放倍速（0.5–2.0）：后端做保持音调的时间伸缩 */
+  setRate(rate: number): void {
+    if (!this.inTauri) return;
+    void invoke("player_set_rate", { rate }).catch(() => {});
+  }
+
   /** 预加载下一首（后端并行解码，衔接时机由引擎决定） */
   preload(src: string): void {
     if (!this.inTauri) return;

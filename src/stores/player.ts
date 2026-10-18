@@ -28,6 +28,8 @@ export const usePlayerStore = defineStore("player", () => {
   const duration = ref(0);
   const volume = ref(0.8);
   const muted = ref(false);
+  /** 播放倍速（0.5–2.0，保持音调；全局设置，持久化） */
+  const rate = ref(1);
 
   /** 当前已加载音频的曲目标识（用于判断是否需要解析直链） */
   let loadedTrackKey: string | null = null;
@@ -178,6 +180,7 @@ export const usePlayerStore = defineStore("player", () => {
       engine.load(result.url);
       engine.volume = volume.value;
       engine.muted = muted.value;
+      engine.setRate(rate.value);
       await engine.play();
       void fetchLyrics(track);
       persistQueue();
@@ -414,6 +417,13 @@ export const usePlayerStore = defineStore("player", () => {
     await setSetting("player.muted", muted.value);
   }
 
+  /** 设置播放倍速（0.5–2.0，保持音调），持久化并实时生效 */
+  async function setRate(value: number): Promise<void> {
+    rate.value = Math.min(2, Math.max(0.5, value));
+    engine.setRate(rate.value);
+    await setSetting("player.rate", rate.value);
+  }
+
   /** 切换播放模式；进入随机时备份并打乱，离开随机时恢复原始顺序 */
   function setMode(next: PlayMode): void {
     if (next === mode.value) return;
@@ -544,10 +554,12 @@ export const usePlayerStore = defineStore("player", () => {
   async function restore(): Promise<void> {
     volume.value = await getSetting("player.volume", 0.8);
     muted.value = await getSetting("player.muted", false);
+    rate.value = Math.min(2, Math.max(0.5, await getSetting("player.rate", 1)));
     const savedMode = await getSetting<PlayMode>("player.mode", "loop-all");
     if (MODE_ORDER.includes(savedMode)) mode.value = savedMode;
     engine.volume = volume.value;
     engine.muted = muted.value;
+    engine.setRate(rate.value);
 
     const snapshot = await getSetting<{
       /** 兼容旧版仅存曲目列表的格式 */
@@ -586,6 +598,7 @@ export const usePlayerStore = defineStore("player", () => {
     duration,
     volume,
     muted,
+    rate,
     lyrics,
     lyricsLoading,
     lyricIndex,
@@ -602,6 +615,7 @@ export const usePlayerStore = defineStore("player", () => {
     seek,
     setVolume,
     toggleMute,
+    setRate,
     cycleMode,
     removeFromQueue,
     clearQueue,

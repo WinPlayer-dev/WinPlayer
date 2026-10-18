@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 import { Slider } from "@/components/winui";
 import CachedImage from "@/components/common/CachedImage.vue";
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
 import {
+  PLAYBACK_RATES,
   PLAY_MODE_LABEL,
+  formatRate,
   formatTime,
   playModeIcon,
   playModeIconFilled,
@@ -93,6 +95,41 @@ function onSeekPointerCancel(): void {
 async function toggleLikeCurrent() {
   if (player.currentTrack) await library.toggleLike(player.currentTrack);
 }
+
+/** 播放倍速预设：锚定在速度按钮上方的浮出面板，当前档位打勾 */
+const rateMenuOpen = ref(false);
+const ratePicker = ref<HTMLElement | null>(null);
+
+function toggleRateMenu(): void {
+  rateMenuOpen.value = !rateMenuOpen.value;
+}
+
+function pickRate(value: number): void {
+  void player.setRate(value);
+  rateMenuOpen.value = false;
+}
+
+/** 点击面板外部或按 Esc 关闭 */
+function onDocumentPointerDown(event: PointerEvent): void {
+  if (!rateMenuOpen.value) return;
+  const target = event.target;
+  if (target instanceof Node && ratePicker.value?.contains(target)) return;
+  rateMenuOpen.value = false;
+}
+
+function onDocumentKeydown(event: KeyboardEvent): void {
+  if (event.key === "Escape") rateMenuOpen.value = false;
+}
+
+onMounted(() => {
+  window.addEventListener("pointerdown", onDocumentPointerDown, true);
+  window.addEventListener("keydown", onDocumentKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("pointerdown", onDocumentPointerDown, true);
+  window.removeEventListener("keydown", onDocumentKeydown);
+});
 </script>
 
 <template>
@@ -208,6 +245,30 @@ async function toggleLikeCurrent() {
       >
         <span class="wp-icon">&#xF4EE;</span>
       </button>
+      <div ref="ratePicker" class="rate-picker">
+        <button
+          class="wp-icon-button"
+          :class="{ active: player.rate !== 1 }"
+          :title="`播放速度 ${formatRate(player.rate)}`"
+          @click="toggleRateMenu"
+        >
+          <span class="wp-icon">&#xF831;</span>
+        </button>
+        <transition name="rate-menu">
+          <div v-if="rateMenuOpen" class="rate-menu">
+            <button
+              v-for="value in PLAYBACK_RATES"
+              :key="value"
+              class="rate-item"
+              :class="{ active: player.rate === value }"
+              @click="pickRate(value)"
+            >
+              <span class="rate-item-label">{{ formatRate(value) }}</span>
+              <span v-if="player.rate === value" class="wp-icon rate-item-check">&#xF294;</span>
+            </button>
+          </div>
+        </transition>
+      </div>
       <div class="volume-group">
         <button class="wp-icon-button" :title="player.muted ? '取消静音' : '静音'" @click="player.toggleMute">
           <span class="wp-icon">{{ player.muted || player.volume === 0 ? "&#xEB4B;" : "&#xEB43;" }}</span>
@@ -403,6 +464,80 @@ async function toggleLikeCurrent() {
   width: 300px;
   justify-content: flex-end;
   flex: none;
+}
+
+/* 播放倍速：图标按钮 + 锚定上方的预设面板 */
+.rate-picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.rate-picker .wp-icon {
+  font-size: 16px;
+}
+
+.rate-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 40;
+  min-width: 116px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--wp-flyout);
+  border: 1px solid var(--wp-flyout-stroke);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-flyout);
+}
+
+.rate-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--wp-text-primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.rate-item:hover {
+  background: var(--wp-control-fill-secondary);
+}
+
+.rate-item:active {
+  background: var(--wp-control-fill-tertiary);
+}
+
+.rate-item-label {
+  font-variant-numeric: tabular-nums;
+}
+
+.rate-item-check {
+  font-size: 14px;
+  color: var(--wp-accent);
+}
+
+.rate-menu-enter-active,
+.rate-menu-leave-active {
+  transition:
+    opacity var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.rate-menu-enter-from,
+.rate-menu-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
 }
 
 .volume-group {

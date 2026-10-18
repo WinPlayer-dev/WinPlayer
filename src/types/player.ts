@@ -29,9 +29,16 @@ export function playModeIconFilled(mode: PlayMode): boolean {
   return !["shuffle", "loop-one", "loop-all"].includes(mode);
 }
 
+/** 播放倍速可选档位（0.5x–2.0x），与后端 player_set_rate 的取值范围一致 */
+export const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
+
+/** 倍速显示文案，如 0.5x / 1x / 1.25x */
+export function formatRate(rate: number): string {
+  return `${Number(rate.toFixed(2))}x`;
+}
+
 /** 播放队列条目 */
-export interface QueueItem {
-  /** 队列内唯一标识（同曲目可重复入队） */
+export interface QueueItem {  /** 队列内唯一标识（同曲目可重复入队） */
   uid: string;
   track: UnifiedTrack;
 }
