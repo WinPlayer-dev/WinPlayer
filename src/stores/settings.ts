@@ -87,8 +87,17 @@ export const useSettingsStore = defineStore("settings", () => {
   function applyTheme(): void {
     const root = document.documentElement;
     const dark = theme.value === "system" ? darkScheme.matches : theme.value === "dark";
-    root.dataset.theme = dark ? "dark" : "light";
+    const next = dark ? "dark" : "light";
+    if (root.dataset.theme && root.dataset.theme !== next) {
+      // 主题实际切换：短暂挂上氛围过渡类，让全局颜色柔和渐变（样式见 global.css）
+      root.classList.add("theme-switching");
+      window.clearTimeout(themeSwitchTimer);
+      themeSwitchTimer = window.setTimeout(() => root.classList.remove("theme-switching"), 400);
+    }
+    root.dataset.theme = next;
   }
+
+  let themeSwitchTimer = 0;
 
   // 跟随系统时，系统配色变化后重新应用
   darkScheme.addEventListener("change", () => {

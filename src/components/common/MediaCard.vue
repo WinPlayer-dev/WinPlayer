@@ -185,11 +185,19 @@ function onPointerDown(event: PointerEvent) {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
-  transition: background var(--duration-fast) var(--ease-standard);
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    transform var(--duration-normal) var(--ease-decelerate);
 }
 
 .media-card:hover {
   background: var(--wp-card-hover);
+  /* 悬浮抬升：配合封面微放大形成「浮起」感 */
+  transform: translateY(-2px);
+}
+
+.media-card:active {
+  transform: translateY(0) scale(0.98);
 }
 
 .card-cover {
@@ -202,6 +210,15 @@ function onPointerDown(event: PointerEvent) {
   justify-content: center;
   overflow: hidden;
   box-shadow: var(--shadow-card);
+  transition:
+    transform var(--duration-normal) var(--ease-decelerate),
+    box-shadow var(--duration-normal) var(--ease-standard);
+}
+
+/* 悬浮时封面轻微放大并加深投影 */
+.media-card:hover .card-cover {
+  transform: scale(1.03);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16);
 }
 
 /* 歌手用圆形头像，和方形的歌单/专辑封面区分开 */

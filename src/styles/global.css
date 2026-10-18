@@ -233,3 +233,29 @@ button {
   transform: translateY(-12px);
   opacity: 0;
 }
+
+/* ------------------------------ 主题 / 强调色切换氛围过渡 ------------------------------ */
+/* settings.applyTheme() 在亮暗主题实际变化时给 <html> 挂上 theme-switching 类，
+   期间所有颜色属性柔和过渡；350ms 后移除，避免常驻通配 transition 拖累性能。 */
+:root.theme-switching,
+:root.theme-switching *,
+:root.theme-switching *::before,
+:root.theme-switching *::after {
+  transition:
+    background-color var(--duration-slow) var(--ease-standard),
+    color var(--duration-slow) var(--ease-standard),
+    border-color var(--duration-slow) var(--ease-standard),
+    fill var(--duration-slow) var(--ease-standard),
+    stroke var(--duration-slow) var(--ease-standard) !important;
+}
+
+/* ------------------------------ 无障碍：跟随系统「减少动态效果」 ------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

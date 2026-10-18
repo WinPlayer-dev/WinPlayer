@@ -96,54 +96,56 @@ defineExpose({ ShowAsync: showAsync, Hide: hide });
 
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="wp-dialog-overlay">
-      <div
-        ref="dialogRef"
-        class="wp-content-dialog"
-        role="dialog"
-        aria-modal="true"
-        tabindex="-1"
-      >
-        <h2 v-if="props.Title" class="wp-content-dialog-title">{{ props.Title }}</h2>
-
-        <div class="wp-content-dialog-body">
-          <p v-if="props.Content" class="wp-content-dialog-text">{{ props.Content }}</p>
-          <slot />
-        </div>
-
+    <transition name="wp-dialog">
+      <div v-if="visible" class="wp-dialog-overlay">
         <div
-          v-if="props.PrimaryButtonText || props.SecondaryButtonText || props.CloseButtonText"
-          class="wp-content-dialog-buttons"
+          ref="dialogRef"
+          class="wp-content-dialog"
+          role="dialog"
+          aria-modal="true"
+          tabindex="-1"
         >
-          <button
-            v-if="props.PrimaryButtonText"
-            ref="primaryRef"
-            class="wp-accent-button wp-dialog-button"
-            :disabled="!props.IsPrimaryButtonEnabled"
-            @click="close('Primary')"
+          <h2 v-if="props.Title" class="wp-content-dialog-title">{{ props.Title }}</h2>
+
+          <div class="wp-content-dialog-body">
+            <p v-if="props.Content" class="wp-content-dialog-text">{{ props.Content }}</p>
+            <slot />
+          </div>
+
+          <div
+            v-if="props.PrimaryButtonText || props.SecondaryButtonText || props.CloseButtonText"
+            class="wp-content-dialog-buttons"
           >
-            {{ props.PrimaryButtonText }}
-          </button>
-          <button
-            v-if="props.SecondaryButtonText"
-            ref="secondaryRef"
-            class="wp-standard-button wp-dialog-button"
-            :disabled="!props.IsSecondaryButtonEnabled"
-            @click="close('Secondary')"
-          >
-            {{ props.SecondaryButtonText }}
-          </button>
-          <button
-            v-if="props.CloseButtonText"
-            ref="closeRef"
-            class="wp-standard-button wp-dialog-button"
-            @click="close('None')"
-          >
-            {{ props.CloseButtonText }}
-          </button>
+            <button
+              v-if="props.PrimaryButtonText"
+              ref="primaryRef"
+              class="wp-accent-button wp-dialog-button"
+              :disabled="!props.IsPrimaryButtonEnabled"
+              @click="close('Primary')"
+            >
+              {{ props.PrimaryButtonText }}
+            </button>
+            <button
+              v-if="props.SecondaryButtonText"
+              ref="secondaryRef"
+              class="wp-standard-button wp-dialog-button"
+              :disabled="!props.IsSecondaryButtonEnabled"
+              @click="close('Secondary')"
+            >
+              {{ props.SecondaryButtonText }}
+            </button>
+            <button
+              v-if="props.CloseButtonText"
+              ref="closeRef"
+              class="wp-standard-button wp-dialog-button"
+              @click="close('None')"
+            >
+              {{ props.CloseButtonText }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </transition>
   </Teleport>
 </template>
 
@@ -157,7 +159,6 @@ defineExpose({ ShowAsync: showAsync, Hide: hide });
   justify-content: center;
   padding: var(--space-2xl);
   background: rgba(0, 0, 0, 0.3);
-  animation: wp-dialog-overlay-in var(--duration-fast) var(--ease-standard);
 }
 
 .wp-content-dialog {
@@ -172,7 +173,6 @@ defineExpose({ ShowAsync: showAsync, Hide: hide });
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-flyout);
   outline: none;
-  animation: wp-dialog-in var(--duration-normal) var(--ease-decelerate);
 }
 
 .wp-content-dialog-title {
@@ -207,23 +207,37 @@ defineExpose({ ShowAsync: showAsync, Hide: hide });
   flex: none;
 }
 
-@keyframes wp-dialog-overlay-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+/* 弹窗进出场（WinUI Connected 弹窗动画近似）：
+   进场烟层淡入 + 面板从轻微放大回落；退场整体快速淡出并轻微上浮 */
+.wp-dialog-enter-active,
+.wp-dialog-leave-active {
+  transition: opacity var(--duration-normal) var(--ease-standard);
 }
 
-@keyframes wp-dialog-in {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+.wp-dialog-enter-active .wp-content-dialog {
+  transition:
+    transform var(--duration-normal) var(--ease-decelerate),
+    opacity var(--duration-normal) var(--ease-decelerate);
+}
+
+.wp-dialog-leave-active .wp-content-dialog {
+  transition:
+    transform var(--duration-fast) var(--ease-standard),
+    opacity var(--duration-fast) var(--ease-standard);
+}
+
+.wp-dialog-enter-from,
+.wp-dialog-leave-to {
+  opacity: 0;
+}
+
+.wp-dialog-enter-from .wp-content-dialog {
+  transform: scale(1.06);
+  opacity: 0;
+}
+
+.wp-dialog-leave-to .wp-content-dialog {
+  transform: translateY(8px) scale(1.02);
+  opacity: 0;
 }
 </style>

@@ -116,6 +116,50 @@ function toggleMoreMenu(): void {
   moreView.value = moreView.value ? null : "root";
 }
 
+/** 「更多」菜单浮层引用：二级页切换时用于高度过渡 */
+const moreMenuEl = ref<HTMLElement | null>(null);
+
+/** 当前高度过渡的清理函数：快速连续切换时丢弃上一次的收尾，避免中途跳变 */
+let moreMenuHeightCleanup: (() => void) | null = null;
+
+/** 二级页切换高度过渡：离开时锁定当前高度，避免容器在 out-in 间隙塌缩 */
+function onPageLeave(): void {
+  const menu = moreMenuEl.value;
+  if (!menu) return;
+  moreMenuHeightCleanup?.();
+  moreMenuHeightCleanup = null;
+  menu.style.height = `${menu.scrollHeight}px`;
+  menu.style.overflow = "hidden";
+}
+
+/** 新页插入后测量高度，平滑过渡过去；结束后清除内联样式恢复 auto。
+    注意不能直接读 scrollHeight：它只会返回 max(容器, 内容)，新页更矮时
+    读到的仍是旧锁定高度，导致过渡失效、清理时瞬间塌缩。
+    这里瞬时放开锁定测自然高度，再锁回旧值作为过渡起点。 */
+function onPageEnter(): void {
+  const menu = moreMenuEl.value;
+  if (!menu) return;
+  const locked = menu.style.height;
+  menu.style.height = "auto";
+  const target = menu.scrollHeight;
+  menu.style.height = locked;
+  void menu.offsetHeight; // 强制回流，确保过渡从旧高度起算
+  menu.style.height = `${target}px`;
+  let timer = 0;
+  const finish = () => {
+    window.clearTimeout(timer);
+    menu.removeEventListener("transitionend", onEnd);
+    menu.style.height = "";
+    menu.style.overflow = "";
+  };
+  const onEnd = (event: TransitionEvent) => {
+    if (event.target === menu && event.propertyName === "height") finish();
+  };
+  menu.addEventListener("transitionend", onEnd);
+  timer = window.setTimeout(finish, 400);
+  moreMenuHeightCleanup = finish;
+}
+
 function pickRate(value: number): void {
   void player.setRate(value);
   moreView.value = null;
@@ -159,34 +203,39 @@ onUnmounted(() => {
     <!-- 左：当前曲目 -->
     <div class="now-playing">
       <div class="cover">
-        <CachedImage
-          v-if="player.currentTrack?.cover"
-          :src="player.currentTrack.cover"
-          class="cover-img"
-        />
-        <span v-else class="wp-icon cover-placeholder">&#xE852;</span>
+        <transition name="cover-fade" mode="out-in">
+          <CachedImage
+            v-if="player.currentTrack?.cover"
+            :key="player.currentTrack.cover"
+            :src="player.currentTrack.cover"
+            class="cover-img"
+          />
+          <span v-else class="wp-icon cover-placeholder">&#xE852;</span>
+        </transition>
       </div>
-      <div class="meta">
-        <div class="title ellipsis">{{ player.currentTrack ? trackTitle(player.currentTrack) : "未在播放" }}</div>
-        <div class="artist ellipsis">
-          <template v-if="!player.currentTrack">从插件来源发现音乐</template>
-          <template v-else-if="!artistCells.length">{{ trackArtist(player.currentTrack) }}</template>
-          <template v-else>
-            <template v-for="(artist, index) in artistCells" :key="`${artist.name}-${index}`">
-              <span v-if="index" class="artist-sep"> / </span>
-              <button
-                v-if="artist.target"
-                class="artist-link"
-                :title="`查看歌手「${artist.name}」`"
-                @click="go(artist.target!)"
-              >
-                {{ artist.name }}
-              </button>
-              <span v-else>{{ artist.name }}</span>
+      <transition name="track-meta" mode="out-in">
+        <div class="meta" :key="player.currentTrack ? `${player.currentTrack.sourceId}:${player.currentTrack.id}` : 'empty'">
+          <div class="title ellipsis">{{ player.currentTrack ? trackTitle(player.currentTrack) : "未在播放" }}</div>
+          <div class="artist ellipsis">
+            <template v-if="!player.currentTrack">从插件来源发现音乐</template>
+            <template v-else-if="!artistCells.length">{{ trackArtist(player.currentTrack) }}</template>
+            <template v-else>
+              <template v-for="(artist, index) in artistCells" :key="`${artist.name}-${index}`">
+                <span v-if="index" class="artist-sep"> / </span>
+                <button
+                  v-if="artist.target"
+                  class="artist-link"
+                  :title="`查看歌手「${artist.name}」`"
+                  @click="go(artist.target!)"
+                >
+                  {{ artist.name }}
+                </button>
+                <span v-else>{{ artist.name }}</span>
+              </template>
             </template>
-          </template>
+          </div>
         </div>
-      </div>
+      </transition>
       <button
         class="wp-icon-button like-button"
         :class="{ active: liked }"
@@ -194,7 +243,9 @@ onUnmounted(() => {
         :title="liked ? '取消喜欢' : '添加到我喜欢'"
         @click="toggleLikeCurrent"
       >
-        <span class="wp-icon" :class="{ filled: liked }">{{ liked ? "&#xF47E;" : "&#xF47A;" }}</span>
+        <transition name="icon-pop" mode="out-in">
+          <span class="wp-icon" :class="{ filled: liked }" :key="liked ? 'liked' : 'unliked'">{{ liked ? "&#xF47E;" : "&#xF47A;" }}</span>
+        </transition>
       </button>
     </div>
 
@@ -217,8 +268,11 @@ onUnmounted(() => {
           :disabled="!player.queue.length && !player.currentTrack"
           @click="player.togglePlay"
         >
-          <span v-if="player.loading" class="wp-icon">&#xF709;</span>
-          <span v-else class="wp-icon filled">{{ player.playing ? "&#xF5AC;" : "&#xF610;" }}</span>
+          <transition name="icon-pop" mode="out-in">
+            <span v-if="player.loading" key="loading" class="wp-icon">&#xF709;</span>
+            <span v-else-if="player.playing" key="play" class="wp-icon filled">&#xF5AC;</span>
+            <span v-else key="pause" class="wp-icon filled">&#xF610;</span>
+          </transition>
         </button>
         <button class="wp-icon-button" title="下一首" :disabled="!player.queue.length" @click="player.next()">
           <span class="wp-icon filled">&#xF574;</span>
@@ -277,56 +331,58 @@ onUnmounted(() => {
           <span class="wp-icon">&#xE825;</span>
         </button>
         <transition name="more-menu">
-          <div v-if="moreView" class="more-menu">
-            <template v-if="moreView === 'root'">
-              <button class="more-item" @click="moreView = 'rate'">
-                <span class="more-item-label">播放速度</span>
-                <span class="more-item-tail">
-                  <span class="more-item-value">{{ formatRate(player.rate) }}</span>
-                  <span class="wp-icon more-item-chevron">&#xF2B0;</span>
-                </span>
-              </button>
-              <button class="more-item" @click="openDeviceMenu">
-                <span class="more-item-label">输出设备</span>
-                <span class="more-item-tail">
-                  <span class="more-item-value">{{ currentOutputLabel }}</span>
-                  <span class="wp-icon more-item-chevron">&#xF2B0;</span>
-                </span>
-              </button>
-            </template>
-            <template v-else-if="moreView === 'rate'">
-              <button class="more-back" @click="moreView = 'root'">
-                <span class="wp-icon">&#xF2AA;</span>
-                <span>播放速度</span>
-              </button>
-              <button
-                v-for="value in PLAYBACK_RATES"
-                :key="value"
-                class="more-item"
-                @click="pickRate(value)"
-              >
-                <span class="more-item-label">{{ formatRate(value) }}</span>
-                <span v-if="player.rate === value" class="wp-icon more-item-check">&#xF294;</span>
-              </button>
-            </template>
-            <template v-else>
-              <button class="more-back" @click="moreView = 'root'">
-                <span class="wp-icon">&#xF2AA;</span>
-                <span>输出设备</span>
-              </button>
-              <button
-                v-for="option in outputDeviceOptions"
-                :key="option.value || 'default'"
-                class="more-item"
-                @click="pickOutputDevice(option.value)"
-              >
-                <span class="more-item-label">{{ option.label }}</span>
-                <span
-                  v-if="settings.outputDevice === option.value"
-                  class="wp-icon more-item-check"
-                >&#xF294;</span>
-              </button>
-            </template>
+          <div v-if="moreView" ref="moreMenuEl" class="more-menu">
+            <transition name="more-page" mode="out-in" @enter="onPageEnter" @leave="onPageLeave">
+              <div v-if="moreView === 'root'" key="root" class="more-page">
+                <button class="more-item" @click="moreView = 'rate'">
+                  <span class="more-item-label">播放速度</span>
+                  <span class="more-item-tail">
+                    <span class="more-item-value">{{ formatRate(player.rate) }}</span>
+                    <span class="wp-icon more-item-chevron">&#xF2B0;</span>
+                  </span>
+                </button>
+                <button class="more-item" @click="openDeviceMenu">
+                  <span class="more-item-label">输出设备</span>
+                  <span class="more-item-tail">
+                    <span class="more-item-value">{{ currentOutputLabel }}</span>
+                    <span class="wp-icon more-item-chevron">&#xF2B0;</span>
+                  </span>
+                </button>
+              </div>
+              <div v-else-if="moreView === 'rate'" key="rate" class="more-page">
+                <button class="more-back" @click="moreView = 'root'">
+                  <span class="wp-icon">&#xF2AA;</span>
+                  <span>播放速度</span>
+                </button>
+                <button
+                  v-for="value in PLAYBACK_RATES"
+                  :key="value"
+                  class="more-item"
+                  @click="pickRate(value)"
+                >
+                  <span class="more-item-label">{{ formatRate(value) }}</span>
+                  <span v-if="player.rate === value" class="wp-icon more-item-check">&#xF294;</span>
+                </button>
+              </div>
+              <div v-else key="device" class="more-page">
+                <button class="more-back" @click="moreView = 'root'">
+                  <span class="wp-icon">&#xF2AA;</span>
+                  <span>输出设备</span>
+                </button>
+                <button
+                  v-for="option in outputDeviceOptions"
+                  :key="option.value || 'default'"
+                  class="more-item"
+                  @click="pickOutputDevice(option.value)"
+                >
+                  <span class="more-item-label">{{ option.label }}</span>
+                  <span
+                    v-if="settings.outputDevice === option.value"
+                    class="wp-icon more-item-check"
+                  >&#xF294;</span>
+                </button>
+              </div>
+            </transition>
           </div>
         </transition>
       </div>
@@ -388,6 +444,63 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* 封面换曲淡入：旧封面快速淡出、新封面柔和淡入 */
+.cover-fade-enter-active {
+  transition: opacity var(--duration-normal) var(--ease-decelerate);
+}
+
+.cover-fade-leave-active {
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+
+.cover-fade-enter-from,
+.cover-fade-leave-to {
+  opacity: 0;
+}
+
+/* 曲名 / 歌手换曲切换：轻微上滑淡入 */
+.track-meta-enter-active {
+  transition:
+    transform var(--duration-normal) var(--ease-decelerate),
+    opacity var(--duration-normal) var(--ease-decelerate);
+}
+
+.track-meta-leave-active {
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+
+.track-meta-enter-from {
+  transform: translateY(8px);
+  opacity: 0;
+}
+
+.track-meta-leave-to {
+  opacity: 0;
+}
+
+/* 图标切换弹跳（播放/暂停、喜欢红心）：缩放回落，带轻微过冲 */
+.icon-pop-enter-active {
+  transition:
+    transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 180ms var(--ease-standard);
+}
+
+.icon-pop-leave-active {
+  transition:
+    transform var(--duration-fast) var(--ease-standard),
+    opacity var(--duration-fast) var(--ease-standard);
+}
+
+.icon-pop-enter-from {
+  transform: scale(0.5);
+  opacity: 0;
+}
+
+.icon-pop-leave-to {
+  transform: scale(0.75);
+  opacity: 0;
 }
 
 .cover-placeholder {
@@ -555,6 +668,11 @@ onUnmounted(() => {
   border: 1px solid var(--wp-flyout-stroke);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-flyout);
+  /* 锚定按钮右上方弹出：缩放/位移以此为原点，飞出方向更自然 */
+  transform-origin: bottom right;
+  /* 二级页切换时的高度过渡：常驻基类，保证 JS 钩子改 height 时能缓动
+     （进出场的 active 类会整体覆盖 transition，故那里也单独声明了 height） */
+  transition: height var(--duration-normal) var(--ease-decelerate);
 }
 
 .more-item,
@@ -619,17 +737,58 @@ onUnmounted(() => {
   color: var(--wp-accent);
 }
 
-.more-menu-enter-active,
-.more-menu-leave-active {
+/* 浮层进出场（WinUI 飞出近似）：进场缩放+上浮淡入，退场快速收回。
+   进场列表包含 height：二级页切换时容器高度由 JS 钩子驱动平滑过渡 */
+.more-menu-enter-active {
   transition:
-    opacity var(--duration-fast) var(--ease-standard),
-    transform var(--duration-fast) var(--ease-standard);
+    transform var(--duration-normal) var(--ease-decelerate),
+    opacity var(--duration-normal) var(--ease-decelerate),
+    height var(--duration-normal) var(--ease-decelerate);
 }
 
-.more-menu-enter-from,
+.more-menu-leave-active {
+  transition:
+    transform var(--duration-fast) var(--ease-standard),
+    opacity var(--duration-fast) var(--ease-standard);
+}
+
+.more-menu-enter-from {
+  opacity: 0;
+  transform: translateY(8px) scale(0.95);
+}
+
 .more-menu-leave-to {
   opacity: 0;
-  transform: translateY(6px);
+  transform: translateY(4px) scale(0.97);
+}
+
+/* 内部二级页切换（根 → 倍速/输出设备）：横向滑动过渡 */
+.more-page {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.more-page-enter-active {
+  transition:
+    transform var(--duration-normal) var(--ease-decelerate),
+    opacity var(--duration-normal) var(--ease-decelerate);
+}
+
+.more-page-leave-active {
+  transition:
+    transform var(--duration-fast) var(--ease-standard),
+    opacity var(--duration-fast) var(--ease-standard);
+}
+
+.more-page-enter-from {
+  transform: translateX(14px);
+  opacity: 0;
+}
+
+.more-page-leave-to {
+  transform: translateX(-10px);
+  opacity: 0;
 }
 
 .volume-group {

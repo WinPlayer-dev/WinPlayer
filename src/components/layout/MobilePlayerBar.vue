@@ -627,15 +627,20 @@ onBeforeUnmount(() => {
         :title="liked ? '取消喜欢' : '添加到我喜欢'"
         @click.stop="toggleLikeCurrent"
       >
-        <span class="wp-icon" :class="{ filled: liked }">{{ liked ? "&#xF47E;" : "&#xF47A;" }}</span>
+        <transition name="icon-pop" mode="out-in">
+          <span class="wp-icon" :class="{ filled: liked }" :key="liked ? 'liked' : 'unliked'">{{ liked ? "&#xF47E;" : "&#xF47A;" }}</span>
+        </transition>
       </button>
       <button
         class="wp-icon-button mini-action"
         :title="player.playing ? '暂停' : '播放'"
         @click.stop="player.togglePlay"
       >
-        <span v-if="player.loading" class="wp-icon">&#xF709;</span>
-        <span v-else class="wp-icon filled">{{ player.playing ? "&#xF5AC;" : "&#xF610;" }}</span>
+        <transition name="icon-pop" mode="out-in">
+          <span v-if="player.loading" key="loading" class="wp-icon">&#xF709;</span>
+          <span v-else-if="player.playing" key="play" class="wp-icon filled">&#xF5AC;</span>
+          <span v-else key="pause" class="wp-icon filled">&#xF610;</span>
+        </transition>
       </button>
       <button
         class="wp-icon-button mini-action"
@@ -684,7 +689,9 @@ onBeforeUnmount(() => {
                 :title="liked ? '取消喜欢' : '添加到我喜欢'"
                 @click="toggleLikeCurrent"
               >
-                <span class="wp-icon" :class="{ filled: liked }">{{ liked ? "&#xF47E;" : "&#xF47A;" }}</span>
+                <transition name="icon-pop" mode="out-in">
+                  <span class="wp-icon" :class="{ filled: liked }" :key="liked ? 'liked' : 'unliked'">{{ liked ? "&#xF47E;" : "&#xF47A;" }}</span>
+                </transition>
               </button>
             </div>
           </div>
@@ -1797,5 +1804,28 @@ onBeforeUnmount(() => {
   list-style: none;
   pointer-events: none;
   z-index: 6;
+}
+
+/* 图标切换弹跳（播放/暂停、喜欢红心）：缩放回落，带轻微过冲 */
+.icon-pop-enter-active {
+  transition:
+    transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 180ms var(--ease-standard);
+}
+
+.icon-pop-leave-active {
+  transition:
+    transform var(--duration-fast) var(--ease-standard),
+    opacity var(--duration-fast) var(--ease-standard);
+}
+
+.icon-pop-enter-from {
+  transform: scale(0.5);
+  opacity: 0;
+}
+
+.icon-pop-leave-to {
+  transform: scale(0.75);
+  opacity: 0;
 }
 </style>

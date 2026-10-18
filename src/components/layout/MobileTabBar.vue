@@ -61,6 +61,12 @@ const tabs: TabItem[] = [
 
 .tab-icon {
   font-size: 18px;
+  /* 选中切换时图标轻微弹跳上浮 */
+  transition: transform var(--duration-normal) var(--ease-decelerate);
+}
+
+.tab-item.active .tab-icon {
+  transform: translateY(-1px) scale(1.12);
 }
 
 .tab-label {
