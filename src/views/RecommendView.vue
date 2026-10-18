@@ -16,7 +16,7 @@ import { useRefreshable } from "@/composables/useRefreshable";
 import PlaylistCard from "@/components/common/PlaylistCard.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import CachedImage from "@/components/common/CachedImage.vue";
-import { ProgressRing } from "winuionweb";
+import { ProgressRing } from "@/components/winui";
 
 const router = useRouter();
 const plugins = usePluginsStore();

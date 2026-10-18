@@ -6,7 +6,7 @@ import { usePluginsStore, type PluginRecord } from "@/stores/plugins";
 import { toast } from "@/services/toast";
 import EmptyState from "@/components/common/EmptyState.vue";
 import { useIsMobile } from "@/composables/useIsMobile";
-import { ComboBox, ContentDialog, NumberBox, TextBox, ToggleSwitch } from "winuionweb";
+import { ComboBox, ContentDialog, NumberBox, TextBox, ToggleSwitch } from "@/components/winui";
 import type {
   LoginPollResult,
   LoginProfile,

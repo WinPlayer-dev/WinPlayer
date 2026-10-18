@@ -43,6 +43,9 @@
   --duration-slow: 350ms;
   --ease-standard: cubic-bezier(0.33, 0, 0.67, 1);
   --ease-decelerate: cubic-bezier(0.1, 0.9, 0.2, 1);
+  /* WinUI ControlFastAnimationDuration / ControlFastOutSlowInKeySpline（缓出） */
+  --duration-control-fast: 167ms;
+  --ease-fast-out-slow-in: cubic-bezier(0, 0, 0, 1);
 }
 
 /* ------------------------------ 亮色主题 ------------------------------ */
@@ -64,11 +67,32 @@
   --wp-card-hover: rgba(255, 255, 255, 0.9);
   --wp-card-active: rgba(249, 249, 249, 0.5);
   --wp-flyout: #fbfbfb;
+  /* 浮出层毛玻璃背景 / 描边（WinUI AcrylicInAppFillColorDefault + SurfaceStrokeColorFlyout） */
+  --wp-flyout-acrylic: rgba(249, 249, 249, 0.85);
+  --wp-flyout-stroke: rgba(0, 0, 0, 0.0588);
   --wp-control-fill: rgba(255, 255, 255, 0.7);
   --wp-control-fill-secondary: rgba(249, 249, 249, 0.5);
   --wp-control-fill-tertiary: rgba(249, 249, 249, 0.3);
   --wp-control-stroke: rgba(0, 0, 0, 0.0578);
   --wp-control-stroke-secondary: rgba(0, 0, 0, 0.16);
+  /* 控件“浮起”描边（WinUI ComboBoxControlElevationBorderBrush）：底部稍深，向上渐浅 */
+  --wp-control-elevation-border: linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.16) 0.99px,
+    rgba(0, 0, 0, 0.0588) 3px
+  );
+  /* 强描边 / 强填充（WinUI ControlStrongStrokeColorDefault / ControlStrongFillColorDefault） */
+  --wp-control-stroke-strong: rgba(0, 0, 0, 0.4458);
+  --wp-control-fill-strong: rgba(0, 0, 0, 0.4458);
+  /* 实心填充（WinUI ControlSolidFillColorDefault，滑杆滑块外圈） */
+  --wp-control-solid: #ffffff;
+  /* 微弱填充（WinUI SubtleFillColorSecondary，用于悬浮 / 选中项） */
+  --wp-subtle-secondary: rgba(0, 0, 0, 0.0392);
+  /* 控件次要填充（WinUI ControlAltFillColorSecondary / Tertiary / Quarternary：
+     开关关闭态底、悬停、按下） */
+  --wp-control-alt-fill-secondary: rgba(0, 0, 0, 0.0235);
+  --wp-control-alt-fill-tertiary: rgba(0, 0, 0, 0.0588);
+  --wp-control-alt-fill-quarternary: rgba(0, 0, 0, 0.0924);
   --wp-divider: rgba(0, 0, 0, 0.0803);
 
   /* 文本 */
@@ -111,11 +135,32 @@
   --wp-card-hover: rgba(255, 255, 255, 0.0837);
   --wp-card-active: rgba(255, 255, 255, 0.037);
   --wp-flyout: #2c2c2c;
+  /* 浮出层毛玻璃背景 / 描边（WinUI AcrylicInAppFillColorDefault + SurfaceStrokeColorFlyout） */
+  --wp-flyout-acrylic: rgba(44, 44, 44, 0.85);
+  --wp-flyout-stroke: rgba(255, 255, 255, 0.2);
   --wp-control-fill: rgba(255, 255, 255, 0.0605);
   --wp-control-fill-secondary: rgba(255, 255, 255, 0.0419);
   --wp-control-fill-tertiary: rgba(255, 255, 255, 0.0241);
   --wp-control-stroke: rgba(255, 255, 255, 0.0698);
   --wp-control-stroke-secondary: rgba(255, 255, 255, 0.0926);
+  /* 控件“浮起”描边（WinUI ComboBoxControlElevationBorderBrush，暗色） */
+  --wp-control-elevation-border: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.094) 0.99px,
+    rgba(255, 255, 255, 0.071) 3px
+  );
+  /* 强描边 / 强填充（WinUI ControlStrongStrokeColorDefault / ControlStrongFillColorDefault） */
+  --wp-control-stroke-strong: rgba(255, 255, 255, 0.5442);
+  --wp-control-fill-strong: rgba(255, 255, 255, 0.5442);
+  /* 实心填充（WinUI ControlSolidFillColorDefault，滑杆滑块外圈） */
+  --wp-control-solid: #454545;
+  /* 微弱填充（WinUI SubtleFillColorSecondary，用于悬浮 / 选中项） */
+  --wp-subtle-secondary: rgba(255, 255, 255, 0.0588);
+  /* 控件次要填充（WinUI ControlAltFillColorSecondary / Tertiary / Quarternary：
+     开关关闭态底、悬停、按下） */
+  --wp-control-alt-fill-secondary: rgba(255, 255, 255, 0.0353);
+  --wp-control-alt-fill-tertiary: rgba(255, 255, 255, 0.0392);
+  --wp-control-alt-fill-quarternary: rgba(255, 255, 255, 0.0588);
   --wp-divider: rgba(255, 255, 255, 0.0803);
 
   --wp-text-primary: #ffffff;
@@ -152,11 +197,32 @@
     --wp-card-hover: rgba(255, 255, 255, 0.0837);
     --wp-card-active: rgba(255, 255, 255, 0.037);
     --wp-flyout: #2c2c2c;
+    /* 浮出层毛玻璃背景 / 描边（WinUI AcrylicInAppFillColorDefault + SurfaceStrokeColorFlyout） */
+    --wp-flyout-acrylic: rgba(44, 44, 44, 0.85);
+    --wp-flyout-stroke: rgba(255, 255, 255, 0.2);
     --wp-control-fill: rgba(255, 255, 255, 0.0605);
     --wp-control-fill-secondary: rgba(255, 255, 255, 0.0419);
     --wp-control-fill-tertiary: rgba(255, 255, 255, 0.0241);
     --wp-control-stroke: rgba(255, 255, 255, 0.0698);
     --wp-control-stroke-secondary: rgba(255, 255, 255, 0.0926);
+    /* 控件“浮起”描边（WinUI ComboBoxControlElevationBorderBrush，暗色） */
+    --wp-control-elevation-border: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.094) 0.99px,
+      rgba(255, 255, 255, 0.071) 3px
+    );
+    /* 强描边 / 强填充（WinUI ControlStrongStrokeColorDefault / ControlStrongFillColorDefault） */
+    --wp-control-stroke-strong: rgba(255, 255, 255, 0.5442);
+    --wp-control-fill-strong: rgba(255, 255, 255, 0.5442);
+    /* 实心填充（WinUI ControlSolidFillColorDefault，滑杆滑块外圈） */
+    --wp-control-solid: #454545;
+    /* 微弱填充（WinUI SubtleFillColorSecondary，用于悬浮 / 选中项） */
+    --wp-subtle-secondary: rgba(255, 255, 255, 0.0588);
+    /* 控件次要填充（WinUI ControlAltFillColorSecondary / Tertiary / Quarternary：
+       开关关闭态底、悬停、按下） */
+    --wp-control-alt-fill-secondary: rgba(255, 255, 255, 0.0353);
+    --wp-control-alt-fill-tertiary: rgba(255, 255, 255, 0.0392);
+    --wp-control-alt-fill-quarternary: rgba(255, 255, 255, 0.0588);
     --wp-divider: rgba(255, 255, 255, 0.0803);
 
     --wp-text-primary: #ffffff;

@@ -96,7 +96,6 @@ WinPlayer/
 
 ## 🙏 致谢
 
-- UI 组件库 [WinUIonWeb](https://github.com/Furry-Xiyi/WinUIonWeb) © [Furry-Xiyi](https://github.com/Furry-Xiyi)，以 **GPL-3.0** 协议发布 —— 本软件的图形界面使用了该组件库，其协议信息与来源声明见应用内「设置 → 关于」以及 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - 桌面框架 [Tauri](https://tauri.app/)、UI 框架 [Vue](https://vuejs.org/)
 
 ## 📄 协议

@@ -7,7 +7,7 @@
  */
 import { computed, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { ProgressRing } from "winuionweb";
+import { ProgressRing } from "@/components/winui";
 import { usePlayerStore } from "@/stores/player";
 import { pluginDisplayName, usePluginsStore } from "@/stores/plugins";
 import SongTable from "@/components/common/SongTable.vue";

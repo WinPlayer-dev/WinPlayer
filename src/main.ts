@@ -1,7 +1,5 @@
 import { createApp } from "vue";
 import { createPinia } from "pinia";
-import { WinUIOnWeb } from "winuionweb";
-import "winuionweb/style.css";
 import "@/styles/tokens.css";
 import "@/styles/global.css";
 import "@/styles/mobile.css";
@@ -22,6 +20,5 @@ if (useIsMobile()) {
   // 返回时恢复滚动位置
   installScrollMemory(router);
 }
-app.use(WinUIOnWeb, { locale: "zh-CN" });
 
 app.mount("#app");

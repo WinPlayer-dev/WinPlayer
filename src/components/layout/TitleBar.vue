@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import { PersonPicture } from "winuionweb";
+import { PersonPicture } from "@/components/winui";
 import CachedImage from "@/components/common/CachedImage.vue";
 import { pluginDisplayName, usePluginsStore, type AppAvatar } from "@/stores/plugins";
 import { useSettingsStore } from "@/stores/settings";

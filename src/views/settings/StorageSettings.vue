@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { ComboBox } from "winuionweb";
+import { ComboBox } from "@/components/winui";
 import { toast } from "@/services/toast";
 import { clearDataCache, dataCacheSize } from "@/services/cache";
 import { useSettingsStore, type CachePolicy } from "@/stores/settings";

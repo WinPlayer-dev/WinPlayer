@@ -36,8 +36,7 @@
     "pinia": "^4.0.3",
     "qrcode": "^1.5.4",
     "vue": "^3.5.44",
-    "vue-router": "^5.4.0",
-    "winuionweb": "^0.1.0"
+    "vue-router": "^5.4.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.2",

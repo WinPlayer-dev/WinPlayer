@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { ContentDialog, TextBox } from "winuionweb";
+import { ContentDialog, TextBox } from "@/components/winui";
 import { useLibraryStore, type LocalPlaylist } from "@/stores/library";
 import { usePluginsStore, type AggregatedSourceResult } from "@/stores/plugins";
 import { openContextMenu, type ContextMenuItem } from "@/services/contextMenu";

@@ -8,7 +8,7 @@ import MobilePageHeader from "@/components/layout/MobilePageHeader.vue";
 import PlaylistCard from "@/components/common/PlaylistCard.vue";
 import MediaCard from "@/components/common/MediaCard.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
-import { ProgressRing } from "winuionweb";
+import { ProgressRing } from "@/components/winui";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { useRefreshable } from "@/composables/useRefreshable";
 import type { SearchResult, UnifiedAlbum, UnifiedArtist, UnifiedPlaylist, UnifiedTrack } from "@/types/plugin";

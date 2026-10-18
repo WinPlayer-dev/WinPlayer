@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { ComboBox, Slider, TextBox, ToggleSwitch } from "winuionweb";
+import { ComboBox, Slider, TextBox, ToggleSwitch } from "@/components/winui";
 import { useSettingsStore, DEFAULT_SOURCE_SEARCH_FORMAT } from "@/stores/settings";
 import { usePluginsStore } from "@/stores/plugins";
 import { useIsMobile } from "@/composables/useIsMobile";
@@ -257,18 +257,20 @@ function formatGain(gain: number | undefined): string {
           <div class="eq-sliders-row">
             <div v-for="band in eqBands" :key="band.freq" class="eq-band">
               <span class="eq-gain">{{ formatGain(settings.eqGains[band.index]) }}</span>
-              <Slider
-                class="eq-slider"
-                Orientation="Vertical"
-                :Value="settings.eqGains[band.index] ?? 0"
-                :Minimum="-12"
-                :Maximum="12"
-                :StepFrequency="1"
-                :SmallChange="1"
-                :LargeChange="3"
-                :IsThumbToolTipEnabled="false"
-                @update:Value="band.onValue"
-              />
+              <div class="eq-slider-wrap">
+                <Slider
+                  class="eq-slider"
+                  Orientation="Vertical"
+                  :Value="settings.eqGains[band.index] ?? 0"
+                  :Minimum="-12"
+                  :Maximum="12"
+                  :StepFrequency="1"
+                  :SmallChange="1"
+                  :LargeChange="3"
+                  :IsThumbToolTipEnabled="false"
+                  @update:Value="band.onValue"
+                />
+              </div>
               <span class="eq-freq">{{ formatEqFreq(band.freq) }}</span>
             </div>
           </div>
@@ -310,10 +312,16 @@ function formatGain(gain: number | undefined): string {
   min-height: 14px;
 }
 
-/* WinUI3 竖向 Slider：class 转发到 .win-slider-root，内部容器 100% 填充 */
-.eq-slider {
+/* 竖向滑杆：容器固定尺寸，Slider 撑满（覆盖组件默认的横向尺寸） */
+.eq-slider-wrap {
+  flex: none;
   width: 32px;
   height: 140px;
+}
+
+.eq-band .eq-slider {
+  width: 100%;
+  height: 100%;
 }
 
 .eq-freq {

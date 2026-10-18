@@ -78,17 +78,14 @@ export const useSettingsStore = defineStore("settings", () => {
   const lastUpdateCheckAt = ref(0);
   const loaded = ref(false);
 
-  /** 系统配色查询：winuionweb 的暗色控件变量只认 html 上的 theme-dark 类，
-   * 仅 data-theme 属性不会切换其输入框/下拉框配色，故类名必须同步。
-   * 跟随系统时也解析出实际配色写入属性与类，保证控件库与自身 tokens 一致。 */
+  /** 系统配色查询：data-theme 属性驱动 tokens.css 的亮/暗控件变量，
+   * 跟随系统时也解析出实际配色写入属性，保证自研控件与自身 tokens 一致。 */
   const darkScheme = window.matchMedia("(prefers-color-scheme: dark)");
 
   function applyTheme(): void {
     const root = document.documentElement;
     const dark = theme.value === "system" ? darkScheme.matches : theme.value === "dark";
     root.dataset.theme = dark ? "dark" : "light";
-    root.classList.toggle("theme-dark", dark);
-    root.classList.toggle("theme-light", !dark);
   }
 
   // 跟随系统时，系统配色变化后重新应用

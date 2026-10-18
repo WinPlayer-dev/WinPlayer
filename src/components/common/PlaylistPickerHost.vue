@@ -4,7 +4,7 @@
  * 通过 openPlaylistPicker(track) 打开，本地歌单 + 各插件的平台个人歌单可选
  */
 import { ref, watch } from "vue";
-import { ContentDialog } from "winuionweb";
+import { ContentDialog } from "@/components/winui";
 import { useLibraryStore } from "@/stores/library";
 import { usePluginsStore } from "@/stores/plugins";
 import { toast } from "@/services/toast";

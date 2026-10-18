@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { ComboBox, ToggleSwitch } from "winuionweb";
+import { ComboBox, ToggleSwitch } from "@/components/winui";
 import { useSettingsStore, type UpdateCheckFrequency } from "@/stores/settings";
 import { useIsMobile, useIsWindows } from "@/composables/useIsMobile";
 

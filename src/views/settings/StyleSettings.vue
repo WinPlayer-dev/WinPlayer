@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
-import { ComboBox, TextBox, ToggleSwitch } from "winuionweb";
+import { ComboBox, TextBox, ToggleSwitch } from "@/components/winui";
 import { useSettingsStore, type ThemePreference } from "@/stores/settings";
 import { useIsWindows } from "@/composables/useIsMobile";
 import type { WindowMaterial } from "@/services/windowMaterial";
@@ -24,7 +24,7 @@ const themeIndex = computed(() =>
 );
 
 /**
- * winuionweb 的 SelectionChanged 签名为 (sender, payload)，
+ * 自研 ComboBox 的 SelectionChanged 签名为 (sender, payload)，
  * payload 中的 AddedItems 才是新选中的值。
  */
 function onThemeChange(_sender: unknown, payload?: { AddedItems?: unknown[] }): void {

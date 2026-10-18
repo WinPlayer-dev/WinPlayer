@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { TextBox } from "winuionweb";
+import { TextBox } from "@/components/winui";
 import { useSettingsStore } from "@/stores/settings";
 import { OFFICIAL_MARKET_SOURCE } from "@/stores/plugins";
 import { toast } from "@/services/toast";

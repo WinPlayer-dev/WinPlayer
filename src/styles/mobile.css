@@ -217,22 +217,24 @@
 /* 对话框（ContentDialog）渲染在 .app-shell 之外、直接挂在 body 上，
    因此用 html.is-mobile 作为钩子（main.ts 在移动端给 <html> 加类）。 */
 
-/* 输入控件字号 ≥16px，避免移动端聚焦时把页面整体放大 */
+/* 输入控件字号 ≥16px，避免移动端聚焦时把页面整体放大。
+   自研控件的输入框带有 scoped 字号（14px），需在此以更高权重覆盖。 */
 html.is-mobile input,
 html.is-mobile textarea,
 html.is-mobile select,
-html.is-mobile .win-textbox-field {
+html.is-mobile .wp-text-box-input,
+html.is-mobile .wp-number-box-input {
   font-size: 16px;
 }
 
 /* 对话框贴合移动端：宽度自适应、限制高度、内容区可滚动 */
-html.is-mobile .content-dialog {
+html.is-mobile .wp-content-dialog {
   width: min(92vw, 360px);
   max-width: 92vw;
   max-height: 82vh;
 }
 
-html.is-mobile .content-dialog-content-scroll-viewer {
+html.is-mobile .wp-content-dialog-body {
   -webkit-overflow-scrolling: touch;
 }
 

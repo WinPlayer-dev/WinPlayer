@@ -8,7 +8,7 @@
  */
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { ContentDialog, ProgressRing, TextBox } from "winuionweb";
+import { ContentDialog, ProgressRing, TextBox } from "@/components/winui";
 import { useLibraryStore } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
 import { pluginDisplayName, usePluginsStore } from "@/stores/plugins";

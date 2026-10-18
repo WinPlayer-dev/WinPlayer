@@ -2,24 +2,22 @@
 /**
  * 自动更新的弹窗宿主（全局唯一实例，挂在 App.vue）
  *
- * 同一 XamlRoot 下只允许一个 ContentDialog 同时打开，因此需要展示时先调用
- * ShowAsync()，若被其它弹窗占用（库会抛错）则稍后重试。
  * 弹窗的显示状态完全由 stores/updater 的 dialog 字段驱动：
  * - prompt：发现新版本，询问是否下载安装
  * - progress：下载 / 安装进度
  */
 import { computed, ref, watch } from "vue";
-import { ContentDialog, ProgressBar } from "winuionweb";
+import { ContentDialog, ProgressBar } from "@/components/winui";
 import { useUpdaterStore } from "@/stores/updater";
 import { formatBytes, installerLabel } from "@/services/updater";
 
-/** ContentDialog 通过 ShowAsync() 打开（库没有 IsOpen prop） */
+/** ContentDialog 通过实例方法 ShowAsync() 打开（组件没有 IsOpen prop） */
 interface DialogRef {
   ShowAsync: () => Promise<string>;
   Hide: () => void;
 }
 
-/** 展示重试的最大次数与间隔（同一 XamlRoot 被其它弹窗占用时重试） */
+/** 组件尚未挂载完成时的重试次数与间隔 */
 const SHOW_RETRY_LIMIT = 25;
 const SHOW_RETRY_DELAY = 60;
 
@@ -82,7 +80,7 @@ function delay(ms: number): Promise<void> {
 }
 
 /**
- * 打开弹窗并等待用户操作结果；同一 XamlRoot 下已有其它弹窗时重试。
+ * 打开弹窗并等待用户操作结果；组件引用尚未就绪（挂载中）时稍后重试。
  * @param target 弹窗组件引用
  * @param isActive 目标状态是否仍然有效（状态被改写时放弃展示）
  */
@@ -93,20 +91,8 @@ async function showDialog(
   for (let attempt = 0; attempt < SHOW_RETRY_LIMIT; attempt += 1) {
     if (!isActive()) return null;
     const dialogRef = target.value;
-    if (!dialogRef) {
-      await delay(SHOW_RETRY_DELAY);
-      continue;
-    }
-    try {
-      return await dialogRef.ShowAsync();
-    } catch (error) {
-      // 库约定：同一 XamlRoot 一次只能打开一个 ContentDialog，被占用时稍后重试
-      if (String(error).includes("Only one ContentDialog")) {
-        await delay(SHOW_RETRY_DELAY);
-        continue;
-      }
-      throw error;
-    }
+    if (dialogRef) return dialogRef.ShowAsync();
+    await delay(SHOW_RETRY_DELAY);
   }
   return null;
 }

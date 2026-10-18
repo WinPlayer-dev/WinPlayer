@@ -6,7 +6,7 @@
  */
 import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { ContentDialog, PersonPicture, TextBox } from "winuionweb";
+import { ContentDialog, PersonPicture, TextBox } from "@/components/winui";
 import { useLibraryStore, type LocalPlaylist } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
 import { pluginDisplayName, usePluginsStore, type AggregatedSourceResult, type AppAvatar } from "@/stores/plugins";
