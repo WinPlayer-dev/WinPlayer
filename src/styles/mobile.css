@@ -340,6 +340,11 @@ html.is-mobile .wp-content-dialog-body {
   }
 
   /* 底部导航 / 迷你播放条：压缩高度，给内容让位 */
+  .app-shell.is-mobile {
+    /* Toast 等浮层靠这个变量避让底部条，横屏时同步缩小（48 + 44） */
+    --mobile-bottom-bars: 92px;
+  }
+
   .app-shell.is-mobile .tabbar .tab-item {
     height: 44px;
   }

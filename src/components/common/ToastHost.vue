@@ -36,7 +36,7 @@ const isMobile = useIsMobile();
 /* 移动端：桌面播放条高度不适用，抬到「迷你条 + 底部导航 + 安全区」之上，
    并左右留边避免长文案贴边；z-index 高于全屏播放页(100) */
 .toast-host.is-mobile {
-  bottom: calc(112px + var(--safe-area-bottom) + var(--space-xl));
+  bottom: calc(var(--mobile-bottom-bars) + var(--safe-area-bottom) + var(--space-xl));
   left: var(--space-lg);
   right: var(--space-lg);
   transform: none;

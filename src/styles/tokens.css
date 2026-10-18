@@ -28,6 +28,9 @@
   --titlebar-height: 48px;
   --sidenav-width: 232px;
   --playerbar-height: 92px;
+  /* 移动端底部固定条总高：迷你播放条 56 + 底部导航 56。
+     Toast 等浮层靠它避让；横屏压缩时由 mobile.css 覆写为 92px。 */
+  --mobile-bottom-bars: 112px;
 
   /* 移动端安全区（状态栏 / 导航栏 / 刘海）
      桌面端 env() 返回 0，不影响布局 */
