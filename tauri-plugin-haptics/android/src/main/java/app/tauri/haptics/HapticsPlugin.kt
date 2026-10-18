@@ -64,8 +64,16 @@ class HapticsPlugin(private val activity: Activity) : Plugin(activity) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
             } else {
-                @Suppress("DEPRECATION")
-                vibrator.vibrate(pattern)
+                // API < 26：vibrate(long[]) 旧重载在运行时仍存在，但 API 31+ 的
+                // SDK stub 已将其移除（仅剩 vibrate(VibrationEffect/Long)），
+                // compileSdk 36 下无法直接编译调用，走反射回退
+                try {
+                    Vibrator::class.java
+                        .getMethod("vibrate", LongArray::class.java)
+                        .invoke(vibrator, pattern)
+                } catch (ex: ReflectiveOperationException) {
+                    Log.w(TAG, "legacy vibrate unavailable", ex)
+                }
             }
             invoke.resolve()
         } catch (ex: Exception) {
