@@ -35,6 +35,8 @@ const showQueue = ref(false);
 const showOffset = ref(false);
 /** 播放速度面板 */
 const showRate = ref(false);
+/** 「更多」二级菜单面板 */
+const showMore = ref(false);
 
 /** 选择播放倍速并关闭面板 */
 function selectRate(value: number): void {
@@ -535,6 +537,10 @@ async function registerBackListener(): Promise<void> {
   try {
     backListener = await onBackButtonPress(() => {
       // 注册监听即接管返回键默认行为：逐层收起浮层
+      if (showMore.value) {
+        showMore.value = false;
+        return;
+      }
       if (showOffset.value) {
         showOffset.value = false;
         return;
@@ -574,6 +580,7 @@ watch(showFull, (open) => {
   showQueue.value = false;
   showOffset.value = false;
   showRate.value = false;
+  showMore.value = false;
   void unregisterBackListener();
 });
 
@@ -661,21 +668,8 @@ onBeforeUnmount(() => {
               <span class="wp-icon">&#xF2AB;</span>
             </button>
             <span class="full-header-title">正在播放</span>
-            <button
-              class="full-offset-button"
-              :title="`歌词偏移 ${offsetLabel}`"
-              @click="showOffset = true"
-            >
-              <span class="wp-icon">&#xF588;</span>
-              <span class="full-offset-value">{{ offsetLabel }}</span>
-            </button>
-            <button
-              class="full-offset-button"
-              :title="`播放速度 ${formatRate(player.rate)}`"
-              @click="showRate = true"
-            >
-              <span class="wp-icon">&#xF831;</span>
-              <span class="full-offset-value">{{ formatRate(player.rate) }}</span>
+            <button class="full-icon-button" title="更多" @click="showMore = true">
+              <span class="wp-icon">&#xE825;</span>
             </button>
             <button
               class="full-icon-button"
@@ -777,6 +771,34 @@ onBeforeUnmount(() => {
             <span class="wp-icon">&#xF4EE;</span>
           </button>
         </div>
+
+        <!-- 更多（二级菜单入口：歌词偏移 / 播放速度） -->
+        <transition name="full-fade">
+          <div v-if="showMore" class="full-offset" @click.self="showMore = false">
+            <div class="offset-panel">
+              <div class="offset-header">
+                <span class="offset-title">更多</span>
+                <button class="wp-icon-button" title="关闭" @click="showMore = false">
+                  <span class="wp-icon">&#xF36A;</span>
+                </button>
+              </div>
+              <div class="more-list">
+                <button class="more-row" @click="showMore = false; showOffset = true">
+                  <span class="wp-icon more-row-icon">&#xF588;</span>
+                  <span class="more-row-label">歌词偏移</span>
+                  <span class="more-row-value">{{ offsetLabel }}</span>
+                  <span class="wp-icon more-row-chevron">&#xF2B0;</span>
+                </button>
+                <button class="more-row" @click="showMore = false; showRate = true">
+                  <span class="wp-icon more-row-icon">&#xF831;</span>
+                  <span class="more-row-label">播放速度</span>
+                  <span class="more-row-value">{{ formatRate(player.rate) }}</span>
+                  <span class="wp-icon more-row-chevron">&#xF2B0;</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </transition>
 
         <!-- 歌词偏移校准（按曲目持久化） -->
         <transition name="full-fade">
@@ -1097,31 +1119,6 @@ onBeforeUnmount(() => {
 
 .full-icon-button:disabled {
   opacity: 0.32;
-}
-
-/* 歌词偏移入口：图标 + 当前偏移值 */
-.full-offset-button {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 30px;
-  padding: 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 15px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 12px;
-  cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-standard);
-}
-
-.full-offset-button:active {
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.full-offset-value {
-  font-variant-numeric: tabular-nums;
 }
 
 .full-hero {
@@ -1496,6 +1493,58 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.92);
   color: #111;
   font-weight: 600;
+}
+
+/* 「更多」二级菜单：入口列表 */
+.more-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--space-sm);
+}
+
+.more-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  height: 52px;
+  padding: 0 var(--space-xs);
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.more-row:last-child {
+  border-bottom: none;
+}
+
+.more-row:active {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.more-row-icon {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.more-row-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.more-row-value {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  font-variant-numeric: tabular-nums;
+}
+
+.more-row-chevron {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
 }
 
 /* 深色面板内的图标按钮统一改为浅色 */

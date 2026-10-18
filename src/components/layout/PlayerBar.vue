@@ -96,29 +96,29 @@ async function toggleLikeCurrent() {
   if (player.currentTrack) await library.toggleLike(player.currentTrack);
 }
 
-/** 播放倍速预设：锚定在速度按钮上方的浮出面板，当前档位打勾 */
-const rateMenuOpen = ref(false);
-const ratePicker = ref<HTMLElement | null>(null);
+/** 「更多」二级菜单：一级列出不常用入口，二级展开倍速档位 */
+const moreView = ref<"root" | "rate" | null>(null);
+const morePicker = ref<HTMLElement | null>(null);
 
-function toggleRateMenu(): void {
-  rateMenuOpen.value = !rateMenuOpen.value;
+function toggleMoreMenu(): void {
+  moreView.value = moreView.value ? null : "root";
 }
 
 function pickRate(value: number): void {
   void player.setRate(value);
-  rateMenuOpen.value = false;
+  moreView.value = null;
 }
 
 /** 点击面板外部或按 Esc 关闭 */
 function onDocumentPointerDown(event: PointerEvent): void {
-  if (!rateMenuOpen.value) return;
+  if (!moreView.value) return;
   const target = event.target;
-  if (target instanceof Node && ratePicker.value?.contains(target)) return;
-  rateMenuOpen.value = false;
+  if (target instanceof Node && morePicker.value?.contains(target)) return;
+  moreView.value = null;
 }
 
 function onDocumentKeydown(event: KeyboardEvent): void {
-  if (event.key === "Escape") rateMenuOpen.value = false;
+  if (event.key === "Escape") moreView.value = null;
 }
 
 onMounted(() => {
@@ -245,27 +245,41 @@ onUnmounted(() => {
       >
         <span class="wp-icon">&#xF4EE;</span>
       </button>
-      <div ref="ratePicker" class="rate-picker">
+      <div ref="morePicker" class="more-picker">
         <button
           class="wp-icon-button"
           :class="{ active: player.rate !== 1 }"
-          :title="`播放速度 ${formatRate(player.rate)}`"
-          @click="toggleRateMenu"
+          title="更多"
+          @click="toggleMoreMenu"
         >
-          <span class="wp-icon">&#xF831;</span>
+          <span class="wp-icon">&#xE825;</span>
         </button>
-        <transition name="rate-menu">
-          <div v-if="rateMenuOpen" class="rate-menu">
-            <button
-              v-for="value in PLAYBACK_RATES"
-              :key="value"
-              class="rate-item"
-              :class="{ active: player.rate === value }"
-              @click="pickRate(value)"
-            >
-              <span class="rate-item-label">{{ formatRate(value) }}</span>
-              <span v-if="player.rate === value" class="wp-icon rate-item-check">&#xF294;</span>
-            </button>
+        <transition name="more-menu">
+          <div v-if="moreView" class="more-menu">
+            <template v-if="moreView === 'root'">
+              <button class="more-item" @click="moreView = 'rate'">
+                <span class="more-item-label">播放速度</span>
+                <span class="more-item-tail">
+                  <span class="more-item-value">{{ formatRate(player.rate) }}</span>
+                  <span class="wp-icon more-item-chevron">&#xF2B0;</span>
+                </span>
+              </button>
+            </template>
+            <template v-else>
+              <button class="more-back" @click="moreView = 'root'">
+                <span class="wp-icon">&#xF2AA;</span>
+                <span>播放速度</span>
+              </button>
+              <button
+                v-for="value in PLAYBACK_RATES"
+                :key="value"
+                class="more-item"
+                @click="pickRate(value)"
+              >
+                <span class="more-item-label">{{ formatRate(value) }}</span>
+                <span v-if="player.rate === value" class="wp-icon more-item-check">&#xF294;</span>
+              </button>
+            </template>
           </div>
         </transition>
       </div>
@@ -466,23 +480,23 @@ onUnmounted(() => {
   flex: none;
 }
 
-/* 播放倍速：图标按钮 + 锚定上方的预设面板 */
-.rate-picker {
+/* 「更多」二级菜单：图标按钮 + 锚定上方的浮出面板 */
+.more-picker {
   position: relative;
   display: flex;
   align-items: center;
 }
 
-.rate-picker .wp-icon {
+.more-picker .wp-icon {
   font-size: 16px;
 }
 
-.rate-menu {
+.more-menu {
   position: absolute;
   right: 0;
   bottom: calc(100% + 8px);
   z-index: 40;
-  min-width: 116px;
+  min-width: 152px;
   padding: 4px;
   display: flex;
   flex-direction: column;
@@ -493,11 +507,12 @@ onUnmounted(() => {
   box-shadow: var(--shadow-flyout);
 }
 
-.rate-item {
+.more-item,
+.more-back {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-lg);
+  gap: var(--space-md);
+  width: 100%;
   height: 32px;
   padding: 0 10px;
   border: none;
@@ -510,32 +525,52 @@ onUnmounted(() => {
   text-align: left;
 }
 
-.rate-item:hover {
+.more-item:hover,
+.more-back:hover {
   background: var(--wp-control-fill-secondary);
 }
 
-.rate-item:active {
+.more-item:active,
+.more-back:active {
   background: var(--wp-control-fill-tertiary);
 }
 
-.rate-item-label {
+.more-item-label {
+  flex: 1;
+  min-width: 0;
   font-variant-numeric: tabular-nums;
 }
 
-.rate-item-check {
+.more-item-tail {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--wp-text-secondary);
+}
+
+.more-item-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.more-item-chevron,
+.more-back .wp-icon {
+  font-size: 12px;
+}
+
+.more-item-check {
   font-size: 14px;
   color: var(--wp-accent);
 }
 
-.rate-menu-enter-active,
-.rate-menu-leave-active {
+.more-menu-enter-active,
+.more-menu-leave-active {
   transition:
     opacity var(--duration-fast) var(--ease-standard),
     transform var(--duration-fast) var(--ease-standard);
 }
 
-.rate-menu-enter-from,
-.rate-menu-leave-to {
+.more-menu-enter-from,
+.more-menu-leave-to {
   opacity: 0;
   transform: translateY(6px);
 }
