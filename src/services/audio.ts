@@ -248,6 +248,17 @@ export class AudioEngine {
     void invoke("player_cancel_preload").catch(() => {});
   }
 
+  /**
+   * 下发锁屏兜底直链：锁屏后 WebView 的 JS 被暂停，前端无法触发预载也
+   * 无从响应 ended——引擎在歌曲自然播完且预载未就绪时，用该直链现场
+   * 衔接下一首。`repeat` = 单曲循环，引擎衔接成功后保留直链供持续循环。
+   * `null` 表示清除（队列/模式变更、硬切换后调用）。
+   */
+  setNextFallback(url: string | null, repeat = false): void {
+    if (!this.inTauri) return;
+    void invoke("player_set_next_fallback", { url, repeat }).catch(() => {});
+  }
+
   /** 横向淡入淡出配置（关闭后自动切歌仍走 Gapless 无缝衔接） */
   setCrossfade(enabled: boolean, seconds: number): void {
     if (!this.inTauri) return;

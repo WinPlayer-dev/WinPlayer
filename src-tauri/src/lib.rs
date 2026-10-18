@@ -76,6 +76,7 @@ pub fn run() {
                 player::player_load,
                 player::player_preload,
                 player::player_cancel_preload,
+                player::player_set_next_fallback,
                 player::player_set_crossfade,
                 player::player_play,
                 player::player_pause,

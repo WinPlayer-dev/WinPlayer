@@ -194,6 +194,7 @@ export const usePlayerStore = defineStore("player", () => {
       await engine.play();
       void fetchLyrics(track);
       persistQueue();
+      void resolveFallback(); // 提前解析下一首直链，锁屏兜底自动换曲
     } catch (error) {
       loading.value = false;
       playing.value = false;
@@ -306,6 +307,41 @@ export const usePlayerStore = defineStore("player", () => {
   /** 预加载状态：目标索引与已解析直链（url 为空 = 解析中，占位防重入） */
   let preload: { index: number; url: string } | null = null;
 
+  /**
+   * 锁屏兜底状态：提前解析的下一首直链（锁屏后 WebView 的 JS 被暂停，
+   * maybePreload 不再执行、ended 也无从响应——引擎靠该直链自行衔接）。
+   * fallbackToken 用于丢弃解析期间已过期的结果。
+   */
+  let fallbackNext: { index: number; url: string } | null = null;
+  let fallbackToken = 0;
+
+  /** 提前解析下一首直链并下发给引擎作为锁屏兜底（加载/衔接/队列变更后调用） */
+  async function resolveFallback(): Promise<void> {
+    const token = ++fallbackToken;
+    const index = nextAutoIndex();
+    if (index == null) {
+      if (token === fallbackToken) {
+        fallbackNext = null;
+        engine.setNextFallback(null);
+      }
+      return;
+    }
+    if (fallbackNext?.index === index) return; // 已解析同一目标
+    const item = queue.value[index];
+    if (!item) return;
+    try {
+      const url = await resolvePlayUrl(item.track);
+      // 解析期间切歌/改队列/改模式：结果已过期
+      if (token !== fallbackToken || nextAutoIndex() !== index) return;
+      fallbackNext = { index, url };
+      // 单曲循环的兜底目标就是当前曲目：repeat 让引擎衔接后保留直链，
+      // 锁屏持续时无需前端重新解析即可一直循环
+      engine.setNextFallback(url, index === currentIndex.value);
+    } catch {
+      // 解析失败：保持无兜底，播完走 ended 回退换曲
+    }
+  }
+
   /** 自动切歌的下一曲索引；不可预知（sequential 末尾 / shuffle 一轮重洗）时返回 null */
   function nextAutoIndex(): number | null {
     if (!queue.value.length || currentIndex.value < 0) return null;
@@ -323,6 +359,13 @@ export const usePlayerStore = defineStore("player", () => {
     if (index == null) return;
     const item = queue.value[index];
     if (!item) return;
+    // 锁屏兜底已解析同一目标：直接复用其直链起预载，避免重复请求解析接口
+    const fallback = fallbackNext;
+    if (fallback && fallback.index === index && fallback.url) {
+      preload = { index, url: fallback.url };
+      engine.preload(fallback.url);
+      return;
+    }
     preload = { index, url: "" };
     try {
       const url = await resolvePlayUrl(item.track);
@@ -334,20 +377,30 @@ export const usePlayerStore = defineStore("player", () => {
     }
   }
 
-  /** 丢弃预加载状态（可选通知引擎；load/stop 本身会清理后端预加载槽） */
+  /** 丢弃预加载与锁屏兜底状态（load/stop 本身也会清理后端对应槽） */
   function resetPreload(cancelRemote = false): void {
     preload = null;
+    fallbackNext = null;
+    fallbackToken += 1; // 使在途的兜底解析结果失效
+    engine.setNextFallback(null);
     if (cancelRemote) engine.cancelPreload();
   }
 
   /** 引擎已衔接至预加载曲目：切换曲目元数据（音频由引擎无缝续接） */
   function handleAdvanced(url: string): void {
-    const pending = preload;
-    preload = null;
-    if (!pending || pending.url !== url) return;
-    const item = queue.value[pending.index];
+    let index: number | null = null;
+    if (preload && preload.url && preload.url === url) {
+      index = preload.index;
+      preload = null;
+    } else if (fallbackNext && fallbackNext.url === url) {
+      // 引擎在锁屏期间用兜底直链自行衔接（常规预载路径未走到）
+      index = fallbackNext.index;
+      fallbackNext = null;
+    }
+    if (index == null) return;
+    const item = queue.value[index];
     if (!item) return;
-    currentIndex.value = pending.index;
+    currentIndex.value = index;
     loadedTrackKey = trackUid(item.track);
     currentTime.value = 0;
     duration.value = item.track.duration ? item.track.duration / 1000 : 0;
@@ -355,6 +408,7 @@ export const usePlayerStore = defineStore("player", () => {
     loading.value = false;
     void fetchLyrics(item.track);
     persistQueue();
+    void resolveFallback(); // 为新曲目继续解析锁屏兜底（前端已恢复时）
   }
 
   function handleEnded(): void {
@@ -449,6 +503,7 @@ export const usePlayerStore = defineStore("player", () => {
     }
     persistQueue();
     void setSetting("player.mode", mode.value);
+    void resolveFallback(); // 下一曲映射可能改变，重新解析锁屏兜底
   }
 
   function cycleMode(): void {
@@ -480,6 +535,7 @@ export const usePlayerStore = defineStore("player", () => {
       }
     }
     persistQueue();
+    void resolveFallback(); // 下一曲映射可能改变，重新解析锁屏兜底
   }
 
   function clearQueue(): void {
@@ -510,6 +566,7 @@ export const usePlayerStore = defineStore("player", () => {
       currentIndex.value = queue.value.findIndex((entry) => entry.uid === currentItemUid);
     }
     persistQueue();
+    void resolveFallback(); // 下一曲映射可能改变，重新解析锁屏兜底
   }
 
   /** 拖动排序时同步原始列表备份 */

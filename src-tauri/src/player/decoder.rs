@@ -279,9 +279,18 @@ fn run_session(
                     return Ok(SessionOutcome::Superseded);
                 }
                 if engine.is_active(id) {
-                    // 尝试 gapless 衔接；预载未就绪则回退 ended（前端换曲）
+                    // 尝试 gapless 衔接；预载未就绪则尝试锁屏兜底（前端提前
+                    // 下发的下一首直链，现场起预载并等待就绪）；仍失败才
+                    // 回退 ended（前端换曲）
                     if engine.try_gapless_append(id) {
                         return Ok(SessionOutcome::Advanced);
+                    }
+                    if engine.promote_fallback_and_wait(id) {
+                        return Ok(SessionOutcome::Advanced);
+                    }
+                    if !engine.is_active(id) {
+                        // 兜底等待期间发生硬切换：不广播 ended 误导前端
+                        return Ok(SessionOutcome::Superseded);
                     }
                     return Ok(SessionOutcome::Ended);
                 }

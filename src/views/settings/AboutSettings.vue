@@ -85,6 +85,7 @@ function restoreIgnored(): void {
             版本 {{ versionText }} · 基于插件的桌面音乐播放器 · MIT License
           </div>
         </div>
+        <button class="wp-standard-button small" @click="openUrl('https://github.com/WinPlayer-dev/WinPlayer')">Github 页面</button>
       </div>
 
       <!-- 自动更新 -->

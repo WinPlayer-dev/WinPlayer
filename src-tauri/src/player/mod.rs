@@ -14,6 +14,12 @@
 //!   自动衔接），同样广播 `player://advanced`；
 //! - 预载未就绪/解析失败时回退旧行为：广播 `player://ended` 由前端换曲。
 //!
+//! 锁屏兜底：Android 锁屏后 WebView 的 JS 被暂停/强节流，前端无法及时触发
+//! `player_preload`，也无从响应 `player://ended`——自动切歌会直接停摆。
+//! 因此前端在加载每首歌时提前解析下一首直链，经 `player_set_next_fallback`
+//! 交给引擎；自然播完且预载未就绪时，引擎用兜底直链现场起预载会话并等待
+//! 就绪后无缝衔接（锁屏场景允许数秒静音间隙），完全不依赖前端存活。
+//!
 //! Tauri 事件（前端 `listen`）：
 //! - `player://progress`  `{ currentTime, duration }`，解码循环每 250ms
 //! - `player://duration`  `{ duration }`（probe 后，估算或精确，秒）
@@ -99,6 +105,14 @@ impl PendingSlot {
     }
 }
 
+/// 锁屏兜底直链：前端提前解析的下一首直链（`repeat` = 单曲循环，衔接
+/// 成功后保留，供锁屏期间持续循环）
+#[derive(Clone)]
+pub(crate) struct FallbackNext {
+    pub url: String,
+    pub repeat: bool,
+}
+
 pub struct PlayerEngine {
     app: AppHandle,
     output: Mutex<Option<Output>>,
@@ -118,6 +132,8 @@ pub struct PlayerEngine {
     fading: AtomicU64,
     /// 预加载槽（None = 无预加载）
     pending: Mutex<Option<PendingSlot>>,
+    /// 锁屏兜底直链（None = 无兜底）
+    fallback: Mutex<Option<FallbackNext>>,
     /// 活跃音源的结束标记（gapless 衔接时置位，令旧源排空后让位）
     ended_flag: Mutex<Option<Arc<std::sync::atomic::AtomicBool>>>,
     volume: Mutex<f32>,
@@ -165,6 +181,7 @@ impl PlayerEngine {
             active: AtomicU64::new(0),
             fading: AtomicU64::new(0),
             pending: Mutex::new(None),
+            fallback: Mutex::new(None),
             ended_flag: Mutex::new(None),
             volume: Mutex::new(0.8),
             pending_seek: Mutex::new(None),
@@ -378,6 +395,7 @@ impl PlayerEngine {
         self.active.store(id, Ordering::Release);
         self.fading.store(0, Ordering::Release);
         *self.pending.lock().unwrap() = None;
+        *self.fallback.lock().unwrap() = None;
         *self.pending_seek.lock().unwrap() = None;
         self.buffering.store(false, Ordering::Release);
         self.is_playing.store(false, Ordering::Release);
@@ -398,6 +416,7 @@ impl PlayerEngine {
         self.active.store(0, Ordering::Release);
         self.fading.store(0, Ordering::Release);
         *self.pending.lock().unwrap() = None;
+        *self.fallback.lock().unwrap() = None;
         *self.pending_seek.lock().unwrap() = None;
         self.buffering.store(false, Ordering::Release);
         self.is_playing.store(false, Ordering::Release);
@@ -467,6 +486,8 @@ impl PlayerEngine {
         self.active.store(slot.id, Ordering::Release);
         *self.sink.lock().unwrap() = Some(new_sink.clone());
         self.buffering.store(false, Ordering::Release);
+        // 已衔接到预载曲目：兜底直链随之过期，待前端醒来后重新下发
+        *self.fallback.lock().unwrap() = None;
         let _ = self.app.emit(EVENT_ADVANCED, AdvancedPayload { url: slot.url });
 
         // 淡出/淡入斜坡：以主音量为基准同步缩放两路
@@ -504,18 +525,31 @@ impl PlayerEngine {
         if !self.is_active(from_id) {
             return false;
         }
-        let mut slot = match self.pending.lock().unwrap().take() {
+        let slot = match self.pending.lock().unwrap().take() {
             Some(slot) => slot,
             None => return false,
         };
-        let Some(source) = slot.source.take() else {
-            // 预载尚未就绪：放回（随后走 ended 回退）
+        if slot.source.is_none() {
+            // 预载尚未就绪：放回（随后走兜底等待/ended 回退）
             *self.pending.lock().unwrap() = Some(slot);
+            return false;
+        }
+        if self.sink.lock().unwrap().is_none() {
+            *self.pending.lock().unwrap() = Some(slot);
+            return false;
+        }
+        self.gapless_append_slot(slot);
+        true
+    }
+
+    /// 用就绪的预载槽完成 gapless 衔接（常规预载与锁屏兜底等待共用）：
+    /// 旧源标记结束 → Sink 队列衔接新源 → 活跃身份移交 → 广播 advanced。
+    fn gapless_append_slot(&self, mut slot: PendingSlot) -> bool {
+        let Some(source) = slot.source.take() else {
             return false;
         };
         let sink_guard = self.sink.lock().unwrap();
         let Some(sink) = sink_guard.as_ref() else {
-            *self.pending.lock().unwrap() = Some(slot);
             return false;
         };
         // 旧源标记结束：排空后 Sink 队列自动前进到新源（零间隙）
@@ -526,8 +560,68 @@ impl PlayerEngine {
         sink.append(source);
         drop(sink_guard);
         self.active.store(slot.id, Ordering::Release);
+        // 已衔接到预载曲目：兜底直链随之过期（单曲循环兜底除外，其由
+        // promote_fallback_and_wait 在衔接成功后重新写入）
+        *self.fallback.lock().unwrap() = None;
         let _ = self.app.emit(EVENT_ADVANCED, AdvancedPayload { url: slot.url });
         true
+    }
+
+    /// 锁屏兜底衔接：预载未就绪时（前端可能已被 WebView 暂停），若已有
+    /// 预载槽则原地等待其解码就绪，否则取前端提前下发的兜底直链现场起
+    /// 预载会话并等待。就绪后无缝衔接并广播 `player://advanced`。
+    /// 等待超时（弱网解码迟迟不就绪）则放弃，回退 `player://ended`。
+    pub(crate) fn promote_fallback_and_wait(self: &Arc<Self>, from_id: u64) -> bool {
+        if !self.is_active(from_id) {
+            return false;
+        }
+        let mut repeat_fallback: Option<FallbackNext> = None;
+        if self.pending.lock().unwrap().is_none() {
+            let fallback = self.fallback.lock().unwrap().take();
+            let Some(fb) = fallback else {
+                return false;
+            };
+            self.preload(fb.url.clone());
+            if fb.repeat {
+                repeat_fallback = Some(fb);
+            }
+        }
+        // 单曲循环：衔接成功后保留兜底直链，锁屏持续时下一轮仍可续播
+        // （常规衔接路径会清空兜底，由前端醒来后重新解析下发）
+        if let Some(fb) = repeat_fallback {
+            if self.wait_gapless_ready(from_id) {
+                *self.fallback.lock().unwrap() = Some(fb);
+                return true;
+            }
+            return false;
+        }
+        self.wait_gapless_ready(from_id)
+    }
+
+    /// 等待预载槽解码就绪并完成 gapless 衔接；超时或期间发生硬切换则放弃
+    fn wait_gapless_ready(&self, from_id: u64) -> bool {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        loop {
+            if !self.is_active(from_id) {
+                // 期间发生硬切换（用户亮屏操作）：丢弃预载槽，新会话自行管理
+                *self.pending.lock().unwrap() = None;
+                return false;
+            }
+            let ready = {
+                let guard = self.pending.lock().unwrap();
+                guard.as_ref().map_or(false, |slot| slot.source.is_some())
+            };
+            if ready {
+                let slot = self.pending.lock().unwrap().take();
+                return slot.map_or(false, |slot| self.gapless_append_slot(slot));
+            }
+            if Instant::now() >= deadline {
+                // 超时放弃：清槽使预载线程退出，回退 ended 由前端换曲
+                *self.pending.lock().unwrap() = None;
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
     }
 }
 
@@ -546,6 +640,19 @@ pub fn player_preload(engine: State<Arc<PlayerEngine>>, url: String) {
 #[tauri::command]
 pub fn player_cancel_preload(engine: State<Arc<PlayerEngine>>) {
     engine.cancel_preload();
+}
+
+/// 下发锁屏兜底直链：前端在加载每首歌时提前解析下一首直链交给引擎，
+/// 供「预载未就绪且前端已被 WebView 暂停」时现场衔接。`url` 为 None/空
+/// 表示清除（队列/模式变更、硬切换后由前端调用）。
+#[tauri::command]
+pub fn player_set_next_fallback(
+    engine: State<Arc<PlayerEngine>>,
+    url: Option<String>,
+    repeat: bool,
+) {
+    let url = url.filter(|value| !value.trim().is_empty());
+    *engine.fallback.lock().unwrap() = url.map(|url| FallbackNext { url, repeat });
 }
 
 #[tauri::command]
