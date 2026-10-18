@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getSetting, setSetting } from "@/services/db";
 import { getAudioEngine } from "@/services/audio";
 import { useIsMobile } from "@/composables/useIsMobile";
+import { setHapticsEnabled } from "@/services/haptics";
 import { clearDataCache } from "@/services/cache";
 import { applyWindowMaterial, type WindowMaterial } from "@/services/windowMaterial";
 import {
@@ -59,6 +60,8 @@ export const useSettingsStore = defineStore("settings", () => {
   const fontFamily = ref("");
   /** 窗口材质：Mica / Acrylic / 关闭（仅 Windows 桌面生效，其余平台 no-op） */
   const windowMaterial = ref<WindowMaterial>("mica");
+  /** 触感反馈（震动，仅移动端生效） */
+  const hapticsEnabled = ref(true);
   /** 是否跟随当前播放封面提取主色作为应用强调色 */
   const coverAccent = ref(false);
   /** 缓存项策略：歌单（页面数据）/ 图片缓存开关组合 */
@@ -104,9 +107,15 @@ export const useSettingsStore = defineStore("settings", () => {
     }
   }
 
+  /** 把触感反馈开关同步给震动服务 */
+  function applyHaptics(): void {
+    setHapticsEnabled(hapticsEnabled.value);
+  }
+
   // 首次创建即应用（设置尚未从数据库加载时的默认值）
   applyTheme();
   applyFont();
+  applyHaptics();
 
   async function load(): Promise<void> {
     theme.value = await getSetting<ThemePreference>("settings.theme", "system");
@@ -128,6 +137,7 @@ export const useSettingsStore = defineStore("settings", () => {
     applyCrossfade();
     fontFamily.value = await getSetting<string>("settings.fontFamily", "");
     windowMaterial.value = await getSetting<WindowMaterial>("settings.windowMaterial", "mica");
+    hapticsEnabled.value = await getSetting<boolean>("settings.hapticsEnabled", true);
     coverAccent.value = await getSetting<boolean>("settings.coverAccent", false);
     cachePolicy.value = await getSetting<CachePolicy>("settings.cachePolicy", "both");
     autoCheckUpdate.value = await getSetting<boolean>("settings.autoCheckUpdate", true);
@@ -143,6 +153,7 @@ export const useSettingsStore = defineStore("settings", () => {
     lastUpdateCheckAt.value = await getSetting<number>("settings.lastUpdateCheckAt", 0);
     applyTheme();
     applyFont();
+    applyHaptics();
     // 窗口材质按持久化偏好应用（仅 Windows 桌面实际生效）
     void applyWindowMaterial(windowMaterial.value);
     // 启动时把均衡器配置应用到原生引擎
@@ -166,6 +177,12 @@ export const useSettingsStore = defineStore("settings", () => {
     windowMaterial.value = value;
     await applyWindowMaterial(value);
     await setSetting("settings.windowMaterial", value);
+  }
+
+  async function setHaptics(value: boolean): Promise<void> {
+    hapticsEnabled.value = value;
+    applyHaptics();
+    await setSetting("settings.hapticsEnabled", value);
   }
 
   async function setCoverAccent(value: boolean): Promise<void> {
@@ -303,6 +320,7 @@ export const useSettingsStore = defineStore("settings", () => {
     theme,
     fontFamily,
     windowMaterial,
+    hapticsEnabled,
     coverAccent,
     marketSources,
     githubMirror,
@@ -327,6 +345,7 @@ export const useSettingsStore = defineStore("settings", () => {
     setTheme,
     setFontFamily,
     setWindowMaterial,
+    setHaptics,
     setCoverAccent,
     setMarketSources,
     setGithubMirror,

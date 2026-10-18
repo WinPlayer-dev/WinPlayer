@@ -6,6 +6,7 @@ import { getAudioEngine } from "@/services/audio";
 import { findLyricIndex, mergeTranslation, parseLrc } from "@/services/lrc";
 import { getSetting, setSetting } from "@/services/db";
 import { toast } from "@/services/toast";
+import { hapticTap } from "@/services/haptics";
 import { usePluginsStore } from "./plugins";
 import { createQueueUid, type LyricLine, type PlayMode, type QueueItem } from "@/types/player";
 import type { UnifiedTrack } from "@/types/plugin";
@@ -416,6 +417,7 @@ export const usePlayerStore = defineStore("player", () => {
   /** 切换播放模式；进入随机时备份并打乱，离开随机时恢复原始顺序 */
   function setMode(next: PlayMode): void {
     if (next === mode.value) return;
+    hapticTap();
     resetPreload(true); // 下一曲映射可能改变，丢弃已预加载的曲目
     const from = mode.value;
     mode.value = next;

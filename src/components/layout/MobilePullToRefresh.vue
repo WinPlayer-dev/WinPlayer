@@ -8,6 +8,7 @@
  */
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { runActiveRefresh } from "@/services/pullToRefresh";
+import { hapticImpact } from "@/services/haptics";
 
 /** 触发刷新所需的下拉距离（像素） */
 const THRESHOLD = 64;
@@ -70,6 +71,7 @@ async function onEnd(): Promise<void> {
   }
   refreshing.value = true;
   distance.value = THRESHOLD;
+  hapticImpact();
   try {
     await runActiveRefresh();
   } finally {

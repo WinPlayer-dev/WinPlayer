@@ -1,4 +1,5 @@
 import { onBeforeUnmount } from "vue";
+import { hapticImpact } from "@/services/haptics";
 
 /**
  * 触摸长按手势。
@@ -100,6 +101,7 @@ export function useLongPress(options: LongPressOptions = {}): LongPressControlle
     timer = window.setTimeout(() => {
       timer = null;
       armSuppression();
+      hapticImpact();
       trigger({ x: originX, y: originY });
     }, delay);
   }

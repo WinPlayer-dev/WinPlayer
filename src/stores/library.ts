@@ -4,6 +4,7 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { getDb } from "@/services/db";
 import { toast } from "@/services/toast";
+import { hapticSuccess, hapticTap } from "@/services/haptics";
 import type { UnifiedTrack } from "@/types/plugin";
 
 export interface LocalPlaylist {
@@ -75,6 +76,7 @@ export const useLibraryStore = defineStore("library", () => {
         track.id,
       ]);
       await loadLiked();
+      hapticTap();
       toast("已取消喜欢", "info");
       return false;
     }
@@ -83,6 +85,7 @@ export const useLibraryStore = defineStore("library", () => {
       [track.sourceId ?? "", track.id, JSON.stringify(track), Date.now()],
     );
     await loadLiked();
+    hapticSuccess();
     toast("已添加到我喜欢的音乐", "success");
     return true;
   }

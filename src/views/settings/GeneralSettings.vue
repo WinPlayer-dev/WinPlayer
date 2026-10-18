@@ -2,11 +2,13 @@
 import { computed } from "vue";
 import { ComboBox, ToggleSwitch } from "winuionweb";
 import { useSettingsStore, type UpdateCheckFrequency } from "@/stores/settings";
-import { useIsWindows } from "@/composables/useIsMobile";
+import { useIsMobile, useIsWindows } from "@/composables/useIsMobile";
 
 const settings = useSettingsStore();
 // SMTC 是 Windows 专属能力，其他平台隐藏该设置项
 const isWindows = useIsWindows();
+// 触感反馈仅移动端有意义
+const isMobile = useIsMobile();
 
 /** 检查频率选项（顺序与 ComboBox 的 SelectedIndex 一致） */
 const FREQUENCIES: { value: UpdateCheckFrequency; label: string }[] = [
@@ -22,6 +24,10 @@ const frequencyIndex = computed(() =>
 
 function onSmtcToggle(event: { IsOn: boolean }): void {
   void settings.setSmtcEnabled(Boolean(event?.IsOn));
+}
+
+function onHapticsToggle(event: { IsOn: boolean }): void {
+  void settings.setHaptics(Boolean(event?.IsOn));
 }
 
 function onAutoCheckToggle(event: { IsOn: boolean }): void {
@@ -41,6 +47,20 @@ function onFrequencyChange(_sender: unknown, payload: unknown): void {
 
 <template>
   <div>
+    <!-- 触感反馈（仅移动端） -->
+    <section v-if="isMobile" class="settings-section">
+      <h2 class="settings-section-title">触感反馈</h2>
+      <div class="settings-card">
+        <div class="card-content">
+          <div class="card-header">震动反馈</div>
+          <div class="card-description">
+            长按唤起菜单、下拉刷新、收藏歌曲或切换播放模式时轻微震动，提供操作确认
+          </div>
+        </div>
+        <ToggleSwitch :IsOn="settings.hapticsEnabled" @Toggled="onHapticsToggle" />
+      </div>
+    </section>
+
     <!-- 系统集成（SMTC 仅 Windows 提供） -->
     <section v-if="isWindows" class="settings-section">
       <h2 class="settings-section-title">系统集成</h2>
