@@ -151,8 +151,8 @@ export const usePlayerStore = defineStore("player", () => {
   engine.on("ended", () => {
     handleEnded();
   });
-  engine.on("advanced", (url) => {
-    handleAdvanced(url);
+  engine.on("advanced", (url, index) => {
+    handleAdvanced(url, index);
   });
   engine.on("error", (message) => {
     loading.value = false;
@@ -194,7 +194,7 @@ export const usePlayerStore = defineStore("player", () => {
       await engine.play();
       void fetchLyrics(track);
       persistQueue();
-      void resolveFallback(); // 提前解析下一首直链，锁屏兜底自动换曲
+      void syncPlayChain(); // 提前解析后续直链，锁屏期间由引擎连续换曲
     } catch (error) {
       loading.value = false;
       playing.value = false;
@@ -308,47 +308,153 @@ export const usePlayerStore = defineStore("player", () => {
   let preload: { index: number; url: string } | null = null;
 
   /**
-   * 锁屏兜底状态：提前解析的下一首直链（锁屏后 WebView 的 JS 被暂停，
-   * maybePreload 不再执行、ended 也无从响应——引擎靠该直链自行衔接）。
-   * fallbackToken 用于丢弃解析期间已过期的结果。
+   * 锁屏播放链：提前解析的后续若干首直链，整链下发给引擎（`engine.setPlayChain`）。
+   * 锁屏后 WebView 的 JS 被暂停，maybePreload 不再执行、ended 也无从响应——
+   * 引擎自己沿链前进即可连续自动切歌；链上的直链同时被媒体栏切歌直接复用
+   * （不必在后台唤醒插件 Worker 解析直链）。
+   *
+   * chainToken 用于丢弃解析期间已过期的结果。
    */
-  let fallbackNext: { index: number; url: string } | null = null;
-  let fallbackToken = 0;
+  let chainEntries: Array<{ index: number; url: string }> = [];
+  let chainToken = 0;
 
-  /** 提前解析下一首直链并下发给引擎作为锁屏兜底（加载/衔接/队列变更后调用） */
-  async function resolveFallback(): Promise<void> {
-    const token = ++fallbackToken;
-    const index = nextAutoIndex();
-    if (index == null) {
-      if (token === fallbackToken) {
-        fallbackNext = null;
-        engine.setNextFallback(null);
+  /** 链长：够锁屏连续听一段时间，又不至于一次解析太多接口 */
+  const CHAIN_LENGTH = 8;
+
+  /** 沿播放顺序列出自「当前曲目之后」起的至多 CHAIN_LENGTH 个索引 */
+  function chainTargets(): number[] {
+    const total = queue.value.length;
+    if (!total || currentIndex.value < 0) return [];
+    const targets: number[] = [];
+    // 单曲循环：链上重复当前曲目，引擎衔接后指针逐格前进即可持续循环
+    if (mode.value === "loop-one") {
+      for (let step = 1; step <= CHAIN_LENGTH; step += 1) targets.push(currentIndex.value);
+      return targets;
+    }
+    // 随机模式的下一首由前端重洗决定，引擎无从预知：按队列顺序兜底，
+    // 锁屏期间至少能顺着播下去（前端醒来后重新下发）
+    for (let step = 1; step <= CHAIN_LENGTH; step += 1) {
+      let index = currentIndex.value + step;
+      if (index >= total) {
+        // 列表循环：回到队首继续；顺序播放：链到此为止
+        if (mode.value !== "loop-all" || total < 2) break;
+        index -= total;
+      }
+      targets.push(index);
+    }
+    return targets;
+  }
+
+  /** 提前解析后续曲目直链并整链下发给引擎（加载/衔接/队列变更/模式变更后调用） */
+  async function syncPlayChain(): Promise<void> {
+    const token = ++chainToken;
+    const targets = chainTargets();
+    if (!targets.length) {
+      if (token === chainToken) {
+        chainEntries = [];
+        engine.setPlayChain([], null);
       }
       return;
     }
-    if (fallbackNext?.index === index) return; // 已解析同一目标
-    const item = queue.value[index];
-    if (!item) return;
-    try {
-      const url = await resolvePlayUrl(item.track);
-      // 解析期间切歌/改队列/改模式：结果已过期
-      if (token !== fallbackToken || nextAutoIndex() !== index) return;
-      fallbackNext = { index, url };
-      // 单曲循环的兜底目标就是当前曲目：repeat 让引擎衔接后保留直链，
-      // 锁屏持续时无需前端重新解析即可一直循环
-      engine.setNextFallback(url, index === currentIndex.value);
-    } catch {
-      // 解析失败：保持无兜底，播完走 ended 回退换曲
+    // 以「当前曲目 + 后续曲目」作为链：current = 0，引擎衔接后前进一格
+    const current = currentIndex.value;
+    const wanted = [current, ...targets];
+    const known = new Map(chainEntries.map((entry) => [entry.index, entry.url]));
+    // 先按队列位置去重解析（单曲循环的链是同一位置重复多项，只需解析一次）
+    const resolvedByIndex = new Map<number, string>();
+    for (const index of new Set(wanted)) {
+      if (!queue.value[index]) continue;
+      const cached = known.get(index);
+      if (cached) {
+        resolvedByIndex.set(index, cached);
+        continue;
+      }
+      try {
+        const url = await resolvePlayUrl(queue.value[index].track);
+        if (token !== chainToken) return; // 期间切歌/改队列/改模式：结果已过期
+        resolvedByIndex.set(index, url);
+      } catch {
+        // 该曲目解析失败：链在此中断（后续曲目等前端醒来再补）
+        break;
+      }
     }
+    if (token !== chainToken) return;
+    const resolved = wanted
+      .filter((index) => resolvedByIndex.has(index))
+      .map((index) => ({ index, url: resolvedByIndex.get(index)! }));
+    // 链首必须是当前曲目（否则指针位置无从对齐）
+    if (!resolved.length || resolved[0].index !== current) return;
+    chainEntries = resolved;
+    engine.setPlayChain(resolved, 0);
   }
 
-  /** 自动切歌的下一曲索引；不可预知（sequential 末尾 / shuffle 一轮重洗）时返回 null */
-  function nextAutoIndex(): number | null {
-    if (!queue.value.length || currentIndex.value < 0) return null;
-    if (mode.value === "loop-one") return currentIndex.value;
-    const next = currentIndex.value + 1;
-    if (next < queue.value.length) return next;
-    return mode.value === "loop-all" && queue.value.length >= 2 ? 0 : null;
+  /** 链上是否已有该队列位置的直链（媒体栏切歌可直接起播，无需插件解析） */
+  function chainUrlAt(index: number): string | null {
+    return chainEntries.find((entry) => entry.index === index)?.url ?? null;
+  }
+
+  /* ------------------------------ 锁屏/后台恢复对齐 ------------------------------ */
+
+  /** 是否正在从后台恢复（避免对齐过程中的中间态被持久化） */
+  let resyncing = false;
+
+  /** 引擎当前播放位置（引擎上报过 progress 之后才可靠） */
+  let enginePosition = 0;
+  engine.on("timeupdate", (time) => {
+    enginePosition = time;
+  });
+
+  /**
+   * 从后台/锁屏恢复：WebView 的 JS 被挂起期间，引擎可能已按播放链自行换过歌，
+   * 或通过媒体栏切了歌——前端的内存状态（曲目、歌词、进度）会滞后甚至错位。
+   * 这里按引擎的真实状态重新对齐：
+   * - 用引擎回传的链下标（或当前直链）确认正在播放的曲目；
+   * - 曲目变了就换元数据并重新拉歌词（修复「锁屏回来新曲没有歌词」）；
+   * - 进度落后太多就直接认引擎为准（避免界面停在旧位置）。
+   */
+  async function syncEngineState(): Promise<void> {
+    if (resyncing || currentIndex.value < 0) return;
+    resyncing = true;
+    try {
+      // 引擎在后台自行衔接过（advanced 事件可能因挂起而丢失）：按直链反查
+      const target = await findIndexByCurrentUrl();
+      if (target != null && target !== currentIndex.value) {
+        await adoptIndex(target);
+      }
+      // 进度对齐：引擎位置可信时以它为准
+      if (enginePosition > 0 && Math.abs(enginePosition - currentTime.value) > 3) {
+        currentTime.value = enginePosition;
+      }
+      // 歌词缺失（后台换歌时没能拉取）：补拉一次
+      if (currentTrack.value && !lyrics.value.length && !lyricsLoading.value) {
+        void fetchLyrics(currentTrack.value);
+      }
+    } finally {
+      resyncing = false;
+    }
+    // 恢复后补齐播放链（后台期间链可能已经用掉一部分）
+    void syncPlayChain();
+  }
+
+  /** 让引擎上报当前直链，据此反查队列下标（无法查询时返回 null） */
+  async function findIndexByCurrentUrl(): Promise<number | null> {
+    const url = await engine.currentSourceUrl().catch(() => null);
+    if (!url) return null;
+    // 锁屏期间引擎是沿播放链前进的：直链命中链上某条即知其队列位置
+    return chainEntries.find((entry) => entry.url === url)?.index ?? null;
+  }
+
+  /** 采纳某个队列下标为当前曲目（元数据 + 歌词 + 持久化） */
+  async function adoptIndex(index: number): Promise<void> {
+    const item = queue.value[index];
+    if (!item) return;
+    currentIndex.value = index;
+    loadedTrackKey = trackUid(item.track);
+    duration.value = item.track.duration ? item.track.duration / 1000 : 0;
+    playing.value = true;
+    loading.value = false;
+    await fetchLyrics(item.track);
+    persistQueue();
   }
 
   /** 剩余时长进入提前量窗口时，解析下一首直链并交给引擎预加载 */
@@ -359,11 +465,11 @@ export const usePlayerStore = defineStore("player", () => {
     if (index == null) return;
     const item = queue.value[index];
     if (!item) return;
-    // 锁屏兜底已解析同一目标：直接复用其直链起预载，避免重复请求解析接口
-    const fallback = fallbackNext;
-    if (fallback && fallback.index === index && fallback.url) {
-      preload = { index, url: fallback.url };
-      engine.preload(fallback.url);
+    // 播放链已解析同一目标：直接复用其直链起预载，避免重复请求解析接口
+    const chained = chainUrlAt(index);
+    if (chained) {
+      preload = { index, url: chained };
+      engine.preload(chained);
       return;
     }
     preload = { index, url: "" };
@@ -377,25 +483,28 @@ export const usePlayerStore = defineStore("player", () => {
     }
   }
 
-  /** 丢弃预加载与锁屏兜底状态（load/stop 本身也会清理后端对应槽） */
+  /** 丢弃预加载与播放链状态（load/stop 本身也会清理后端对应槽） */
   function resetPreload(cancelRemote = false): void {
     preload = null;
-    fallbackNext = null;
-    fallbackToken += 1; // 使在途的兜底解析结果失效
-    engine.setNextFallback(null);
+    chainEntries = [];
+    chainToken += 1; // 使在途的链解析结果失效
+    engine.setPlayChain([], null);
     if (cancelRemote) engine.cancelPreload();
   }
 
-  /** 引擎已衔接至预加载曲目：切换曲目元数据（音频由引擎无缝续接） */
-  function handleAdvanced(url: string): void {
+  /** 引擎已衔接至下一首：切换曲目元数据（音频由引擎无缝续接） */
+  function handleAdvanced(url: string, chainIndex: number | null): void {
     let index: number | null = null;
     if (preload && preload.url && preload.url === url) {
       index = preload.index;
       preload = null;
-    } else if (fallbackNext && fallbackNext.url === url) {
-      // 引擎在锁屏期间用兜底直链自行衔接（常规预载路径未走到）
-      index = fallbackNext.index;
-      fallbackNext = null;
+    } else if (chainIndex != null) {
+      // 引擎沿播放链自行衔接（锁屏场景常规预载路径未走到）：直链自带队列下标
+      index = chainIndex;
+    } else {
+      // 兜底：按直链在链上反查
+      const chained = chainEntries.find((entry) => entry.url === url);
+      if (chained) index = chained.index;
     }
     if (index == null) return;
     const item = queue.value[index];
@@ -403,12 +512,58 @@ export const usePlayerStore = defineStore("player", () => {
     currentIndex.value = index;
     loadedTrackKey = trackUid(item.track);
     currentTime.value = 0;
+    enginePosition = 0;
     duration.value = item.track.duration ? item.track.duration / 1000 : 0;
     playing.value = true;
     loading.value = false;
     void fetchLyrics(item.track);
     persistQueue();
-    void resolveFallback(); // 为新曲目继续解析锁屏兜底（前端已恢复时）
+    void syncPlayChain(); // 为新曲目继续解析后续直链（前端已恢复时）
+  }
+
+  /** 自动切歌的下一曲索引；不可预知（sequential 末尾 / shuffle 一轮重洗）时返回 null */
+  function nextAutoIndex(): number | null {
+    if (!queue.value.length || currentIndex.value < 0) return null;
+    if (mode.value === "loop-one") return currentIndex.value;
+    const next = currentIndex.value + 1;
+    if (next < queue.value.length) return next;
+    return mode.value === "loop-all" && queue.value.length >= 2 ? 0 : null;
+  }
+  /**
+   * 起播指定队列下标：优先复用播放链上已解析的直链。
+   *
+   * 锁屏/媒体栏切歌时 WebView 的 JS 可能刚被唤醒，插件 Worker 还没就绪，
+   * 走常规 resolvePlayUrl 会卡住甚至失败（表现为「点了下一首但不出声」）。
+   * 链上已有直链就直接交给引擎；没有才回退完整解析。
+   */
+  async function startAt(index: number): Promise<boolean> {
+    if (index < 0 || index >= queue.value.length) return false;
+    const url = chainUrlAt(index);
+    if (!url) return false;
+    resetPreload(); // 硬加载会终止后端预加载会话
+    currentIndex.value = index;
+    const item = queue.value[index];
+    loading.value = true;
+    loadedTrackKey = trackUid(item.track);
+    duration.value = item.track.duration ? item.track.duration / 1000 : 0;
+    currentTime.value = 0;
+    enginePosition = 0;
+    engine.load(url);
+    engine.volume = volume.value;
+    engine.muted = muted.value;
+    engine.setRate(rate.value);
+    try {
+      await engine.play();
+    } catch (error) {
+      loading.value = false;
+      playing.value = false;
+      toast(`播放失败: ${error}`, "error");
+      return true;
+    }
+    void fetchLyrics(item.track);
+    persistQueue();
+    void syncPlayChain();
+    return true;
   }
 
   function handleEnded(): void {
@@ -441,6 +596,7 @@ export const usePlayerStore = defineStore("player", () => {
         index = 0;
       }
     }
+    if (await startAt(index)) return;
     await playAt(index);
   }
 
@@ -454,6 +610,7 @@ export const usePlayerStore = defineStore("player", () => {
     }
     let index = currentIndex.value - 1;
     if (index < 0) index = queue.value.length - 1;
+    if (await startAt(index)) return;
     await playAt(index);
   }
 
@@ -503,7 +660,7 @@ export const usePlayerStore = defineStore("player", () => {
     }
     persistQueue();
     void setSetting("player.mode", mode.value);
-    void resolveFallback(); // 下一曲映射可能改变，重新解析锁屏兜底
+    void syncPlayChain(); // 下一曲映射可能改变，重新解析播放链
   }
 
   function cycleMode(): void {
@@ -535,7 +692,7 @@ export const usePlayerStore = defineStore("player", () => {
       }
     }
     persistQueue();
-    void resolveFallback(); // 下一曲映射可能改变，重新解析锁屏兜底
+    void syncPlayChain(); // 下一曲映射可能改变，重新解析播放链
   }
 
   function clearQueue(): void {
@@ -566,7 +723,7 @@ export const usePlayerStore = defineStore("player", () => {
       currentIndex.value = queue.value.findIndex((entry) => entry.uid === currentItemUid);
     }
     persistQueue();
-    void resolveFallback(); // 下一曲映射可能改变，重新解析锁屏兜底
+    void syncPlayChain(); // 下一曲映射可能改变，重新解析播放链
   }
 
   /** 拖动排序时同步原始列表备份 */
@@ -695,5 +852,6 @@ export const usePlayerStore = defineStore("player", () => {
     moveQueueItem,
     restore,
     persistQueue,
+    syncEngineState,
   };
 });

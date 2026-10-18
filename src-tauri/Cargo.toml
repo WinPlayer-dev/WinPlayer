@@ -1,6 +1,6 @@
 [package]
 name = "winplayer"
-version = "1.8.1"
+version = "1.8.2"
 description = "A plugin-driven music player with WinUI design, built with Tauri 2"
 authors = ["WinPlayer Contributors"]
 edition = "2021"

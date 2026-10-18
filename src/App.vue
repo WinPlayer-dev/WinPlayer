@@ -62,9 +62,21 @@ onMounted(async () => {
   if (isMobile) {
     void installBackButton(router, () => toast("再按一次返回键退出应用", "info"));
   }
+  document.addEventListener("visibilitychange", onVisibilityChange);
 });
 
+/**
+ * 从锁屏/后台回到前台：WebView 的 JS 在后台被挂起，期间引擎可能已按播放链
+ * 自行换歌、或通过锁屏媒体栏切了歌——这里把界面状态（曲目 / 歌词 / 进度）
+ * 重新对齐到引擎的真实状态。
+ */
+function onVisibilityChange(): void {
+  if (document.visibilityState !== "visible") return;
+  void player.syncEngineState();
+}
+
 onUnmounted(() => {
+  document.removeEventListener("visibilitychange", onVisibilityChange);
   plugins.disposeAll();
   updater.dispose();
   stopSmtcWatch();

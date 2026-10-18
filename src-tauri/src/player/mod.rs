@@ -14,11 +14,12 @@
 //!   自动衔接），同样广播 `player://advanced`；
 //! - 预载未就绪/解析失败时回退旧行为：广播 `player://ended` 由前端换曲。
 //!
-//! 锁屏兜底：Android 锁屏后 WebView 的 JS 被暂停/强节流，前端无法及时触发
-//! `player_preload`，也无从响应 `player://ended`——自动切歌会直接停摆。
-//! 因此前端在加载每首歌时提前解析下一首直链，经 `player_set_next_fallback`
-//! 交给引擎；自然播完且预载未就绪时，引擎用兜底直链现场起预载会话并等待
-//! 就绪后无缝衔接（锁屏场景允许数秒静音间隙），完全不依赖前端存活。
+//! 锁屏自动连播：Android 锁屏后 WebView 的 JS 被暂停/强节流，前端无法及时
+//! 触发 `player_preload`，也无从响应 `player://ended`——自动切歌会直接停摆。
+//! 因此前端提前解析**后续若干首**直链，经 `player_set_play_chain` 整链下发
+//! 给引擎（`index` = 该条在播放队列中的位置，`current` = 当前曲目在链上的
+//! 位置）；引擎自然播完且预载未就绪时，自己沿链前进、现场起预载会话并等待
+//! 就绪后无缝衔接，连续切歌还能继续用链上后续曲目，完全不依赖前端存活。
 //!
 //! Tauri 事件（前端 `listen`）：
 //! - `player://progress`  `{ currentTime, duration }`，解码循环每 250ms
@@ -89,6 +90,10 @@ struct ErrorPayload {
 #[derive(Serialize, Clone)]
 struct AdvancedPayload {
     url: String,
+    /// 衔接到的曲目在播放链上的队列位置（前端据此切换曲目元数据/歌词）；
+    /// 未知时为 None
+    #[serde(skip_serializing_if = "Option::is_none")]
+    index: Option<usize>,
 }
 
 /// 预加载槽：下一首的解码会话信息，解码线程首帧后存入就绪的音源
@@ -105,12 +110,54 @@ impl PendingSlot {
     }
 }
 
-/// 锁屏兜底直链：前端提前解析的下一首直链（`repeat` = 单曲循环，衔接
-/// 成功后保留，供锁屏期间持续循环）
-#[derive(Clone)]
-pub(crate) struct FallbackNext {
+/// 播放链上的一条：前端提前解析好的直链及其在播放队列中的位置
+#[derive(Clone, Debug)]
+pub(crate) struct ChainEntry {
+    /// 该曲目在播放队列中的下标（前端用来对齐元数据/歌词）
+    pub index: usize,
     pub url: String,
-    pub repeat: bool,
+}
+
+/// 锁屏自动连播的播放链：前端提前解析的后续曲目直链，按播放顺序排列。
+/// `current` 为当前正在播放的曲目在 `entries` 上的位置；引擎每次自然播完
+/// 就沿链 `advance` 一格，因此锁屏期间可以连续自动切歌而无需前端参与。
+#[derive(Clone, Debug, Default)]
+pub(crate) struct PlayChain {
+    pub entries: Vec<ChainEntry>,
+    /// 当前曲目所在下标；None 表示尚未对齐（使用下一条即可）
+    pub current: Option<usize>,
+}
+
+impl PlayChain {
+    /// 链上下一条：指针后移一格，到链尾回卷到链首（列表循环/单曲循环续播）。
+    /// 前端把「当前曲目」排在链首，因此回卷等价于从头继续播。
+    pub(crate) fn next_entry(&self) -> Option<&ChainEntry> {
+        if self.entries.is_empty() {
+            return None;
+        }
+        let next = match self.current {
+            Some(position) => (position + 1) % self.entries.len(),
+            None => 0,
+        };
+        self.entries.get(next)
+    }
+
+    /// 衔接成功后把指针移到该 URL。从当前指针之后开始找，保证指针单调前进：
+    /// 单曲循环的链是同一 URL 重复多项，按「首个匹配」会永远停在 0。
+    pub(crate) fn advance_to(&mut self, url: &str) {
+        let len = self.entries.len();
+        if len == 0 {
+            return;
+        }
+        let start = self.current.map_or(0, |position| (position + 1) % len);
+        for offset in 0..len {
+            let position = (start + offset) % len;
+            if self.entries[position].url == url {
+                self.current = Some(position);
+                return;
+            }
+        }
+    }
 }
 
 pub struct PlayerEngine {
@@ -132,8 +179,8 @@ pub struct PlayerEngine {
     fading: AtomicU64,
     /// 预加载槽（None = 无预加载）
     pending: Mutex<Option<PendingSlot>>,
-    /// 锁屏兜底直链（None = 无兜底）
-    fallback: Mutex<Option<FallbackNext>>,
+    /// 锁屏自动连播的播放链（空 = 无预解析直链可用）
+    play_chain: Mutex<PlayChain>,
     /// 活跃音源的结束标记（gapless 衔接时置位，令旧源排空后让位）
     ended_flag: Mutex<Option<Arc<std::sync::atomic::AtomicBool>>>,
     volume: Mutex<f32>,
@@ -181,7 +228,7 @@ impl PlayerEngine {
             active: AtomicU64::new(0),
             fading: AtomicU64::new(0),
             pending: Mutex::new(None),
-            fallback: Mutex::new(None),
+            play_chain: Mutex::new(PlayChain::default()),
             ended_flag: Mutex::new(None),
             volume: Mutex::new(0.8),
             pending_seek: Mutex::new(None),
@@ -395,7 +442,8 @@ impl PlayerEngine {
         self.active.store(id, Ordering::Release);
         self.fading.store(0, Ordering::Release);
         *self.pending.lock().unwrap() = None;
-        *self.fallback.lock().unwrap() = None;
+        // 播放链属于上一次加载：硬切换后由前端按新队列重新下发
+        *self.play_chain.lock().unwrap() = PlayChain::default();
         *self.pending_seek.lock().unwrap() = None;
         self.buffering.store(false, Ordering::Release);
         self.is_playing.store(false, Ordering::Release);
@@ -416,7 +464,7 @@ impl PlayerEngine {
         self.active.store(0, Ordering::Release);
         self.fading.store(0, Ordering::Release);
         *self.pending.lock().unwrap() = None;
-        *self.fallback.lock().unwrap() = None;
+        *self.play_chain.lock().unwrap() = PlayChain::default();
         *self.pending_seek.lock().unwrap() = None;
         self.buffering.store(false, Ordering::Release);
         self.is_playing.store(false, Ordering::Release);
@@ -484,11 +532,15 @@ impl PlayerEngine {
         let old_sink = self.sink.lock().unwrap().take();
         self.fading.store(from_id, Ordering::Release);
         self.active.store(slot.id, Ordering::Release);
+        // 正在播放的曲目已变：同步 current_url，供前端恢复时反查实际曲目
+        *self.current_url.lock().unwrap() = Some(slot.url.clone());
         *self.sink.lock().unwrap() = Some(new_sink.clone());
         self.buffering.store(false, Ordering::Release);
-        // 已衔接到预载曲目：兜底直链随之过期，待前端醒来后重新下发
-        *self.fallback.lock().unwrap() = None;
-        let _ = self.app.emit(EVENT_ADVANCED, AdvancedPayload { url: slot.url });
+        // 已衔接到预载曲目：本次预载槽消费完毕，等待前端（或锁屏兜底）重新下发
+        let index = self.chain_index_of(&slot.url);
+        let _ = self
+            .app
+            .emit(EVENT_ADVANCED, AdvancedPayload { url: slot.url, index });
 
         // 淡出/淡入斜坡：以主音量为基准同步缩放两路
         let engine = self.clone();
@@ -560,42 +612,74 @@ impl PlayerEngine {
         sink.append(source);
         drop(sink_guard);
         self.active.store(slot.id, Ordering::Release);
-        // 已衔接到预载曲目：兜底直链随之过期（单曲循环兜底除外，其由
-        // promote_fallback_and_wait 在衔接成功后重新写入）
-        *self.fallback.lock().unwrap() = None;
-        let _ = self.app.emit(EVENT_ADVANCED, AdvancedPayload { url: slot.url });
+        // 正在播放的曲目已变：同步 current_url，供前端恢复时反查实际曲目
+        *self.current_url.lock().unwrap() = Some(slot.url.clone());
+        // 已衔接到链上曲目：链指针前进一格，连续切歌可继续用后续曲目
+        self.chain_advance_to_url(&slot.url);
+        let index = self.chain_index_of(&slot.url);
+        let _ = self
+            .app
+            .emit(EVENT_ADVANCED, AdvancedPayload { url: slot.url, index });
         true
     }
 
-    /// 锁屏兜底衔接：预载未就绪时（前端可能已被 WebView 暂停），若已有
-    /// 预载槽则原地等待其解码就绪，否则取前端提前下发的兜底直链现场起
-    /// 预载会话并等待。就绪后无缝衔接并广播 `player://advanced`。
-    /// 等待超时（弱网解码迟迟不就绪）则放弃，回退 `player://ended`。
-    pub(crate) fn promote_fallback_and_wait(self: &Arc<Self>, from_id: u64) -> bool {
+    /* ------------------------------ 播放链 ------------------------------ */
+
+    /// 该 URL 若非链上曲目则返回 None（供 advanced 事件带上队列下标）
+    fn chain_index_of(&self, url: &str) -> Option<usize> {
+        self.play_chain
+            .lock()
+            .unwrap()
+            .entries
+            .iter()
+            .find(|entry| entry.url == url)
+            .map(|entry| entry.index)
+    }
+
+    /// 衔接成功后把链指针移到该 URL（从当前指针之后开始找，单调前进）
+    fn chain_advance_to_url(&self, url: &str) {
+        self.play_chain.lock().unwrap().advance_to(url);
+    }
+
+    /// 链上下一条（相对当前指针，到链尾回卷）
+    fn chain_next(&self) -> Option<(usize, String)> {
+        self.play_chain
+            .lock()
+            .unwrap()
+            .next_entry()
+            .map(|entry| (entry.index, entry.url.clone()))
+    }
+
+    /// 锁屏自动连播：预载未就绪时（前端已被 WebView 暂停，无人响应 ended），
+    /// 取链上下一条直链现场起预载会话并等待解码就绪，再无缝衔接。
+    /// 等待超时（弱网迟迟不就绪）则放弃，回退 `player://ended`。
+    pub(crate) fn promote_chain_and_wait(self: &Arc<Self>, from_id: u64) -> bool {
         if !self.is_active(from_id) {
             return false;
         }
-        let mut repeat_fallback: Option<FallbackNext> = None;
-        if self.pending.lock().unwrap().is_none() {
-            let fallback = self.fallback.lock().unwrap().take();
-            let Some(fb) = fallback else {
-                return false;
-            };
-            self.preload(fb.url.clone());
-            if fb.repeat {
-                repeat_fallback = Some(fb);
+        // 预载槽里若已是「当前正在播的这首」（前端旧逻辑只预载一首，切过来后
+        // 槽仍停在这首上），直接等它就是空转：换成链上下一条。目标一致时则
+        // 保留，免得丢掉已经解码好的音源。
+        let (_, want) = match self.chain_next() {
+            Some(next) => next,
+            None => return false,
+        };
+        let stale = {
+            let guard = self.pending.lock().unwrap();
+            match guard.as_ref() {
+                None => true,
+                Some(slot) => slot.url != want && Some(slot.url.as_str()) == self.current_url_str().as_deref(),
             }
-        }
-        // 单曲循环：衔接成功后保留兜底直链，锁屏持续时下一轮仍可续播
-        // （常规衔接路径会清空兜底，由前端醒来后重新解析下发）
-        if let Some(fb) = repeat_fallback {
-            if self.wait_gapless_ready(from_id) {
-                *self.fallback.lock().unwrap() = Some(fb);
-                return true;
-            }
-            return false;
+        };
+        if stale {
+            self.preload(want);
         }
         self.wait_gapless_ready(from_id)
+    }
+
+    /// 当前加载的 URL（只读克隆）
+    fn current_url_str(&self) -> Option<String> {
+        self.current_url.lock().unwrap().clone()
     }
 
     /// 等待预载槽解码就绪并完成 gapless 衔接；超时或期间发生硬切换则放弃
@@ -637,22 +721,48 @@ pub fn player_preload(engine: State<Arc<PlayerEngine>>, url: String) {
     engine.preload(url);
 }
 
+/// 查询引擎当前正在播放的直链（前台恢复时用于反查实际曲目：锁屏期间引擎
+/// 可能已按播放链自行换歌，前端需要据此对齐元数据与歌词）。
+#[tauri::command]
+pub fn player_current_url(engine: State<Arc<PlayerEngine>>) -> Option<String> {
+    engine.current_url.lock().unwrap().clone()
+}
+
 #[tauri::command]
 pub fn player_cancel_preload(engine: State<Arc<PlayerEngine>>) {
     engine.cancel_preload();
 }
 
-/// 下发锁屏兜底直链：前端在加载每首歌时提前解析下一首直链交给引擎，
-/// 供「预载未就绪且前端已被 WebView 暂停」时现场衔接。`url` 为 None/空
-/// 表示清除（队列/模式变更、硬切换后由前端调用）。
+/// 下发锁屏自动连播的播放链：前端提前解析**后续若干首**直链并按播放顺序
+/// 排好交给引擎，供「前端已被 WebView 暂停」时连续自动切歌。
+///
+/// - `entries`：`{ index, url }` 列表，`index` 是该曲目在播放队列中的位置
+///   （前端据此对齐元数据/歌词）；
+/// - `current`：当前曲目在 `entries` 上的位置（None = 尚未对齐，取链首的
+///   下一条）；单曲循环时前端把当前曲目重复两项下发，引擎照常前进一格。
+///
+/// 空列表表示清除（队列/模式变更后由前端重新下发）。
 #[tauri::command]
-pub fn player_set_next_fallback(
+pub fn player_set_play_chain(
     engine: State<Arc<PlayerEngine>>,
-    url: Option<String>,
-    repeat: bool,
+    entries: Vec<ChainEntryArg>,
+    current: Option<usize>,
 ) {
-    let url = url.filter(|value| !value.trim().is_empty());
-    *engine.fallback.lock().unwrap() = url.map(|url| FallbackNext { url, repeat });
+    let entries: Vec<ChainEntry> = entries
+        .into_iter()
+        .filter(|entry| !entry.url.trim().is_empty())
+        .map(|entry| ChainEntry { index: entry.index, url: entry.url })
+        .collect();
+    let current = current.filter(|position| *position < entries.len());
+    *engine.play_chain.lock().unwrap() = PlayChain { entries, current };
+}
+
+/// 播放链条目的前端载荷（serde 转为 camelCase）
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChainEntryArg {
+    pub index: usize,
+    pub url: String,
 }
 
 #[tauri::command]
@@ -828,5 +938,59 @@ impl PlayerEngine {
         self.is_playing.store(false, Ordering::Release);
         self.buffering.store(false, Ordering::Release);
         let _ = self.app.emit(EVENT_ERROR, ErrorPayload { message });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ChainEntry, PlayChain};
+
+    fn chain_of(urls: &[&str], indexes: &[usize]) -> PlayChain {
+        PlayChain {
+            entries: urls
+                .iter()
+                .zip(indexes)
+                .map(|(url, index)| ChainEntry { index: *index, url: (*url).to_string() })
+                .collect(),
+            current: Some(0),
+        }
+    }
+
+    /// 链上下一条：指针后移一格，到链尾回卷到链首（列表循环续播）
+    #[test]
+    fn next_entry_advances_then_wraps() {
+        let mut chain = chain_of(&["a", "b", "c"], &[0, 1, 2]);
+        assert_eq!(chain.next_entry().unwrap().url, "b");
+        chain.advance_to("b");
+        assert_eq!(chain.next_entry().unwrap().url, "c");
+        chain.advance_to("c");
+        // 链尾回卷：等价于列表循环从头继续
+        assert_eq!(chain.next_entry().unwrap().url, "a");
+    }
+
+    /// 单曲循环：同一 URL 重复多项，指针在重复项上仍逐格前进（不会被首个匹配卡住）
+    #[test]
+    fn advance_on_repeated_url_moves_forward() {
+        let mut chain = chain_of(&["same", "same", "same", "same"], &[3, 3, 3, 3]);
+        assert_eq!(chain.current, Some(0));
+        chain.advance_to("same");
+        assert_eq!(chain.current, Some(1), "重复 URL 上指针应前进而不是停在 0");
+        chain.advance_to("same");
+        assert_eq!(chain.current, Some(2));
+    }
+
+    /// 空链不产生衔接目标（锁屏但队列未知时回退 ended）
+    #[test]
+    fn empty_chain_has_no_next() {
+        let chain = PlayChain::default();
+        assert!(chain.next_entry().is_none());
+    }
+
+    /// 未对齐（current 为 None）时从链首开始
+    #[test]
+    fn unaligned_chain_starts_at_head() {
+        let mut chain = chain_of(&["a", "b"], &[0, 1]);
+        chain.current = None;
+        assert_eq!(chain.next_entry().unwrap().url, "a");
     }
 }

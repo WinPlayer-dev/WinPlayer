@@ -16,7 +16,7 @@ export interface AudioEngineEvents {
   durationchange: (duration: number) => void;
   ended: () => void;
   /** 已无缝衔接至预加载曲目（crossfade 起点 / gapless 衔接点），携带预加载 URL */
-  advanced: (url: string) => void;
+  advanced: (url: string, index: number | null) => void;
   error: (message: string) => void;
   playing: () => void;
   paused: () => void;
@@ -104,8 +104,10 @@ export class AudioEngine {
         this.emit("ended");
       });
       await on("player://advanced", (payload) => {
-        const url = (payload as { url?: string }).url;
-        this.emit("advanced", typeof url === "string" ? url : "");
+        const p = payload as { url?: string; index?: number };
+        const url = typeof p.url === "string" ? p.url : "";
+        const index = typeof p.index === "number" && Number.isFinite(p.index) ? p.index : null;
+        this.emit("advanced", url, index);
       });
       await on("player://error", (payload) => {
         const message = (payload as { message?: string }).message ?? "播放出错";
@@ -167,6 +169,19 @@ export class AudioEngine {
     void invoke("player_load", { url: src }).catch((error) => {
       this.emit("error", `加载音频失败: ${error}`);
     });
+  }
+
+  /**
+   * 查询引擎当前正在播放的直链（后台/锁屏恢复时用于反查实际曲目）。
+   * 非 Tauri 环境或查询失败时返回 null。
+   */
+  async currentSourceUrl(): Promise<string | null> {
+    if (!this.inTauri) return null;
+    try {
+      return await invoke<string | null>("player_current_url");
+    } catch {
+      return null;
+    }
   }
 
   async play(): Promise<void> {
@@ -249,14 +264,16 @@ export class AudioEngine {
   }
 
   /**
-   * 下发锁屏兜底直链：锁屏后 WebView 的 JS 被暂停，前端无法触发预载也
-   * 无从响应 ended——引擎在歌曲自然播完且预载未就绪时，用该直链现场
-   * 衔接下一首。`repeat` = 单曲循环，引擎衔接成功后保留直链供持续循环。
-   * `null` 表示清除（队列/模式变更、硬切换后调用）。
+   * 下发锁屏自动连播的播放链：锁屏后 WebView 的 JS 被暂停，前端无法触发
+   * 预载也无从响应 ended——引擎靠链上直链自行连续切歌。
+   *
+   * `entries` 按播放顺序排好，`index` 是该曲目在播放队列中的位置（引擎在
+   * advanced 事件里回传，前端据此对齐元数据/歌词）；`current` 为当前曲目
+   * 在链上的位置。空数组表示清除（队列/模式变更、硬切换后调用）。
    */
-  setNextFallback(url: string | null, repeat = false): void {
+  setPlayChain(entries: Array<{ index: number; url: string }>, current: number | null): void {
     if (!this.inTauri) return;
-    void invoke("player_set_next_fallback", { url, repeat }).catch(() => {});
+    void invoke("player_set_play_chain", { entries, current }).catch(() => {});
   }
 
   /** 横向淡入淡出配置（关闭后自动切歌仍走 Gapless 无缝衔接） */
