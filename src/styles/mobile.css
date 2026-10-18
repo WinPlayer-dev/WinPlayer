@@ -232,12 +232,6 @@ html.is-mobile .content-dialog {
   max-height: 82vh;
 }
 
-/* 顶部对齐 + 安全区：软键盘从底部弹出时不会遮住对话框里的输入框 */
-html.is-mobile .content-dialog-layout-root {
-  align-items: flex-start;
-  padding: max(var(--safe-area-top), 24px) 0 max(var(--safe-area-bottom), 24px);
-}
-
 html.is-mobile .content-dialog-content-scroll-viewer {
   -webkit-overflow-scrolling: touch;
 }
