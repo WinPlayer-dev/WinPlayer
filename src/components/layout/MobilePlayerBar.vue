@@ -8,11 +8,10 @@
  * - 歌词偏移校准（±0.5s，按曲目持久化）、进度条拖动时间气泡、队列拖拽排序与滑动删除
  */
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
-import { onBackButtonPress } from "@tauri-apps/api/app";
 import { useRouter } from "vue-router";
-import type { PluginListener } from "@tauri-apps/api/core";
 import CachedImage from "@/components/common/CachedImage.vue";
 import { useAutoCenter } from "@/composables/useAutoCenter";
+import { registerBackInterceptor } from "@/services/backButton";
 import { getSetting, setSetting } from "@/services/db";
 import { findLyricIndex } from "@/services/lrc";
 import { usePlayerStore } from "@/stores/player";
@@ -226,7 +225,8 @@ const axis = ref<"none" | "close" | "switch">("none");
 
 let startX = 0;
 let startY = 0;
-let armed = false;
+/** 页面级手势是否已接管（响应式：只在接管期间才提升合成层） */
+const armed = ref(false);
 let canClose = false;
 let canSwitch = false;
 
@@ -246,7 +246,7 @@ const sheetStyle = computed(() => {
 
 function resetGesture(): void {
   axis.value = "none";
-  armed = false;
+  armed.value = false;
   animating.value = false;
   sheetX.value = 0;
   sheetY.value = 0;
@@ -275,7 +275,7 @@ function wait(ms: number): Promise<void> {
 }
 
 function onSheetStart(event: TouchEvent): void {
-  armed = false;
+  armed.value = false;
   if (closing.value || animating.value || showQueue.value) return;
   const touch = event.touches[0];
   const target = event.target as HTMLElement | null;
@@ -291,11 +291,11 @@ function onSheetStart(event: TouchEvent): void {
   canClose = atTop || inTop;
   // 左右切歌：只在封面/标题区，避免与歌词阅读冲突
   canSwitch = inTop;
-  armed = true;
+  armed.value = true;
 }
 
 function onSheetMove(event: TouchEvent): void {
-  if (!armed) return;
+  if (!armed.value) return;
   const touch = event.touches[0];
   if (!touch) return;
   const dx = touch.clientX - startX;
@@ -305,14 +305,14 @@ function onSheetMove(event: TouchEvent): void {
     if (Math.abs(dx) < AXIS_SLOP && Math.abs(dy) < AXIS_SLOP) return;
     if (Math.abs(dx) > Math.abs(dy)) {
       if (!canSwitch) {
-        armed = false;
+        armed.value = false;
         return;
       }
       axis.value = "switch";
     } else {
       // 只有「已到顶部继续下拉」才接管，其余交给歌词原生滚动
       if (dy <= 0 || !canClose) {
-        armed = false;
+        armed.value = false;
         return;
       }
       axis.value = "close";
@@ -326,8 +326,8 @@ function onSheetMove(event: TouchEvent): void {
 }
 
 function onSheetEnd(): void {
-  if (!armed && axis.value === "none") return;
-  armed = false;
+  if (!armed.value && axis.value === "none") return;
+  armed.value = false;
   const mode = axis.value;
   axis.value = "none";
 
@@ -545,58 +545,45 @@ const dropLineTop = computed(() => {
 
 /* ------------------------------ Android 返回键 ------------------------------ */
 
-let backListener: PluginListener | null = null;
+/**
+ * 全屏播放页的返回键处理：逐层收起浮层，最后收起全屏页。
+ * 返回键监听本身由 App.vue 统一注册（services/backButton.ts），
+ * 这里只挂一层拦截器，避免每个组件各注册一个监听互相抢默认行为。
+ */
+let unregisterBack: (() => void) | null = null;
 
-async function registerBackListener(): Promise<void> {
-  if (backListener) return;
-  try {
-    backListener = await onBackButtonPress(() => {
-      // 注册监听即接管返回键默认行为：逐层收起浮层
-      if (showMore.value) {
-        showMore.value = false;
-        return;
-      }
-      if (showOffset.value) {
-        showOffset.value = false;
-        return;
-      }
-      if (showRate.value) {
-        showRate.value = false;
-        return;
-      }
-      if (showQueue.value) {
-        showQueue.value = false;
-        return;
-      }
-      closeFull();
-    });
-  } catch {
-    /* 非 Android 平台不支持（桌面端不渲染本组件，此处仅作兜底） */
-  }
-}
-
-async function unregisterBackListener(): Promise<void> {
-  const listener = backListener;
-  backListener = null;
-  try {
-    await listener?.unregister();
-  } catch {
-    /* 忽略 */
-  }
-}
-
-// 打开全屏页：读取本曲目歌词偏移并接管返回键；收起时逐个复位
+// 打开全屏页：读取本曲目歌词偏移并注册返回键拦截；收起时逐个复位
 watch(showFull, (open) => {
-  if (open) {
-    void loadLyricOffset();
-    void registerBackListener();
+  unregisterBack?.();
+  unregisterBack = null;
+  if (!open) {
+    showQueue.value = false;
+    showOffset.value = false;
+    showRate.value = false;
+    showMore.value = false;
     return;
   }
-  showQueue.value = false;
-  showOffset.value = false;
-  showRate.value = false;
-  showMore.value = false;
-  void unregisterBackListener();
+  void loadLyricOffset();
+  unregisterBack = registerBackInterceptor(() => {
+    if (showMore.value) {
+      showMore.value = false;
+      return true;
+    }
+    if (showOffset.value) {
+      showOffset.value = false;
+      return true;
+    }
+    if (showRate.value) {
+      showRate.value = false;
+      return true;
+    }
+    if (showQueue.value) {
+      showQueue.value = false;
+      return true;
+    }
+    closeFull();
+    return true;
+  });
 });
 
 // 切歌后重新读取该曲目保存的歌词偏移
@@ -608,7 +595,8 @@ watch(
 );
 
 onBeforeUnmount(() => {
-  void unregisterBackListener();
+  unregisterBack?.();
+  unregisterBack = null;
   cancelQueueAutoScroll();
 });
 </script>
@@ -617,7 +605,11 @@ onBeforeUnmount(() => {
   <template v-if="player.currentTrack">
     <!-- 迷你播放条 -->
     <footer class="mini-bar" @click="openFull">
-      <div class="mini-progress" :style="{ width: `${progressPercent}%` }" />
+      <!-- 用 scaleX 而不是 width：每 250ms 一次的进度推进不该触发 layout/paint -->
+      <div
+        class="mini-progress"
+        :style="{ transform: `scaleX(${progressPercent / 100})` }"
+      />
       <div class="mini-cover">
         <CachedImage
           v-if="player.currentTrack.cover"
@@ -665,6 +657,7 @@ onBeforeUnmount(() => {
       <div
         v-if="showFull"
         class="full-player"
+        :class="{ 'is-gesturing': armed || animating }"
         :style="sheetStyle"
         @touchstart.passive="onSheetStart"
         @touchmove="onSheetMove"
@@ -750,7 +743,10 @@ onBeforeUnmount(() => {
             @pointerup="onProgressUp"
             @pointercancel="onProgressUp"
           >
-            <div class="full-progress-fill" :style="{ width: `${displayedPercent}%` }" />
+            <div
+              class="full-progress-fill"
+              :style="{ transform: `scaleX(${displayedPercent / 100})` }"
+            />
             <div
               class="full-progress-thumb"
               :class="{ dragging }"
@@ -981,9 +977,11 @@ onBeforeUnmount(() => {
   position: absolute;
   top: -1px;
   left: 0;
+  width: 100%;
   height: 2px;
   background: var(--wp-accent);
-  transition: width 0.25s linear;
+  transform-origin: left center;
+  transition: transform 0.25s linear;
   pointer-events: none;
 }
 
@@ -1352,7 +1350,8 @@ onBeforeUnmount(() => {
   height: 100%;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.95);
-  transition: width 0.18s linear;
+  transform-origin: left center;
+  transition: transform 0.18s linear;
 }
 
 /* 拖动时才显示，避免静止时干扰视觉 */
