@@ -537,6 +537,10 @@ function onRowPointerDown(event: PointerEvent, track: UnifiedTrack) {
   min-height: 60px;
   padding: var(--space-md) var(--space-sm);
   border-radius: var(--radius-md);
+  /* 长列表滚动优化：离屏行跳过布局/绘制，仅保留占位高度（移动端行高固定 60px）。
+     auto 关键字让浏览器记住实际尺寸，滚动条与滚动定位依旧准确。 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 60px;
 }
 
 .song-table.is-mobile .table-row:active {
