@@ -17,7 +17,9 @@ import { findLyricIndex } from "@/services/lrc";
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
 import {
+  PLAYBACK_RATES,
   PLAY_MODE_LABEL,
+  formatRate,
   formatTime,
   playModeIcon,
   playModeIconFilled,
@@ -31,6 +33,14 @@ const library = useLibraryStore();
 const showFull = ref(false);
 const showQueue = ref(false);
 const showOffset = ref(false);
+/** 播放速度面板 */
+const showRate = ref(false);
+
+/** 选择播放倍速并关闭面板 */
+function selectRate(value: number): void {
+  void player.setRate(value);
+  showRate.value = false;
+}
 
 const liked = computed(() => (player.currentTrack ? library.isLiked(player.currentTrack) : false));
 
@@ -529,6 +539,10 @@ async function registerBackListener(): Promise<void> {
         showOffset.value = false;
         return;
       }
+      if (showRate.value) {
+        showRate.value = false;
+        return;
+      }
       if (showQueue.value) {
         showQueue.value = false;
         return;
@@ -559,6 +573,7 @@ watch(showFull, (open) => {
   }
   showQueue.value = false;
   showOffset.value = false;
+  showRate.value = false;
   void unregisterBackListener();
 });
 
@@ -653,6 +668,14 @@ onBeforeUnmount(() => {
             >
               <span class="wp-icon">&#xF588;</span>
               <span class="full-offset-value">{{ offsetLabel }}</span>
+            </button>
+            <button
+              class="full-offset-button"
+              :title="`播放速度 ${formatRate(player.rate)}`"
+              @click="showRate = true"
+            >
+              <span class="wp-icon">&#xF831;</span>
+              <span class="full-offset-value">{{ formatRate(player.rate) }}</span>
             </button>
             <button
               class="full-icon-button"
@@ -772,6 +795,32 @@ onBeforeUnmount(() => {
                 <button class="offset-step" @click="shiftLyricOffset(500)">+0.5s</button>
               </div>
               <button class="offset-reset" @click="resetLyricOffset">重置偏移</button>
+            </div>
+          </div>
+        </transition>
+
+        <!-- 播放速度（0.5x–2x，保持音调） -->
+        <transition name="full-fade">
+          <div v-if="showRate" class="full-offset" @click.self="showRate = false">
+            <div class="offset-panel">
+              <div class="offset-header">
+                <span class="offset-title">播放速度</span>
+                <button class="wp-icon-button" title="关闭" @click="showRate = false">
+                  <span class="wp-icon">&#xF36A;</span>
+                </button>
+              </div>
+              <div class="offset-hint">保持音调变速，适合播客 / 有声书</div>
+              <div class="rate-grid">
+                <button
+                  v-for="value in PLAYBACK_RATES"
+                  :key="value"
+                  class="rate-option"
+                  :class="{ active: player.rate === value }"
+                  @click="selectRate(value)"
+                >
+                  {{ formatRate(value) }}
+                </button>
+              </div>
             </div>
           </div>
         </transition>
@@ -1078,22 +1127,23 @@ onBeforeUnmount(() => {
 .full-hero {
   flex: none;
   display: flex;
-  align-items: center;
+  /* 拉伸：让右侧文字块与封面等高 */
+  align-items: stretch;
   gap: var(--space-lg);
   padding: var(--space-xs) var(--space-xl) var(--space-md);
 }
 
 .full-cover {
   flex: none;
-  width: 96px;
-  height: 96px;
+  width: 56px;
+  height: 56px;
   border-radius: var(--radius-lg);
   background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
 }
 
 .full-cover-img {
@@ -1103,25 +1153,30 @@ onBeforeUnmount(() => {
 }
 
 .full-cover-placeholder {
-  font-size: 28px;
+  font-size: 20px;
   color: rgba(255, 255, 255, 0.3);
 }
 
 .full-meta {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .full-title {
-  font-size: 18px;
+  font-size: 17px;
+  line-height: 1.3;
   font-weight: 600;
   color: #fff;
 }
 
 .full-artist {
-  font-size: 13px;
+  font-size: 12.5px;
+  line-height: 1.3;
   color: rgba(255, 255, 255, 0.6);
-  margin-top: 6px;
+  margin-top: 5px;
 }
 
 .full-lyrics {
@@ -1410,6 +1465,37 @@ onBeforeUnmount(() => {
 
 .offset-reset:active {
   background: rgba(255, 255, 255, 0.1);
+}
+
+/* 播放速度：档位网格 */
+.rate-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-sm);
+  margin: var(--space-lg) 0 var(--space-sm);
+}
+
+.rate-option {
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+
+.rate-option:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.rate-option.active {
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.92);
+  color: #111;
+  font-weight: 600;
 }
 
 /* 深色面板内的图标按钮统一改为浅色 */
