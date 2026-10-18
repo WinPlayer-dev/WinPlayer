@@ -2,8 +2,9 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <!-- viewport-fit=cover：允许内容延伸到安全区，使 env(safe-area-inset-*) 生效（iOS 必需，Android 配合 WebView 边缘到边缘绘制） -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- viewport-fit=cover：允许内容延伸到安全区，使 env(safe-area-inset-*) 生效（iOS 必需，Android 配合 WebView 边缘到边缘绘制）
+         maximum-scale=1.0 / user-scalable=no：禁止双指捏合缩放整页（Android WebView 仍需配合 global.css 里的 touch-action） -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <title>WinPlayer</title>
   </head>

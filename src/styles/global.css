@@ -32,6 +32,10 @@ body,
   margin: 0;
   padding: 0;
   overflow: hidden;
+  /* 移动端 WebView 默认允许双指捏合缩放整页，会破坏应用布局。
+     只保留单指平移（横向/纵向滚动），显式排除 pinch-zoom / 双击缩放。
+     子元素的 touch-action 会与本值取交集，不影响组件自己的手势。 */
+  touch-action: pan-x pan-y;
 }
 
 body {
