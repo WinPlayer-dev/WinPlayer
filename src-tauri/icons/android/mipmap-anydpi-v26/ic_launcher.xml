@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  API 26+ 自适应图标（Android 8.0 及以上）。
+  可视区只有 108dp 画布正中央的 72dp，因此 foreground 需要用
+  ic_launcher_foreground_inset 四周内缩 18dp，否则图标会被放大 ~1.5 倍。
+-->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-  <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
-  <background android:drawable="@color/ic_launcher_background"/>
+  <foreground android:drawable="@drawable/ic_launcher_foreground_inset"/>
+  <background android:drawable="@drawable/ic_launcher_background"/>
 </adaptive-icon>

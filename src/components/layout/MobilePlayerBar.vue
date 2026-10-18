@@ -108,13 +108,20 @@ const lyricRows = computed(() =>
   }),
 );
 
-/** 视觉层级：0 当前行 / 1 相邻 / 2 较远 / 3 远端（远端不加模糊，控制渲染开销） */
+/** 模糊/渐隐的作用范围（行数）：约等于歌词视口能显示的行数 */
+const FOCUS_SPAN = 9;
+
+/**
+ * 视觉层级：0 当前行 / 1~3 逐级模糊渐隐 / 4 远端仅压暗。
+ * 档位按 FOCUS_SPAN 均分，歌词区变高后模糊范围同步变大，避免靠外的行
+ * 「既没模糊又被压暗」的断层感；超过 FOCUS_SPAN 的行不再加模糊（此时
+ * 已滚出视口），以控制渲染开销。
+ */
 function lineLevel(index: number): number {
   const distance = Math.abs(index - activeIndex.value);
   if (distance === 0) return 0;
-  if (distance === 1) return 1;
-  if (distance <= 3) return 2;
-  return 3;
+  if (distance >= FOCUS_SPAN) return 4;
+  return Math.min(3, Math.ceil((distance / FOCUS_SPAN) * 3));
 }
 
 /** 点击歌词行：按偏移校正后的时间跳转，使该行成为当前行 */
@@ -1194,12 +1201,12 @@ onBeforeUnmount(() => {
   padding: 0 var(--space-lg);
   scrollbar-width: none;
   /* 上下边缘渐隐：歌词从视野边缘淡入淡出 */
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 16%, #000 84%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 20%, #000 80%, transparent 100%);
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0%,
-    #000 16%,
-    #000 84%,
+    #000 20%,
+    #000 80%,
     transparent 100%
   );
 }
@@ -1245,15 +1252,16 @@ onBeforeUnmount(() => {
   transition: font-size var(--duration-normal) var(--ease-standard);
 }
 
-/* 翻译副行：小字跟随原文 */
+/* 翻译副行：小字跟随原文的明暗层级 */
 .full-lrc-translation {
   font-size: 12px;
   line-height: 1.4;
-  color: rgba(255, 255, 255, 0.38);
-  transition: color var(--duration-normal) var(--ease-standard);
+  color: inherit;
+  opacity: 0.62;
+  transition: opacity var(--duration-normal) var(--ease-standard);
 }
 
-/* 视觉层级：0 当前行 / 1 相邻 / 2 较远 / 3 远端（远端不加模糊，省渲染开销） */
+/* 视觉层级：0 当前行 / 1~3 越远越模糊越淡 / 4 远端仅压暗 */
 .full-lrc-line.level-0 {
   color: #fff;
 }
@@ -1265,21 +1273,26 @@ onBeforeUnmount(() => {
 }
 
 .full-lrc-line.level-0 .full-lrc-translation {
-  color: rgba(255, 255, 255, 0.78);
+  opacity: 0.88;
 }
 
 .full-lrc-line.level-1 {
-  color: rgba(255, 255, 255, 0.58);
-  filter: blur(0.4px);
+  color: rgba(255, 255, 255, 0.68);
+  filter: blur(0.6px);
 }
 
 .full-lrc-line.level-2 {
-  color: rgba(255, 255, 255, 0.34);
-  filter: blur(1px);
+  color: rgba(255, 255, 255, 0.44);
+  filter: blur(1.4px);
 }
 
 .full-lrc-line.level-3 {
-  color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.26);
+  filter: blur(2.4px);
+}
+
+.full-lrc-line.level-4 {
+  color: rgba(255, 255, 255, 0.14);
 }
 
 .full-progress {

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  自适应图标的 background 层：铺满整个 108dp 画布（会被启动器遮罩裁形）。
+  颜色取自图标源图自身方形底的竖向渐变（顶部 #FFFFFF → 底部 #EEEEEE），
+  这样 foreground 内缩 18dp 后在四个圆角处露出的部分能和源图底色自然衔接。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:endColor="#FFEEEEEE"
+        android:startColor="#FFFFFFFF"
+        android:type="linear" />
+</shape>

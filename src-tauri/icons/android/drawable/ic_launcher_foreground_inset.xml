@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  自适应图标（API 26+）的可视区域只有 108dp 画布正中央的 72dp，
+  系统会裁掉四周各 18dp（108 - 18*2 = 72）。
+
+  本项目图标源图是一整块「浅色底 + 圆角」的方形 App Tile，如果直接拿来当
+  foreground，会被裁掉外圈并在视觉上放大约 108/72 ≈ 1.5 倍，看上去就是
+  「图标被放大、边距几乎为零」。
+
+  这里用 InsetDrawable 把 108dp 的 mipmap 四周各内缩 18dp（= 16.67%），让它
+  正好铺满 72dp 可视区，从而与桌面端、以及 API 26 以下的 ic_launcher.png 观感一致。
+-->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@mipmap/ic_launcher_foreground"
+    android:insetLeft="18dp"
+    android:insetTop="18dp"
+    android:insetRight="18dp"
+    android:insetBottom="18dp" />
