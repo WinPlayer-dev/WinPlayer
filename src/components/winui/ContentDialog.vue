@@ -7,6 +7,7 @@
  * Hide() 可直接关闭（结果视为 "None"）。对话框渲染到 body，带遮罩、按钮区与 Esc 关闭。
  */
 import { nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { registerBackInterceptor } from "@/services/backButton";
 
 const props = withDefaults(
   defineProps<{
@@ -84,12 +85,29 @@ function onKeydown(event: KeyboardEvent): void {
   }
 }
 
+// Android 返回键：对话框开着时优先关闭它，而不是让返回键去关页面 / 退应用。
+// 只在可见期间注册，且只有声明了关闭按钮的对话框才消费（与 Esc 行为一致）。
+let unregisterBack: (() => void) | null = null;
+
 watch(visible, (value) => {
   if (value) window.addEventListener("keydown", onKeydown);
   else window.removeEventListener("keydown", onKeydown);
+
+  unregisterBack?.();
+  unregisterBack = null;
+  if (!value) return;
+  unregisterBack = registerBackInterceptor(() => {
+    if (!props.CloseButtonText.trim()) return false;
+    close("None");
+    return true;
+  });
 });
 
-onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", onKeydown);
+  unregisterBack?.();
+  unregisterBack = null;
+});
 
 defineExpose({ ShowAsync: showAsync, Hide: hide });
 </script>
@@ -239,5 +257,62 @@ defineExpose({ ShowAsync: showAsync, Hide: hide });
 .wp-dialog-leave-to .wp-content-dialog {
   transform: translateY(8px) scale(1.02);
   opacity: 0;
+}
+
+/* ---------------------------------- 移动端 ---------------------------------- */
+/* 对话框 teleport 到 body，命中不到 .app-shell.is-mobile 下的触摸尺寸规则，
+   这里用 html.is-mobile（main.ts 挂在 <html> 上）单独兜住。
+   形态也与桌面区分：贴底升起的面板，按钮铺满整行，拇指更容易够到。 */
+html.is-mobile .wp-dialog-overlay {
+  align-items: flex-end;
+  padding: 0;
+}
+
+html.is-mobile .wp-content-dialog {
+  width: 100%;
+  max-width: none;
+  max-height: 86vh;
+  padding: var(--space-xl) var(--space-xl) calc(var(--space-lg) + var(--safe-area-bottom));
+  gap: var(--space-md);
+  border: none;
+  border-top: 1px solid var(--wp-flyout-stroke);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: var(--wp-flyout);
+  box-shadow: var(--shadow-flyout);
+}
+
+html.is-mobile .wp-content-dialog-title {
+  font-size: 18px;
+}
+
+html.is-mobile .wp-content-dialog-body {
+  font-size: 15px;
+  /* 键盘弹起时内容区仍可滚动 */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 竖排：主按钮在上（紧跟内容），关闭按钮在最下、离拇指最近；都铺满整行 */
+html.is-mobile .wp-content-dialog-buttons {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: var(--space-sm);
+}
+
+html.is-mobile .wp-dialog-button {
+  width: 100%;
+  height: 48px;
+  justify-content: center;
+  font-size: 15px;
+}
+
+/* 贴底面板改为整体上滑进入 / 下滑退出，与页面内其它底部面板一致 */
+html.is-mobile .wp-dialog-enter-from .wp-content-dialog,
+html.is-mobile .wp-dialog-leave-to .wp-content-dialog {
+  transform: translateY(100%);
+  opacity: 1;
+}
+
+html.is-mobile .wp-dialog-enter-active .wp-content-dialog {
+  transition: transform var(--duration-normal) var(--ease-decelerate);
 }
 </style>
