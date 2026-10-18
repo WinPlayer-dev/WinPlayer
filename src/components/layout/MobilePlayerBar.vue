@@ -639,7 +639,7 @@ onBeforeUnmount(() => {
         </div>
         <div class="full-scrim" aria-hidden="true" />
 
-        <!-- 顶部区（封面 / 标题）：此区域内可左右滑动切歌 -->
+        <!-- 顶部区（横版：左封面 / 右曲名歌手）：此区域内可左右滑动切歌 -->
         <div class="full-top">
           <div class="full-header">
             <button class="full-icon-button" title="收起" @click="closeFull">
@@ -663,18 +663,20 @@ onBeforeUnmount(() => {
             </button>
           </div>
 
-          <div class="full-cover">
-            <CachedImage
-              v-if="player.currentTrack.cover"
-              :src="player.currentTrack.cover"
-              class="full-cover-img"
-            />
-            <span v-else class="wp-icon full-cover-placeholder">&#xE852;</span>
-          </div>
+          <div class="full-hero">
+            <div class="full-cover">
+              <CachedImage
+                v-if="player.currentTrack.cover"
+                :src="player.currentTrack.cover"
+                class="full-cover-img"
+              />
+              <span v-else class="wp-icon full-cover-placeholder">&#xE852;</span>
+            </div>
 
-          <div class="full-meta">
-            <div class="full-title ellipsis">{{ trackTitle(player.currentTrack) }}</div>
-            <div class="full-artist ellipsis">{{ trackArtist(player.currentTrack) }}</div>
+            <div class="full-meta">
+              <div class="full-title ellipsis">{{ trackTitle(player.currentTrack) }}</div>
+              <div class="full-artist ellipsis">{{ trackArtist(player.currentTrack) }}</div>
+            </div>
           </div>
         </div>
 
@@ -1073,20 +1075,25 @@ onBeforeUnmount(() => {
   font-variant-numeric: tabular-nums;
 }
 
+.full-hero {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  padding: var(--space-xs) var(--space-xl) var(--space-md);
+}
+
 .full-cover {
   flex: none;
-  align-self: center;
-  /* 兜住矮屏：宽高同时受视口高度约束，保持正方形 */
-  width: min(62vw, 260px, 32vh);
-  aspect-ratio: 1;
-  margin: var(--space-lg) 0 var(--space-md);
+  width: 96px;
+  height: 96px;
   border-radius: var(--radius-lg);
   background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
 .full-cover-img {
@@ -1096,14 +1103,13 @@ onBeforeUnmount(() => {
 }
 
 .full-cover-placeholder {
-  font-size: 64px;
+  font-size: 28px;
   color: rgba(255, 255, 255, 0.3);
 }
 
 .full-meta {
-  flex: none;
-  padding: 0 var(--space-xl);
-  text-align: center;
+  flex: 1;
+  min-width: 0;
 }
 
 .full-title {
@@ -1115,7 +1121,7 @@ onBeforeUnmount(() => {
 .full-artist {
   font-size: 13px;
   color: rgba(255, 255, 255, 0.6);
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 .full-lyrics {
