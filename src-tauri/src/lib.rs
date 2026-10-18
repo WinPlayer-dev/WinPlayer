@@ -26,6 +26,8 @@ pub fn run() {
             .plugin(tauri_plugin_media_session::init())
             // 安卓 APK 安装（自动更新），桌面端自动 no-op
             .plugin(tauri_plugin_apk_installer::init())
+            // 安卓触感反馈（WebView 无 navigator.vibrate，走原生 Vibrator），桌面端自动 no-op
+            .plugin(tauri_plugin_haptics::init())
             .plugin(
                 tauri_plugin_sql::Builder::default()
                     .add_migrations("sqlite:winplayer.db", db_migrations())

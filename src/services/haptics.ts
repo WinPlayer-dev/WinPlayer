@@ -1,17 +1,20 @@
 /**
  * 触感反馈（震动）。
  *
- * 基于 WebView 的 navigator.vibrate()，不引入原生插件：
+ * Android WebView 不提供 navigator.vibrate（Vibration API 仅 Chrome 浏览器
+ * 实现），因此移动端优先走原生 tauri-plugin-haptics（Vibrator 服务）；
+ * invoke 失败时回退 WebView 的 navigator.vibrate（部分环境可能支持）。
  * - 仅在移动端生效（桌面端直接 no-op，避免影响鼠标交互）
  * - 可在设置中关闭（settings.hapticsEnabled）
- * - 所有调用都吞掉异常：部分 WebView 在无权限 / 无马达时会抛错
+ * - 所有调用都吞掉异常：无马达 / 无权限时静默
  */
 
+import { invoke } from "@tauri-apps/api/core";
 import { useIsMobile } from "@/composables/useIsMobile";
 
 /** 桌面端一律不震动（即便浏览器提供了 vibrate） */
 const mobile = useIsMobile();
-const supported =
+const webviewSupported =
   typeof navigator !== "undefined" && typeof navigator.vibrate === "function";
 
 /** 用户开关；默认开启，由设置同步 */
@@ -26,13 +29,26 @@ export function isHapticsEnabled(): boolean {
   return enabled;
 }
 
-function vibrate(pattern: number | number[]): void {
-  if (!mobile || !enabled || !supported) return;
+function webviewVibrate(pattern: number | number[]): void {
+  if (!webviewSupported) return;
   try {
     navigator.vibrate(pattern);
   } catch {
     /* 忽略：无马达 / 无权限 / 非安全上下文 */
   }
+}
+
+function vibrate(pattern: number | number[]): void {
+  if (!mobile || !enabled) return;
+  if (!webviewSupported) {
+    // WebView 无 navigator.vibrate（Android 常态），走原生插件
+    const normalized = Array.isArray(pattern) ? pattern : [pattern];
+    invoke("plugin:haptics|vibrate", { pattern: normalized }).catch(() => {
+      /* 插件未就绪 / 无马达：静默 */
+    });
+    return;
+  }
+  webviewVibrate(pattern);
 }
 
 /** 轻触：切换类操作（点赞、播放模式、标签切换） */
