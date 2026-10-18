@@ -235,3 +235,119 @@ html.is-mobile .content-dialog {
 html.is-mobile .content-dialog-content-scroll-viewer {
   -webkit-overflow-scrolling: touch;
 }
+
+/* ------------------------------ 横屏（手机） ------------------------------ */
+/* 横屏高度很小：把详情页头部 / 歌手横幅改为左右排布以降低高度占用，
+   压缩底部导航与迷你播放条，并为左右两侧的刘海 / 挖孔留出安全区。
+   用 min-width 兜底，避免软键盘弹起导致视口变矮被误判为横屏。
+   仅移动端生效（.app-shell.is-mobile），桌面端完全不受影响。 */
+@media (orientation: landscape) and (min-width: 600px) {
+  .app-shell.is-mobile {
+    padding-left: var(--safe-area-left);
+    padding-right: var(--safe-area-right);
+  }
+
+  /* 详情页头部：封面在左、信息在右，整体左对齐 */
+  .wp-page.is-mobile .wp-page-header {
+    flex-direction: row;
+    align-items: flex-end;
+    text-align: left;
+    gap: var(--space-lg);
+    margin-bottom: var(--space-lg);
+  }
+
+  .wp-page.is-mobile .header-cover {
+    width: 108px;
+    height: 108px;
+    flex: none;
+  }
+
+  .wp-page.is-mobile .header-cover .wp-icon {
+    font-size: 44px;
+  }
+
+  .wp-page.is-mobile .wp-page-title {
+    font-size: 20px;
+  }
+
+  .wp-page.is-mobile .header-meta {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+
+  .wp-page.is-mobile .header-sub-actions {
+    justify-content: flex-start;
+  }
+
+  .wp-page.is-mobile .source-badge {
+    text-align: left;
+  }
+
+  .wp-page.is-mobile .header-desc-wrap,
+  .wp-page.is-mobile .header-desc {
+    text-align: left;
+  }
+
+  .wp-page.is-mobile .header-actions {
+    width: auto;
+  }
+
+  .wp-page.is-mobile .header-actions .wp-accent-button,
+  .wp-page.is-mobile .header-actions .wp-standard-button {
+    flex: 0 0 auto;
+  }
+
+  /* 歌手页横幅：头像在左、信息 + 操作在右 */
+  .wp-page.is-mobile .banner-content {
+    flex-direction: row;
+    align-items: center;
+    text-align: left;
+    gap: var(--space-lg);
+    padding: var(--space-lg);
+  }
+
+  .wp-page.is-mobile .banner-avatar-wrap {
+    flex: none;
+  }
+
+  .wp-page.is-mobile .banner-avatar,
+  .wp-page.is-mobile .banner-avatar-placeholder {
+    width: 84px;
+    height: 84px;
+  }
+
+  .wp-page.is-mobile .banner-meta {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .wp-page.is-mobile .banner-title {
+    font-size: 20px;
+  }
+
+  .wp-page.is-mobile .banner-actions {
+    width: auto;
+    flex: none;
+  }
+
+  .wp-page.is-mobile .banner-actions .wp-accent-button,
+  .wp-page.is-mobile .banner-actions .wp-standard-button {
+    flex: 0 0 auto;
+  }
+
+  /* 底部导航 / 迷你播放条：压缩高度，给内容让位 */
+  .app-shell.is-mobile .tabbar .tab-item {
+    height: 44px;
+  }
+
+  .app-shell.is-mobile .mini-bar {
+    height: 48px;
+  }
+
+  /* 全屏播放器：固定定位脱离 app-shell 内边距，需自行避开左右刘海 */
+  .app-shell.is-mobile .full-player {
+    padding-left: var(--safe-area-left);
+    padding-right: var(--safe-area-right);
+  }
+}
