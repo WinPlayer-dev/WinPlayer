@@ -311,6 +311,14 @@ onMounted(loadWithCache);
   overflow-x: auto;
   padding-bottom: var(--space-sm);
   margin: 0 calc(-1 * var(--space-md));
+  /* 移动端横向滑动：只滚动本行，不与页面纵向滚动 / 系统返回手势抢方向 */
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.card-row > * {
+  scroll-snap-align: start;
 }
 
 .song-grid {
@@ -329,6 +337,11 @@ onMounted(loadWithCache);
 
 .song-card:hover {
   background: var(--wp-card-hover);
+}
+
+/* 触摸端没有 hover，用 :active 给按下反馈（否则点下去毫无响应） */
+.song-card:active {
+  background: var(--wp-card-active);
 }
 
 .song-cover {

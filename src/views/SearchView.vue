@@ -176,6 +176,9 @@ useRefreshable(() => {
           enterkeyhint="search"
           inputmode="search"
           autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
           placeholder="输入关键词，同时检索所有已启用的插件源"
           @keydown.enter="onEnter"
         />
