@@ -211,6 +211,31 @@ export class AudioEngine {
     void invoke("player_set_rate", { rate }).catch(() => {});
   }
 
+  /** 列出可用输出设备名称（非 Tauri 环境 / 查询失败时返回空列表） */
+  async listOutputDevices(): Promise<string[]> {
+    if (!this.inTauri) return [];
+    try {
+      return await invoke<string[]>("player_list_output_devices");
+    } catch (error) {
+      console.error("[audio] 枚举输出设备失败", error);
+      return [];
+    }
+  }
+
+  /**
+   * 切换输出设备（空串 = 系统默认设备）。
+   * 后端会关闭旧输出流并在新设备上重建会话，从当前位置续播当前曲目。
+   */
+  setOutputDevice(name: string): void {
+    if (!this.inTauri) return;
+    void invoke("player_set_output_device", {
+      device: name || null,
+      position: this._currentTime,
+    }).catch((error) => {
+      this.emit("error", `切换输出设备失败: ${error}`);
+    });
+  }
+
   /** 预加载下一首（后端并行解码，衔接时机由引擎决定） */
   preload(src: string): void {
     if (!this.inTauri) return;

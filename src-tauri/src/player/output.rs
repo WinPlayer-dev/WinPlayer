@@ -6,7 +6,53 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use rodio::{OutputStream, OutputStreamHandle, Sink, Source};
+use rodio::cpal::traits::{DeviceTrait, HostTrait};
+use rodio::{cpal, OutputStream, OutputStreamHandle, Sink, Source};
+
+/// 枚举系统默认音频主机（Windows 为 WASAPI）下的所有输出设备名称。
+///
+/// 名称同时作为设备标识持久化；重名设备仅保留一条。
+pub fn list_output_devices() -> Result<Vec<String>, String> {
+    let host = cpal::default_host();
+    let devices = host
+        .output_devices()
+        .map_err(|e| format!("无法枚举音频输出设备: {e}"))?;
+    let mut names = Vec::new();
+    for device in devices {
+        if let Ok(name) = device.name() {
+            if !names.contains(&name) {
+                names.push(name);
+            }
+        }
+    }
+    Ok(names)
+}
+
+/// 按名称查找输出设备（名称来自 `list_output_devices`）
+fn find_output_device(name: &str) -> Result<cpal::Device, String> {
+    let host = cpal::default_host();
+    let devices = host
+        .output_devices()
+        .map_err(|e| format!("无法枚举音频输出设备: {e}"))?;
+    for device in devices {
+        if device.name().map(|n| n == name).unwrap_or(false) {
+            return Ok(device);
+        }
+    }
+    Err(format!("找不到音频输出设备: {name}"))
+}
+
+/// 打开输出流：`device_name` 为 `None` 时使用系统默认设备
+fn open_stream(device_name: Option<&str>) -> Result<(OutputStream, OutputStreamHandle), String> {
+    match device_name {
+        Some(name) => {
+            let device = find_output_device(name)?;
+            OutputStream::try_from_device(&device)
+                .map_err(|e| format!("无法打开输出设备「{name}」: {e}"))
+        }
+        None => OutputStream::try_default().map_err(|e| format!("无法打开音频输出设备: {e}")),
+    }
+}
 
 /// 从 ring buffer 读取样本的 rodio Source。
 ///
@@ -102,7 +148,8 @@ impl Drop for Output {
 }
 
 impl Output {
-    pub fn open() -> Result<Output, String> {
+    /// 打开输出流：`device_name` 为 `None` 时使用系统默认设备。
+    pub fn open(device_name: Option<String>) -> Result<Output, String> {
         // cpal 的 OutputStream 不是 Send，无法移入线程，只能在专用线程内创建；
         // 该线程持有 stream 维持设备会话，仅把 Send+Sync 的 handle 传回。
         let (tx, rx) = std::sync::mpsc::channel::<Result<OutputStreamHandle, String>>();
@@ -110,7 +157,7 @@ impl Output {
         let stop_flag = stop.clone();
         let keepalive = std::thread::Builder::new()
             .name("audio-output".into())
-            .spawn(move || match OutputStream::try_default() {
+            .spawn(move || match open_stream(device_name.as_deref()) {
                 Ok((stream, handle)) => {
                     let _keepalive = stream;
                     let _ = tx.send(Ok(handle));
@@ -120,7 +167,7 @@ impl Output {
                     }
                 }
                 Err(e) => {
-                    let _ = tx.send(Err(format!("无法打开音频输出设备: {e}")));
+                    let _ = tx.send(Err(e));
                 }
             })
             .map_err(|e| format!("音频输出线程启动失败: {e}"))?;

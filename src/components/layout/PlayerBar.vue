@@ -5,6 +5,8 @@ import { Slider } from "@/components/winui";
 import CachedImage from "@/components/common/CachedImage.vue";
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
+import { useSettingsStore } from "@/stores/settings";
+import { getAudioEngine } from "@/services/audio";
 import {
   PLAYBACK_RATES,
   PLAY_MODE_LABEL,
@@ -20,6 +22,7 @@ import LyricsPanel from "./LyricsPanel.vue";
 
 const player = usePlayerStore();
 const library = useLibraryStore();
+const settings = useSettingsStore();
 const router = useRouter();
 
 /** 拖动进度滑块时的本地预览值（拖动结束才 seek，期间屏蔽 timeupdate 覆盖） */
@@ -96,9 +99,18 @@ async function toggleLikeCurrent() {
   if (player.currentTrack) await library.toggleLike(player.currentTrack);
 }
 
-/** 「更多」二级菜单：一级列出不常用入口，二级展开倍速档位 */
-const moreView = ref<"root" | "rate" | null>(null);
+/** 「更多」二级菜单：一级列出不常用入口，二级展开倍速档位 / 输出设备 */
+const moreView = ref<"root" | "rate" | "device" | null>(null);
 const morePicker = ref<HTMLElement | null>(null);
+
+/** 输出设备（「更多」菜单内联选择，打开二级菜单时读取） */
+const DEFAULT_OUTPUT_LABEL = "系统默认";
+const outputDevices = ref<string[]>([]);
+const currentOutputLabel = computed(() => settings.outputDevice || DEFAULT_OUTPUT_LABEL);
+const outputDeviceOptions = computed(() => [
+  { value: "", label: DEFAULT_OUTPUT_LABEL },
+  ...outputDevices.value.map((name) => ({ value: name, label: name })),
+]);
 
 function toggleMoreMenu(): void {
   moreView.value = moreView.value ? null : "root";
@@ -106,6 +118,16 @@ function toggleMoreMenu(): void {
 
 function pickRate(value: number): void {
   void player.setRate(value);
+  moreView.value = null;
+}
+
+async function openDeviceMenu(): Promise<void> {
+  moreView.value = "device";
+  outputDevices.value = await getAudioEngine().listOutputDevices();
+}
+
+function pickOutputDevice(value: string): void {
+  void settings.setOutputDevice(value);
   moreView.value = null;
 }
 
@@ -264,8 +286,15 @@ onUnmounted(() => {
                   <span class="wp-icon more-item-chevron">&#xF2B0;</span>
                 </span>
               </button>
+              <button class="more-item" @click="openDeviceMenu">
+                <span class="more-item-label">输出设备</span>
+                <span class="more-item-tail">
+                  <span class="more-item-value">{{ currentOutputLabel }}</span>
+                  <span class="wp-icon more-item-chevron">&#xF2B0;</span>
+                </span>
+              </button>
             </template>
-            <template v-else>
+            <template v-else-if="moreView === 'rate'">
               <button class="more-back" @click="moreView = 'root'">
                 <span class="wp-icon">&#xF2AA;</span>
                 <span>播放速度</span>
@@ -278,6 +307,24 @@ onUnmounted(() => {
               >
                 <span class="more-item-label">{{ formatRate(value) }}</span>
                 <span v-if="player.rate === value" class="wp-icon more-item-check">&#xF294;</span>
+              </button>
+            </template>
+            <template v-else>
+              <button class="more-back" @click="moreView = 'root'">
+                <span class="wp-icon">&#xF2AA;</span>
+                <span>输出设备</span>
+              </button>
+              <button
+                v-for="option in outputDeviceOptions"
+                :key="option.value || 'default'"
+                class="more-item"
+                @click="pickOutputDevice(option.value)"
+              >
+                <span class="more-item-label">{{ option.label }}</span>
+                <span
+                  v-if="settings.outputDevice === option.value"
+                  class="wp-icon more-item-check"
+                >&#xF294;</span>
               </button>
             </template>
           </div>
@@ -497,6 +544,9 @@ onUnmounted(() => {
   bottom: calc(100% + 8px);
   z-index: 40;
   min-width: 152px;
+  max-width: 280px;
+  max-height: 60vh;
+  overflow-y: auto;
   padding: 4px;
   display: flex;
   flex-direction: column;
@@ -538,6 +588,9 @@ onUnmounted(() => {
 .more-item-label {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
@@ -550,6 +603,10 @@ onUnmounted(() => {
 
 .more-item-value {
   font-variant-numeric: tabular-nums;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .more-item-chevron,

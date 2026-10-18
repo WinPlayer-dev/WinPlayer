@@ -101,6 +101,8 @@ impl PendingSlot {
 pub struct PlayerEngine {
     app: AppHandle,
     output: Mutex<Option<Output>>,
+    /// 输出设备名称（None = 系统默认设备）：输出流按此使用设备
+    output_device: Mutex<Option<String>>,
     /// 当前活跃 Sink（crossfade 期间为即将转正的新音源）
     sink: Mutex<Option<Arc<rodio::Sink>>>,
     /// 淡出中的旧 Sink（crossfade 过渡期短暂存在）
@@ -154,6 +156,7 @@ impl PlayerEngine {
             // 启动阶段不触碰平台音频栈——Android 上 cpal/Oboe 初始化链路
             // 含大量 unwrap，且 release 配置 panic=abort，一旦 panic 即闪退
             output: Mutex::new(None),
+            output_device: Mutex::new(None),
             sink: Mutex::new(None),
             fading_sink: Mutex::new(None),
             session: AtomicU64::new(0),
@@ -221,12 +224,24 @@ impl PlayerEngine {
         *self.ended_flag.lock().unwrap() = Some(source.ended_handle());
     }
 
-    /// 确保输出设备就绪（懒初始化）
+    /// 确保输出设备就绪（懒初始化，按当前选择的设备打开）
     fn ensure_output(&self) -> Result<(), String> {
         let mut guard = self.output.lock().unwrap();
         if guard.is_none() {
             // 懒初始化：首次播放才打开音频输出；失败不缓存，下次再试
-            *guard = Output::open().ok();
+            let selected = self.output_device.lock().unwrap().clone();
+            match Output::open(selected.clone()) {
+                Ok(output) => *guard = Some(output),
+                Err(error) if selected.is_some() => {
+                    // 选定的设备不可用（已拔出 / 名称变更）：回退系统默认设备
+                    eprintln!("[player] {error}，回退系统默认输出设备");
+                    *self.output_device.lock().unwrap() = None;
+                    *guard = Output::open(None).ok();
+                }
+                Err(error) => {
+                    eprintln!("[player] {error}");
+                }
+            }
         }
         if guard.is_none() {
             return Err("音频输出设备不可用".to_string());
@@ -252,7 +267,8 @@ impl PlayerEngine {
         if self.output_idle() < OUTPUT_IDLE_RESET {
             return;
         }
-        let Ok(fresh) = Output::open() else {
+        let device = self.output_device.lock().unwrap().clone();
+        let Ok(fresh) = Output::open(device) else {
             return;
         };
         // 旧 Output 在此被丢弃：keepalive 线程退出、设备会话释放
@@ -281,6 +297,42 @@ impl PlayerEngine {
         *self.last_position.lock().unwrap() = position;
         self.is_playing.store(true, Ordering::Release);
         true
+    }
+
+    /// 切换输出设备（None / 空串 = 系统默认）。设备变化时关闭旧输出流，
+    /// 并在新设备上重建会话续播到当前位置（播放中无缝过渡到新设备）。
+    fn set_output_device(self: &Arc<Self>, device: Option<String>, position: Option<f64>) {
+        let device = device.filter(|name| !name.trim().is_empty());
+        {
+            let mut guard = self.output_device.lock().unwrap();
+            if *guard == device {
+                return;
+            }
+            *guard = device;
+        }
+        // 丢弃旧输出流：旧设备上的 Sink/设备会话随之失效
+        *self.output.lock().unwrap() = None;
+        let Some(url) = self.current_url.lock().unwrap().clone() else {
+            // 无已加载曲目：仅释放旧输出流，下次播放按新设备打开
+            return;
+        };
+        // 在当前位置重建会话；前端传来的位置优先（暂停时后端位置可能滞后）
+        let resume = position
+            .filter(|value| value.is_finite() && *value > 0.0)
+            .or_else(|| {
+                let last = *self.last_position.lock().unwrap();
+                (last > 0.0).then_some(last)
+            })
+            .unwrap_or(0.0);
+        let was_playing = self.is_playing.load(Ordering::Acquire);
+        self.load(url);
+        *self.pending_seek.lock().unwrap() = Some(resume);
+        *self.last_position.lock().unwrap() = resume;
+        self.is_playing.store(was_playing, Ordering::Release);
+        if !was_playing {
+            // 暂停态下 load 广播的是 buffering，这里复位为 paused
+            self.emit_state("paused");
+        }
     }
 
     /// 用新音源整体替换 Sink（旧 Sink 先 stop 再丢弃，防止混音器残留）
@@ -566,6 +618,23 @@ pub fn player_set_eq(engine: State<Arc<PlayerEngine>>, enabled: bool, gains: Vec
 pub fn player_set_rate(engine: State<Arc<PlayerEngine>>, rate: f32) {
     let rate = rate.clamp(0.5, 2.0);
     *engine.playback_rate.lock().unwrap() = rate;
+}
+
+/// 列出可用输出设备名称
+#[tauri::command]
+pub fn player_list_output_devices() -> Result<Vec<String>, String> {
+    output::list_output_devices()
+}
+
+/// 切换输出设备（`None` / 空串 = 系统默认设备）。
+/// `position` 为切换前的播放位置（秒），用于在新设备上续播。
+#[tauri::command]
+pub fn player_set_output_device(
+    engine: State<Arc<PlayerEngine>>,
+    device: Option<String>,
+    position: Option<f64>,
+) {
+    engine.set_output_device(device, position);
 }
 
 /// setup 阶段创建引擎并挂到应用状态

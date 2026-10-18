@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { ComboBox, Slider, TextBox, ToggleSwitch } from "@/components/winui";
 import { useSettingsStore, DEFAULT_SOURCE_SEARCH_FORMAT } from "@/stores/settings";
 import { usePluginsStore } from "@/stores/plugins";
 import { useIsMobile } from "@/composables/useIsMobile";
+import { getAudioEngine } from "@/services/audio";
 import { EQ_FREQS, EQ_PRESETS, formatEqFreq } from "@/constants/eqPresets";
 import type { PluginCapability } from "@/types/plugin";
 
@@ -132,6 +133,41 @@ function onCrossfadeToggle(event: { IsOn: boolean }): void {
   void settings.setCrossfadeEnabled(Boolean(event?.IsOn));
 }
 
+/* ------------------------------ 输出设备 ------------------------------ */
+
+/** 「系统默认」伪选项（空串持久化，交由系统选择默认设备） */
+const DEFAULT_OUTPUT_LABEL = "系统默认";
+
+const outputDevices = ref<string[]>([]);
+const devicesLoading = ref(false);
+
+const outputDeviceLabels = computed(() => [DEFAULT_OUTPUT_LABEL, ...outputDevices.value]);
+
+/** 当前选中项索引：设备已拔出（不在列表中）时回落到「系统默认」 */
+const outputDeviceIndex = computed(() => {
+  const index = outputDevices.value.indexOf(settings.outputDevice);
+  return index >= 0 ? index + 1 : 0;
+});
+
+async function loadOutputDevices(): Promise<void> {
+  devicesLoading.value = true;
+  try {
+    outputDevices.value = await getAudioEngine().listOutputDevices();
+  } finally {
+    devicesLoading.value = false;
+  }
+}
+
+function onOutputDeviceChange(_sender: unknown, payload?: { AddedItems?: unknown[] }): void {
+  const label = String(payload?.AddedItems?.[0] ?? "");
+  const value = label === DEFAULT_OUTPUT_LABEL ? "" : label;
+  if (value !== settings.outputDevice) void settings.setOutputDevice(value);
+}
+
+onMounted(() => {
+  void loadOutputDevices();
+});
+
 function onEqPresetChange(_sender: unknown, payload?: { AddedItems?: unknown[] }): void {
   const label = String(payload?.AddedItems?.[0] ?? "");
   if (label === EQ_CUSTOM_LABEL) return; // 自定义由手动拖动滑杆产生
@@ -226,6 +262,29 @@ function formatGain(gain: number | undefined): string {
       </div>
     </section>
 
+    <!-- 输出设备（仅桌面端可枚举选择） -->
+    <section v-if="!isMobile" class="settings-section">
+      <h2 class="settings-section-title">输出设备</h2>
+      <div class="settings-card">
+        <div class="card-content">
+          <div class="card-header">音频输出</div>
+          <div class="card-description">
+            选择声音输出到的设备；切换后立即在新设备上继续播放当前曲目。设备列表在打开本页时读取，插入新设备后可点「刷新」
+          </div>
+        </div>
+        <div class="card-control output-device-control">
+          <ComboBox
+            :ItemsSource="outputDeviceLabels"
+            :SelectedIndex="outputDeviceIndex"
+            @SelectionChanged="onOutputDeviceChange"
+          />
+          <button class="wp-standard-button small" :disabled="devicesLoading" @click="loadOutputDevices">
+            {{ devicesLoading ? "刷新中…" : "刷新" }}
+          </button>
+        </div>
+      </div>
+    </section>
+
     <!-- 音效（均衡器） -->
     <section class="settings-section">
       <h2 class="settings-section-title">音效</h2>
@@ -286,6 +345,19 @@ function formatGain(gain: number | undefined): string {
 <style scoped>
 .format-input {
   width: 100%;
+}
+
+/* 输出设备：下拉框 + 刷新按钮同排 */
+.output-device-control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: min(380px, 42vw);
+}
+
+.output-device-control :deep(.wp-combo-box) {
+  flex: 1;
+  min-width: 0;
 }
 
 /* 均衡器：10 段竖向滑杆 */

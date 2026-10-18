@@ -56,6 +56,8 @@ export const useSettingsStore = defineStore("settings", () => {
   const eqGains = ref<number[]>([...FLAT_GAINS]);
   /** 横向淡入淡出（Crossfade）开关；关闭后自动切歌仍无缝衔接（Gapless）。移动端仅 Gapless */
   const crossfadeEnabled = ref(true);
+  /** 输出设备名称（空串 = 系统默认设备） */
+  const outputDevice = ref("");
   /** 全局字体（CSS font-family 值，空串 = 使用默认字体） */
   const fontFamily = ref("");
   /** 窗口材质：Mica / Acrylic / 关闭（仅 Windows 桌面生效，其余平台 no-op） */
@@ -132,6 +134,9 @@ export const useSettingsStore = defineStore("settings", () => {
     eqGains.value = await getSetting<number[]>("settings.eqGains", [...FLAT_GAINS]);
     crossfadeEnabled.value = await getSetting<boolean>("settings.crossfadeEnabled", true);
     applyCrossfade();
+    outputDevice.value = await getSetting<string>("settings.outputDevice", "");
+    // 启动时把持久化的输出设备同步给原生引擎（引擎首次打开输出流时生效）
+    getAudioEngine().setOutputDevice(outputDevice.value);
     fontFamily.value = await getSetting<string>("settings.fontFamily", "");
     windowMaterial.value = await getSetting<WindowMaterial>("settings.windowMaterial", "mica");
     hapticsEnabled.value = await getSetting<boolean>("settings.hapticsEnabled", true);
@@ -267,6 +272,15 @@ export const useSettingsStore = defineStore("settings", () => {
     await setSetting("settings.crossfadeEnabled", value);
   }
 
+  /* ------------------------------ 输出设备 ------------------------------ */
+
+  /** 切换输出设备（空串 = 系统默认）：立即通知引擎并在新设备上续播 */
+  async function setOutputDevice(value: string): Promise<void> {
+    outputDevice.value = value;
+    getAudioEngine().setOutputDevice(value);
+    await setSetting("settings.outputDevice", value);
+  }
+
   /* ------------------------------ 均衡器 ------------------------------ */
 
   function applyEq(): void {
@@ -337,6 +351,7 @@ export const useSettingsStore = defineStore("settings", () => {
     eqPreset,
     eqGains,
     crossfadeEnabled,
+    outputDevice,
     loaded,
     load,
     setTheme,
@@ -356,6 +371,7 @@ export const useSettingsStore = defineStore("settings", () => {
     setSourcePreference,
     setSourceSearchFormat,
     setCrossfadeEnabled,
+    setOutputDevice,
     setEqEnabled,
     setEqPreset,
     setEqGains,
