@@ -51,6 +51,31 @@ body {
   -webkit-backdrop-filter: blur(24px) saturate(1.4);
 }
 
+/* ------------------------------ 后台优化（窗口隐藏） ------------------------------ */
+
+/**
+ * 窗口关闭到托盘 / 最小化时，前端给 <html> 挂 .app-background（见
+ * services/backgroundMode.ts）。这里做纯 CSS 层面的省电：
+ * 1. 冻结所有动画与 transition 的合成（跳帧但保留当前帧）；
+ * 2. 关掉半透明主题里的 backdrop-filter——它是昂贵的实时模糊合成，
+ *    隐藏时没有任何可见收益。
+ * 注意：JS 层仍照常驱动音频与无缝预加载，不受影响。
+ */
+html.app-background *,
+html.app-background *::before,
+html.app-background *::after {
+  animation-play-state: paused !important;
+  transition: none !important;
+}
+
+html.app-background .titlebar,
+html.app-background .sidenav,
+html.app-background .playerbar,
+html.app-background .app-content {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 /* ------------------------------ 主题自绘背景 ------------------------------ */
 
 /**

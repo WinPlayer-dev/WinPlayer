@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import QRCode from "qrcode";
 import { usePluginsStore, type PluginRecord } from "@/stores/plugins";
 import { toast } from "@/services/toast";
+import { isThrottled } from "@/services/backgroundMode";
 import EmptyState from "@/components/common/EmptyState.vue";
 import ThemesTab from "@/views/themes/ThemesTab.vue";
 import { useIsMobile } from "@/composables/useIsMobile";
@@ -137,6 +139,10 @@ const loginBusy = ref<Record<string, boolean>>({});
 /** 每个插件的轮询与过期定时器 */
 const pollTimers = new Map<string, number>();
 const expiryTimers = new Map<string, number>();
+/** 后台优化（隐藏）时暂停的扫码轮询：可见性恢复后由 resumePausedPolls 重新拉起 */
+const pausedTicks = new Map<string, () => void>();
+/** app://visibility 监听（async listen 返回的 Promise；onUnmounted 时注销） */
+let unlistenVisibility: Promise<() => void> | null = null;
 
 function supportsLogin(record: PluginRecord): boolean {
   // 停用的插件拿不到运行时，登录区整块隐藏
@@ -239,6 +245,13 @@ function startPolling(record: PluginRecord, key: string | undefined, expiresIn: 
 
   const schedule = (): void => {
     if (!qrActive(id)) return;
+    // 后台优化（窗口隐藏到托盘/最小化）：暂停轮询以省电，前台恢复时
+    // 由 resumePausedPolls 重新续上。登录状态的系统侧（SMTC 等）不受影响。
+    if (isThrottled()) {
+      pausedTicks.set(id, () => void tick());
+      return;
+    }
+    pausedTicks.delete(id);
     pollTimers.set(id, window.setTimeout(() => void tick(), interval));
   };
 
@@ -290,6 +303,15 @@ function startPolling(record: PluginRecord, key: string | undefined, expiresIn: 
     id,
     window.setTimeout(() => clearQr(id, "二维码已过期，请重新获取"), expiresIn),
   );
+}
+
+/** 从后台恢复：续上因隐藏而暂停的扫码轮询 */
+function resumePausedPolls(): void {
+  for (const [id, fire] of pausedTicks) {
+    pausedTicks.delete(id);
+    // 仅当该二维码仍活跃时续轮询，否则作废（fire 内部会再次检查 qrActive）
+    fire();
+  }
 }
 
 function cancelQr(record: PluginRecord): void {
@@ -426,9 +448,16 @@ onMounted(async () => {
   if (!plugins.records.length && !plugins.loading) await plugins.loadInstalled();
   await loadMarket();
   await refreshAllLoginStates();
+  // Rust 侧广播窗口恢复（托盘显示/最小化恢复）：续上被暂停的扫码轮询
+  unlistenVisibility = listen<boolean>("app://visibility", (event) => {
+    if (event.payload) resumePausedPolls();
+  });
 });
 
 onUnmounted(() => {
+  void unlistenVisibility?.then((fn) => fn()).catch(() => undefined);
+  unlistenVisibility = null;
+  pausedTicks.clear();
   for (const timer of draftTimers.values()) window.clearTimeout(timer);
   draftTimers.clear();
   for (const timer of pollTimers.values()) window.clearTimeout(timer);

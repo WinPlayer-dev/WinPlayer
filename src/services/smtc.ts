@@ -17,6 +17,7 @@ import { addPluginListener, invoke, type PluginListener } from "@tauri-apps/api/
 import { listen } from "@tauri-apps/api/event";
 import { watch, type WatchStopHandle } from "vue";
 import { resolveImgUrl } from "@/services/imageCache";
+import { isThrottled } from "@/services/backgroundMode";
 import type { UnifiedTrack } from "@/types/plugin";
 
 /** Rust → 前端的按钮事件名（见 src-tauri/src/smtc.rs） */
@@ -24,6 +25,8 @@ const BUTTON_EVENT = "smtc-button";
 
 /** 进度更新的最小间隔（毫秒） */
 const POSITION_INTERVAL = 1_000;
+/** 后台优化下的进度最大间隔：锁屏/蓝牙仍需要位置，但不能太频繁 */
+const POSITION_INTERVAL_BACKGROUND = 5_000;
 
 export type SmtcStatus = "playing" | "paused" | "stopped";
 export type SmtcButton = "play" | "pause" | "stop" | "next" | "previous" | "seek";
@@ -139,12 +142,15 @@ function queue(snapshot: SmtcSnapshot): void {
   else schedule();
 }
 
-function schedule(): void {
+function schedule(hidden = isThrottled()): void {
   if (timer !== null) return;
+  // 后台优化时把进度推送放到 5s：锁屏/蓝牙设备仍需要位置，
+  // 但不能像前台那样每秒一次占用 IPC
+  const interval = hidden ? POSITION_INTERVAL_BACKGROUND : POSITION_INTERVAL;
   timer = setTimeout(() => {
     timer = null;
     flush();
-  }, POSITION_INTERVAL);
+  }, interval);
 }
 
 /** 快照 → media-session 插件的 MediaState（秒制，与 Rust 端结构对应） */

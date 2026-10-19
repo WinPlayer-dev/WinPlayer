@@ -3,6 +3,7 @@
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
 import { getAudioEngine } from "@/services/audio";
+import { isThrottled } from "@/services/backgroundMode";
 import { findLyricIndex, mergeTranslation, parseLrc } from "@/services/lrc";
 import { getSetting, setSetting } from "@/services/db";
 import { toast } from "@/services/toast";
@@ -127,11 +128,18 @@ export const usePlayerStore = defineStore("player", () => {
   /* ------------------------------ 引擎事件 ------------------------------ */
 
   engine.on("timeupdate", (time) => {
+    if (isThrottled()) {
+      // 后台优化：跳过响应式进度写（省去重渲染与 lyricIndex 计算），
+      // 但预加载判断照常进行——用非响应式的 enginePosition 喂给它，
+      // 保证隐藏状态（关闭到托盘 / 最小化）下无缝切歌不断链。
+      void maybePreload(time);
+      return;
+    }
     currentTime.value = time;
     // seek 场景：到达目标附近后的首个进度复位加载态（缓冲期间后端
     // 阻塞在读取/推送，不上报进度，不会误清）
     loading.value = false;
-    void maybePreload();
+    void maybePreload(time);
   });
   engine.on("durationchange", (value) => {
     if (value > 0) duration.value = value;
@@ -489,10 +497,14 @@ export const usePlayerStore = defineStore("player", () => {
     persistQueue();
   }
 
-  /** 剩余时长进入提前量窗口时，解析下一首直链并交给引擎预加载 */
-  async function maybePreload(): Promise<void> {
-    if (preload || duration.value <= 0) return;
-    if (currentTime.value < duration.value - PRELOAD_AHEAD_SEC) return;
+  /** 剩余时长进入提前量窗口时，解析下一首直链并交给引擎预加载
+   * @param time 当前播放位置（秒）；默认读响应式 `currentTime`。
+   *              后台优化时引擎事件不再写响应式进度，用 `enginePosition`
+   *              计算——预加载不受后台模式影响，保证无缝切歌。 */
+  async function maybePreload(time?: number): Promise<void> {
+    if (preload || (duration.value <= 0)) return;
+    const position = time ?? currentTime.value;
+    if (position < duration.value - PRELOAD_AHEAD_SEC) return;
     const index = nextAutoIndex();
     if (index == null) return;
     const item = queue.value[index];

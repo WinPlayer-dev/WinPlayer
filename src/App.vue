@@ -27,6 +27,8 @@ import { useDownloadsStore } from "@/stores/downloads";
 import { useShortcutsStore } from "@/stores/shortcuts";
 import { useUpdaterStore } from "@/stores/updater";
 import { disposeSmtc, initSmtc, setSmtcEnabled } from "@/services/smtc";
+import { initTray, disposeTray } from "@/services/tray";
+import { setAppHidden, setOptimizeEnabled } from "@/services/backgroundMode";
 import { refreshAccentFromCover } from "@/services/coverAccent";
 import { installBackButton, uninstallBackButton } from "@/services/backButton";
 import { toast } from "@/services/toast";
@@ -65,6 +67,13 @@ const stopAccentWatch = watch(
   ([cover, enabled]) => void refreshAccentFromCover(cover, enabled),
 );
 
+// 后台优化开关：同步给 backgroundMode 服务，窗口隐藏时才据此节流
+const stopOptimizeWatch = watch(
+  () => settings.backgroundOptimize,
+  (value) => setOptimizeEnabled(value),
+  { immediate: true },
+);
+
 onMounted(async () => {
   await settings.load();
   await Promise.all([library.loadAll(), player.restore(), shortcuts.load()]);
@@ -72,6 +81,8 @@ onMounted(async () => {
   // 主题只依赖设置与本地文件，尽早恢复且不阻塞后续初始化（失败会静默回退默认外观）
   void themes.init();
   initSmtc(player);
+  // 系统托盘（仅 Windows）：可见性事件驱动后台模式，切歌刷新托盘提示
+  initTray(player);
   // 离线下载：订阅进度、解析默认目录、载入离线索引（不阻塞首屏）
   void downloads.init();
   // 自动更新与播放无关：放在最后并静默执行，不阻塞首屏
@@ -81,6 +92,7 @@ onMounted(async () => {
     void installBackButton(router, () => toast("再按一次返回键退出应用", "info"));
   }
   document.addEventListener("visibilitychange", onVisibilityChange);
+  document.addEventListener("focus", onWindowFocus);
 });
 
 /**
@@ -90,16 +102,29 @@ onMounted(async () => {
  */
 function onVisibilityChange(): void {
   if (document.visibilityState !== "visible") return;
+  // 非托盘的最小化/恢复由浏览器可见性兜底驱动后台模式
+  setAppHidden(false);
   void player.syncEngineState();
+}
+
+/**
+ * 窗口重新获得焦点（非托盘路径的最小化恢复兜底，如任务栏还原）。
+ * Rust 侧对托盘恢复已主动广播，这里只补足浏览器层的最小化场景。
+ */
+function onWindowFocus(): void {
+  setAppHidden(false);
 }
 
 onUnmounted(() => {
   document.removeEventListener("visibilitychange", onVisibilityChange);
+  document.removeEventListener("focus", onWindowFocus);
   plugins.disposeAll();
   updater.dispose();
   stopSmtcWatch();
   stopAccentWatch();
+  stopOptimizeWatch();
   disposeSmtc();
+  disposeTray();
   void uninstallBackButton();
 });
 </script>

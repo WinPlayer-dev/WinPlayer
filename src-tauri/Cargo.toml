@@ -44,8 +44,11 @@ symphonia = { version = "0.5", features = ["mp3", "aac", "isomp4", "flac", "pcm"
 rodio = { version = "0.20", default-features = false }
 rtrb = "0.3"
 
-# SMTC（系统媒体传输控件）：仅 Windows 平台
+# 仅 Windows 平台生效的原生依赖（SMTC / 系统托盘 / 窗口材质）
 [target.'cfg(windows)'.dependencies]
+# 系统托盘：在 windows 目标上给 tauri 追加 tray-icon feature，
+# 放在 target 段使 Android 构建完全不引入 tray-icon / muda。
+tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
 windows = { version = "0.62", features = [
   "Foundation",
   "Media",

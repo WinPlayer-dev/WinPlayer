@@ -8,6 +8,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { resolveImgUrl } from "@/services/imageCache";
+import { isThrottled } from "@/services/backgroundMode";
 
 /** 由封面取色覆盖的强调色变量（与 tokens.css 中的定义一一对应） */
 const ACCENT_VARS = [
@@ -44,7 +45,10 @@ export async function refreshAccentFromCover(
 /** 提取主色；封面没落盘（如「图片缓存」已关闭）时先预取进缓存再取一次 */
 async function extractColor(url: string): Promise<string | null> {
   const first = await invoke<string | null>("cover_dominant_color", { url }).catch(() => null);
+  // 后台优化（隐藏）时不主动联网预取封面：仅查已落盘的缓存，省网络与解码开销。
+  // 恢复前台后封面/开关 watch 会重新触发取色，最终仍会得到正确强调色。
   if (first) return first;
+  if (isThrottled()) return null;
   const prefetched = await invoke("image_cache_prefetch", { url })
     .then(() => true)
     .catch(() => false);

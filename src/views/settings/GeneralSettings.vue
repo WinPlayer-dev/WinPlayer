@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { ComboBox, ToggleSwitch } from "@/components/winui";
-import { useSettingsStore, type UpdateCheckFrequency } from "@/stores/settings";
+import { useSettingsStore, type CloseBehavior, type UpdateCheckFrequency } from "@/stores/settings";
 import { useIsMobile, useIsWindows } from "@/composables/useIsMobile";
 import WpCard from "@/components/theme/WpCard.vue";
 
@@ -18,9 +18,21 @@ const FREQUENCIES: { value: UpdateCheckFrequency; label: string }[] = [
   { value: "manual", label: "仅手动" },
 ];
 
+/** 关闭按钮行为选项（仅 Windows 托盘场景生效） */
+const CLOSE_BEHAVIORS: { value: CloseBehavior; label: string }[] = [
+  { value: "tray", label: "关闭到系统托盘" },
+  { value: "minimize", label: "最小化到任务栏" },
+  { value: "quit", label: "直接退出" },
+];
+
 const frequencyLabels = FREQUENCIES.map((item) => item.label);
 const frequencyIndex = computed(() =>
   FREQUENCIES.findIndex((item) => item.value === settings.updateCheckFrequency),
+);
+
+const closeBehaviorLabels = CLOSE_BEHAVIORS.map((item) => item.label);
+const closeBehaviorIndex = computed(() =>
+  CLOSE_BEHAVIORS.findIndex((item) => item.value === settings.closeBehavior),
 );
 
 function onSmtcToggle(event: { IsOn: boolean }): void {
@@ -44,6 +56,16 @@ function onFrequencyChange(_sender: unknown, payload: unknown): void {
   const option = FREQUENCIES.find((item) => item.label === String(label ?? ""));
   if (option) void settings.setUpdateCheckFrequency(option.value);
 }
+
+function onCloseBehaviorChange(_sender: unknown, payload: unknown): void {
+  const label = (payload as { AddedItems?: unknown[] } | undefined)?.AddedItems?.[0];
+  const option = CLOSE_BEHAVIORS.find((item) => item.label === String(label ?? ""));
+  if (option) void settings.setCloseBehavior(option.value);
+}
+
+function onOptimizeToggle(event: { IsOn: boolean }): void {
+  void settings.setBackgroundOptimize(Boolean(event?.IsOn));
+}
 </script>
 
 <template>
@@ -65,6 +87,34 @@ function onFrequencyChange(_sender: unknown, payload: unknown): void {
     <!-- 系统集成（SMTC 仅 Windows 提供） -->
     <section v-if="isWindows" class="settings-section">
       <h2 class="settings-section-title">系统集成</h2>
+
+      <WpCard variant="row">
+        <div class="card-content">
+          <div class="card-header">关闭按钮行为</div>
+          <div class="card-description">
+            关闭窗口时：收藏到系统托盘继续在后台播放、最小化到任务栏，或直接退出应用。托盘图标左键可显示/隐藏主窗口，右键提供播放控制菜单
+          </div>
+        </div>
+        <ComboBox
+          class="card-control"
+          :ItemsSource="closeBehaviorLabels"
+          :SelectedIndex="closeBehaviorIndex"
+          @SelectionChanged="
+            (_sender: unknown, payload: unknown) => onCloseBehaviorChange(_sender, payload)
+          "
+        />
+      </WpCard>
+
+      <WpCard variant="row">
+        <div class="card-content">
+          <div class="card-header">后台优化</div>
+          <div class="card-description">
+            窗口隐藏（关闭到托盘 / 最小化）时暂停界面动画、进度刷新与插件轮询以降低资源占用；音频播放与无缝切歌不受影响
+          </div>
+        </div>
+        <ToggleSwitch :IsOn="settings.backgroundOptimize" @Toggled="onOptimizeToggle" />
+      </WpCard>
+
       <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">系统媒体传输控件（SMTC）</div>

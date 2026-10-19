@@ -1,9 +1,14 @@
 mod commands;
 mod player;
 mod smtc;
+#[cfg(windows)]
+mod tray;
 mod updater;
 
 use tauri_plugin_sql::{Migration, MigrationKind};
+// 关闭拦截（托盘）：需要 `Manager` 提供的 `app_handle` / `get_webview_window`
+#[cfg(windows)]
+use tauri::Manager;
 
 fn db_migrations() -> Vec<Migration> {
     vec![
@@ -74,6 +79,11 @@ pub fn run() {
                 commands::themes::theme_remove,
                 commands::smtc::smtc_sync,
                 commands::window::window_set_material,
+                commands::tray::tray_set_close_behavior,
+                commands::tray::tray_toggle_window,
+                commands::tray::tray_hide_window,
+                commands::tray::tray_quit,
+                commands::tray::tray_set_tooltip,
                 updater::updater_platform,
                 updater::updater_check,
                 updater::updater_download,
@@ -100,7 +110,24 @@ pub fn run() {
                 smtc::init(app.handle());
                 // 原生音频播放引擎（命令 + 事件见 src-tauri/src/player/）
                 player::init(app);
+                // 系统托盘 + 关闭到托盘（仅 Windows 桌面）
+                #[cfg(windows)]
+                if let Err(e) = tray::init(app) {
+                    eprintln!("[tray] 托盘初始化失败: {e}");
+                }
                 Ok(())
+            })
+            .on_window_event(|window, event| {
+                // 拦截主窗口关闭请求：按「关闭行为」隐藏 / 最小化 / 退出。
+                // 仅 Windows 有托盘；其他平台维持默认「关闭即退出」。
+                #[cfg(windows)]
+                if window.label() == "main" {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        if tray::should_intercept_close(window.app_handle()) {
+                            api.prevent_close();
+                        }
+                    }
+                }
             }),
     ));
     builder

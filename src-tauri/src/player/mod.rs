@@ -792,24 +792,12 @@ pub fn player_set_crossfade(engine: State<Arc<PlayerEngine>>, enabled: bool, sec
 
 #[tauri::command]
 pub fn player_play(engine: State<Arc<PlayerEngine>>) {
-    engine.is_playing.store(true, Ordering::Release);
-    // 长时间空闲后恢复：输出流/会话可能已失效，重建会话并从上次位置续播
-    if engine.recover_idle_session() {
-        return;
-    }
-    if let Some(sink) = engine.sink.lock().unwrap().as_ref() {
-        sink.play();
-    }
-    engine.emit_state("playing");
+    engine.play();
 }
 
 #[tauri::command]
 pub fn player_pause(engine: State<Arc<PlayerEngine>>) {
-    engine.is_playing.store(false, Ordering::Release);
-    if let Some(sink) = engine.sink.lock().unwrap().as_ref() {
-        sink.pause();
-    }
-    engine.emit_state("paused");
+    engine.pause();
 }
 
 #[tauri::command]
@@ -902,6 +890,31 @@ impl PlayerEngine {
 
     pub(crate) fn is_playing(&self) -> bool {
         self.is_playing.load(Ordering::Acquire)
+    }
+
+    /// 开始/继续播放（`player_play` 命令与托盘菜单共用）。
+    ///
+    /// 需要 `&Arc<Self>`：长时间空闲后输出流可能已被系统回收，
+    /// [`Self::recover_idle_session`] 要重建会话来从上次位置续播。
+    pub(crate) fn play(self: &Arc<Self>) {
+        self.is_playing.store(true, Ordering::Release);
+        // 长时间空闲后恢复：输出流/会话可能已失效，重建会话并从上次位置续播
+        if self.recover_idle_session() {
+            return;
+        }
+        if let Some(sink) = self.sink.lock().unwrap().as_ref() {
+            sink.play();
+        }
+        self.emit_state("playing");
+    }
+
+    /// 暂停播放（`player_pause` 命令与托盘菜单共用）
+    pub(crate) fn pause(&self) {
+        self.is_playing.store(false, Ordering::Release);
+        if let Some(sink) = self.sink.lock().unwrap().as_ref() {
+            sink.pause();
+        }
+        self.emit_state("paused");
     }
 
     /// 当前播放倍速（解码线程每次处理包时读取，支持实时变更）

@@ -25,6 +25,9 @@ export type CachePolicy = "playlist" | "images" | "both" | "none";
 /** 自动检查更新的频率：每次启动 / 每 24 小时 / 仅手动 */
 export type UpdateCheckFrequency = "startup" | "daily" | "manual";
 
+/** 关闭按钮行为：关闭到托盘 / 最小化到任务栏 / 直接退出 */
+export type CloseBehavior = "tray" | "minimize" | "quit";
+
 /** 「来源偏好」默认值：空串表示不指定插件，由系统按当前逻辑自动决定 */
 export type SourcePreference = string;
 
@@ -74,6 +77,10 @@ export const useSettingsStore = defineStore("settings", () => {
   const fontFamily = ref("");
   /** 窗口材质：Mica / Acrylic / 关闭（仅 Windows 桌面生效，其余平台 no-op） */
   const windowMaterial = ref<WindowMaterial>("mica");
+  /** 关闭按钮行为：关闭到托盘 / 最小化到任务栏 / 直接退出（仅 Windows 桌面） */
+  const closeBehavior = ref<CloseBehavior>("tray");
+  /** 后台优化：窗口隐藏（托盘/最小化）时降低渲染与轮询开销（默认开启） */
+  const backgroundOptimize = ref(true);
   /** 触感反馈（震动，仅移动端生效） */
   const hapticsEnabled = ref(true);
   /** 是否跟随当前播放封面提取主色作为应用强调色 */
@@ -168,6 +175,10 @@ export const useSettingsStore = defineStore("settings", () => {
     getAudioEngine().setOutputDevice(outputDevice.value);
     fontFamily.value = await getSetting<string>("settings.fontFamily", "");
     windowMaterial.value = await getSetting<WindowMaterial>("settings.windowMaterial", "mica");
+    closeBehavior.value = await getSetting<CloseBehavior>("settings.closeBehavior", "tray");
+    backgroundOptimize.value = await getSetting<boolean>("settings.backgroundOptimize", true);
+    // 把关闭行为同步给 Rust（托盘拦截关闭、最小化/退出判定）
+    await import("@/services/tray").then(({ setCloseBehavior }) => setCloseBehavior(closeBehavior.value));
     hapticsEnabled.value = await getSetting<boolean>("settings.hapticsEnabled", true);
     coverAccent.value = await getSetting<boolean>("settings.coverAccent", false);
     cachePolicy.value = await getSetting<CachePolicy>("settings.cachePolicy", "both");
@@ -215,6 +226,20 @@ export const useSettingsStore = defineStore("settings", () => {
     windowMaterial.value = value;
     await applyWindowMaterial(value);
     await setSetting("settings.windowMaterial", value);
+  }
+
+  /** 切换关闭按钮行为：同步给 Rust（托盘拦截 / 最小化 / 退出判定） */
+  async function setCloseBehavior(value: CloseBehavior): Promise<void> {
+    closeBehavior.value = value;
+    await setSetting("settings.closeBehavior", value);
+    const { setCloseBehavior: sync } = await import("@/services/tray");
+    await sync(value);
+  }
+
+  /** 切换后台优化：体积标注开关本身即可，优化逻辑按需查询 */
+  async function setBackgroundOptimize(value: boolean): Promise<void> {
+    backgroundOptimize.value = value;
+    await setSetting("settings.backgroundOptimize", value);
   }
 
   async function setHaptics(value: boolean): Promise<void> {
@@ -390,6 +415,8 @@ export const useSettingsStore = defineStore("settings", () => {
     theme,
     fontFamily,
     windowMaterial,
+    closeBehavior,
+    backgroundOptimize,
     hapticsEnabled,
     coverAccent,
     marketSources,
@@ -420,6 +447,8 @@ export const useSettingsStore = defineStore("settings", () => {
     setTheme,
     setFontFamily,
     setWindowMaterial,
+    setCloseBehavior,
+    setBackgroundOptimize,
     setHaptics,
     setCoverAccent,
     setMarketSources,
