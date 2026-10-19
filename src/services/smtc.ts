@@ -57,6 +57,8 @@ export interface SmtcPlayer {
   readonly currentTime: number;
   readonly duration: number;
   togglePlay(): Promise<void>;
+  /** 确保处于播放态（系统「播放」按钮用：不依赖可能过时的 playing 位） */
+  resume(): Promise<void>;
   next(): Promise<void>;
   prev(): Promise<void>;
   /** 跳转到指定位置（秒），Android 媒体通知进度条拖动用 */
@@ -215,7 +217,9 @@ function handleButton(action: string, seekPosition?: number): void {
   if (!target) return;
   switch (action as SmtcButton) {
     case "play":
-      if (!target.playing) void target.togglePlay();
+      // 不依赖可能过时的 playing 位：后台/锁屏期间引擎的 paused 事件可能
+      // 没送达 WebView，若此处按 playing 拦截，系统发来的「播放」会被吞掉。
+      void target.resume();
       break;
     case "pause":
     case "stop":

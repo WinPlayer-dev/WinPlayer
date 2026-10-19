@@ -142,6 +142,18 @@ impl PlayChain {
         self.entries.get(next)
     }
 
+    /// 硬切换后按新 URL 重新锚定：命中链上某条就前移指针，未命中则作废
+    /// （新曲目不在链上，说明队列/模式已变，旧链不再可用）。
+    pub(crate) fn reanchor(&mut self, url: &str) {
+        match self.entries.iter().position(|entry| entry.url == url) {
+            Some(position) => self.current = Some(position),
+            None => {
+                self.entries.clear();
+                self.current = None;
+            }
+        }
+    }
+
     /// 衔接成功后把指针移到该 URL。从当前指针之后开始找，保证指针单调前进：
     /// 单曲循环的链是同一 URL 重复多项，按「首个匹配」会永远停在 0。
     pub(crate) fn advance_to(&mut self, url: &str) {
@@ -442,8 +454,10 @@ impl PlayerEngine {
         self.active.store(id, Ordering::Release);
         self.fading.store(0, Ordering::Release);
         *self.pending.lock().unwrap() = None;
-        // 播放链属于上一次加载：硬切换后由前端按新队列重新下发
-        *self.play_chain.lock().unwrap() = PlayChain::default();
+        // 播放链不在这里清：前端可能正是在后台/锁屏切歌（链是唯一可靠的
+        // 下一条来源），每次 load 都清会让链越切越短直至失效。改由锚定：
+        // 命中链上某条就前移指针，未命中才作废。
+        self.reanchor_chain(&url);
         *self.pending_seek.lock().unwrap() = None;
         self.buffering.store(false, Ordering::Release);
         self.is_playing.store(false, Ordering::Release);
@@ -641,6 +655,11 @@ impl PlayerEngine {
         self.play_chain.lock().unwrap().advance_to(url);
     }
 
+    /// 硬切换后按新 URL 重新锚定播放链（不命中则作废）
+    fn reanchor_chain(&self, url: &str) {
+        self.play_chain.lock().unwrap().reanchor(url);
+    }
+
     /// 链上下一条（相对当前指针，到链尾回卷）
     fn chain_next(&self) -> Option<(usize, String)> {
         self.play_chain
@@ -805,6 +824,15 @@ pub fn player_seek(engine: State<Arc<PlayerEngine>>, seconds: f64) {
     *engine.pending_seek.lock().unwrap() = Some(seconds.max(0.0));
     // seek 后必然继续播（与 HTML5 行为一致），唤醒 Sink
     engine.is_playing.store(true, Ordering::Release);
+    // 长时间空闲后旧输出流可能已被系统回收：对着死流 play() 不会出声。
+    // 此时按目标位置重建会话（load 内部会先换掉失效的输出流）。
+    if engine.output_idle() >= OUTPUT_IDLE_RESET {
+        if engine.recover_idle_session() {
+            // recover 会用 last_position 续播，这里改写成用户请求的目标位置
+            *engine.pending_seek.lock().unwrap() = Some(seconds.max(0.0));
+            return;
+        }
+    }
     if let Some(sink) = engine.sink.lock().unwrap().as_ref() {
         sink.play();
     }
@@ -977,6 +1005,35 @@ mod tests {
         assert_eq!(chain.current, Some(1), "重复 URL 上指针应前进而不是停在 0");
         chain.advance_to("same");
         assert_eq!(chain.current, Some(2));
+    }
+
+    /// 硬切换（切歌/媒体栏）后按新 URL 重新锚定：命中则前移指针，链继续可用
+    #[test]
+    fn reanchor_keeps_chain_when_url_is_in_it() {
+        let mut chain = chain_of(&["a", "b", "c", "d"], &[0, 1, 2, 3]);
+        chain.reanchor("c");
+        assert_eq!(chain.current, Some(2), "命中链上 c 应前移到该位置");
+        // 指针停在 c，下一条仍是 d——切歌不会把链截断
+        assert_eq!(chain.next_entry().unwrap().url, "d");
+    }
+
+    /// 硬切换后新 URL 不在链上（队列/模式已变）：旧链作废
+    #[test]
+    fn reanchor_clears_chain_when_url_unknown() {
+        let mut chain = chain_of(&["a", "b"], &[0, 1]);
+        chain.reanchor("unrelated");
+        assert!(chain.entries.is_empty(), "未命中应清空旧链");
+        assert_eq!(chain.current, None);
+    }
+
+    /// 连续切歌（媒体栏连按）：每次锚定后链仍能提供下一条，不会越切越短
+    #[test]
+    fn consecutive_switches_keep_chain_usable() {
+        let mut chain = chain_of(&["a", "b", "c", "d"], &[0, 1, 2, 3]);
+        for (url, expect_next) in [("b", "c"), ("c", "d")] {
+            chain.reanchor(url);
+            assert_eq!(chain.next_entry().unwrap().url, expect_next);
+        }
     }
 
     /// 空链不产生衔接目标（锁屏但队列未知时回退 ended）

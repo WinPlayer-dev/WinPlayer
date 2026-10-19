@@ -177,7 +177,8 @@ export const usePlayerStore = defineStore("player", () => {
   /** 播放队列中指定位置的曲目 */
   async function playAt(index: number): Promise<void> {
     if (index < 0 || index >= queue.value.length) return;
-    resetPreload(); // 硬加载会终止后端预加载会话
+    // 只清预载槽：load 会在后端清预载槽与链，链随后由 republishChain 补回
+    clearPreloadSlot();
     currentIndex.value = index;
     const track = queue.value[index].track;
     console.log(`[player] 播放请求 #${index}: ${track.sourceId}:${track.id} 《${track.name}》`);
@@ -194,6 +195,7 @@ export const usePlayerStore = defineStore("player", () => {
       await engine.play();
       void fetchLyrics(track);
       persistQueue();
+      republishChain(); // load 会清后端链，这里按当前曲目重新锚定
       void syncPlayChain(); // 提前解析后续直链，锁屏期间由引擎连续换曲
     } catch (error) {
       loading.value = false;
@@ -270,6 +272,23 @@ export const usePlayerStore = defineStore("player", () => {
     }
   }
 
+  /**
+   * 确保处于播放状态（系统媒体栏「播放」按钮专用）。
+   *
+   * 与 togglePlay 的区别：这里不再判断「当前是不是播放中」，因为后台/锁屏
+   * 期间引擎事件可能丢失、playing 位会过时——按了播放却被判成「要暂停」
+   * 是「暂停久了继续播放没声音」的主因之一。这里只在确实没在播时起播。
+   */
+  async function resume(): Promise<void> {
+    if (currentIndex.value < 0 || !queue.value.length) {
+      if (queue.value.length) await playAt(Math.max(0, currentIndex.value));
+      return;
+    }
+    // 引擎已经在推进（未暂停且界面在播放）：无需重复唤醒
+    if (!engine.paused && playing.value) return;
+    await togglePlay();
+  }
+
   async function togglePlay(): Promise<void> {
     if (currentIndex.value < 0 || !queue.value.length) {
       // 恢复了队列但尚未加载音频：直接加载当前曲目
@@ -282,10 +301,18 @@ export const usePlayerStore = defineStore("player", () => {
       await playAt(currentIndex.value);
       return;
     }
-    if (engine.paused) {
+    // 判定「当前是暂停态」：引擎的 paused 位与界面的 playing 位任一为假即
+    // 视为暂停。后台/锁屏期间引擎的 paused 事件可能没送达 WebView，只看
+    // engine.paused 会把「继续播放」误判成「要暂停」——按了反而没声音。
+    const paused = engine.paused || !playing.value;
+    if (paused) {
       // 长时间空闲后恢复：旧音频输出流可能已被系统回收、直链也可能过期，
-      // 改为重新解析直链并重载会话（后端同时会重建输出流），而不是直接唤醒
-      if (idleSince > 0 && Date.now() - idleSince > IDLE_RELOAD_MS) {
+      // 改为重新加载并续播（后端同时会重建输出流），而不是直接唤醒。
+      // 优先复用链上直链：此时平台刚唤醒 WebView，插件 Worker 可能还没
+      // 就绪，走完整解析会卡住导致「按了播放没声音」。
+      const idleMs = idleSince > 0 ? Date.now() - idleSince : Number.POSITIVE_INFINITY;
+      if (idleMs > IDLE_RELOAD_MS) {
+        if (await startAt(currentIndex.value)) return;
         await playAt(currentIndex.value);
         return;
       }
@@ -388,7 +415,12 @@ export const usePlayerStore = defineStore("player", () => {
     engine.setPlayChain(resolved, 0);
   }
 
-  /** 链上是否已有该队列位置的直链（媒体栏切歌可直接起播，无需插件解析） */
+  /**
+   * 链上该队列位置已解析的直链（媒体栏切歌可据此直接起播，无需插件解析）。
+   *
+   * 同一队列位置在链上可能出现多次（单曲循环重复下发），任意一条都指向
+   * 同一首曲目，取首个即可。
+   */
   function chainUrlAt(index: number): string | null {
     return chainEntries.find((entry) => entry.index === index)?.url ?? null;
   }
@@ -483,13 +515,42 @@ export const usePlayerStore = defineStore("player", () => {
     }
   }
 
-  /** 丢弃预加载与播放链状态（load/stop 本身也会清理后端对应槽） */
-  function resetPreload(cancelRemote = false): void {
+  /** 丢弃预加载槽（硬加载前调用；load 本身会在后端清掉预载槽） */
+  function clearPreloadSlot(cancelRemote = false): void {
     preload = null;
+    if (cancelRemote) engine.cancelPreload();
+  }
+
+  /**
+   * 丢弃播放链（队列/模式变更、停止时才算真正失效）。
+   *
+   * 注意：切歌**不要**调这个——链是锁屏与后台切歌的唯一保障，每切一首就
+   * 重建一次的话，一旦插件 Worker 在后台被冻结、重建失败，链会永久为空，
+   * 后续切歌只能回退插件解析并卡死。
+   */
+  function resetPlayChain(): void {
     chainEntries = [];
     chainToken += 1; // 使在途的链解析结果失效
     engine.setPlayChain([], null);
-    if (cancelRemote) engine.cancelPreload();
+  }
+
+  /** 丢弃预加载与播放链状态（队列/模式变更等链已失效的场景） */
+  function resetPreload(cancelRemote = false): void {
+    clearPreloadSlot(cancelRemote);
+    resetPlayChain();
+  }
+
+  /**
+   * 把现存播放链重新交给引擎，并对齐到当前曲目。
+   *
+   * `engine.load()` 会让后端重新锚定链（命中则前移指针、未命中则清空），
+   * 因此切歌后立刻用本地缓存的链补发一次，引擎就又能沿链自动续播——
+   * 整个过程不经过插件 Worker，后台也能生效。
+   */
+  function republishChain(): void {
+    if (!chainEntries.length) return;
+    const position = chainEntries.findIndex((entry) => entry.index === currentIndex.value);
+    engine.setPlayChain(chainEntries, position >= 0 ? position : null);
   }
 
   /** 引擎已衔接至下一首：切换曲目元数据（音频由引擎无缝续接） */
@@ -530,17 +591,15 @@ export const usePlayerStore = defineStore("player", () => {
     return mode.value === "loop-all" && queue.value.length >= 2 ? 0 : null;
   }
   /**
-   * 起播指定队列下标：优先复用播放链上已解析的直链。
+   * 用已知直链起播指定队列下标（不碰插件 Worker）。
    *
-   * 锁屏/媒体栏切歌时 WebView 的 JS 可能刚被唤醒，插件 Worker 还没就绪，
-   * 走常规 resolvePlayUrl 会卡住甚至失败（表现为「点了下一首但不出声」）。
-   * 链上已有直链就直接交给引擎；没有才回退完整解析。
+   * 锁屏/媒体栏切歌与「长时间暂停后继续」时，WebView 刚被唤醒、插件 Worker
+   * 往往还没就绪，走 resolvePlayUrl 会卡住甚至失败（表现为点了没声音）。
+   * 调用方负责先用 chainUrlAt 取到直链。
    */
-  async function startAt(index: number): Promise<boolean> {
-    if (index < 0 || index >= queue.value.length) return false;
-    const url = chainUrlAt(index);
-    if (!url) return false;
-    resetPreload(); // 硬加载会终止后端预加载会话
+  async function playUrlAt(index: number, url: string): Promise<void> {
+    // 只清预载槽：链要留着（锁屏/后台切歌全靠它），起播后再补发给引擎
+    clearPreloadSlot();
     currentIndex.value = index;
     const item = queue.value[index];
     loading.value = true;
@@ -558,11 +617,24 @@ export const usePlayerStore = defineStore("player", () => {
       loading.value = false;
       playing.value = false;
       toast(`播放失败: ${error}`, "error");
-      return true;
+      return;
     }
     void fetchLyrics(item.track);
     persistQueue();
+    // 立即补发链（引擎 load 后重新锚定），再后台补齐后续曲目
+    republishChain();
     void syncPlayChain();
+  }
+
+  /**
+   * 起播指定队列下标：优先复用播放链上已解析的直链，没有才回退完整解析。
+   * 返回是否走了直链快速路径。
+   */
+  async function startAt(index: number): Promise<boolean> {
+    if (index < 0 || index >= queue.value.length) return false;
+    const url = chainUrlAt(index);
+    if (!url) return false;
+    await playUrlAt(index, url);
     return true;
   }
 
@@ -840,6 +912,7 @@ export const usePlayerStore = defineStore("player", () => {
     playTrack,
     addToQueue,
     togglePlay,
+    resume,
     next,
     prev,
     seek,
