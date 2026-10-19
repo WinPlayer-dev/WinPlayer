@@ -5,6 +5,8 @@ import { ComboBox } from "@/components/winui";
 import { toast } from "@/services/toast";
 import { clearDataCache, dataCacheSize } from "@/services/cache";
 import { useSettingsStore, type CachePolicy } from "@/stores/settings";
+import WpButton from "@/components/theme/WpButton.vue";
+import WpCard from "@/components/theme/WpCard.vue";
 
 const settings = useSettingsStore();
 
@@ -99,7 +101,7 @@ onMounted(() => {
     <!-- 存储与缓存 -->
     <section class="settings-section">
       <h2 class="settings-section-title">存储与缓存</h2>
-      <div class="settings-card">
+      <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">缓存项</div>
           <div class="card-description">
@@ -112,18 +114,18 @@ onMounted(() => {
           :SelectedIndex="cacheIndex"
           @SelectionChanged="onCachePolicyChange"
         />
-      </div>
-      <div class="settings-card">
+      </WpCard>
+      <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">清除缓存</div>
           <div class="card-description">
             当前占用：{{ cacheSummary }}。清除后封面图片和主页/歌单页数据将在下次访问时重新下载。
           </div>
         </div>
-        <button class="wp-standard-button small danger" :disabled="cacheLoading" @click="clearCache">
+        <WpButton variant="standard" class="small danger" :disabled="cacheLoading" @click="clearCache">
           清除缓存
-        </button>
-      </div>
+        </WpButton>
+      </WpCard>
     </section>
   </div>
 </template>

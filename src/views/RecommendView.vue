@@ -18,6 +18,7 @@ import PlaylistCard from "@/components/common/PlaylistCard.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import CachedImage from "@/components/common/CachedImage.vue";
 import { ProgressRing } from "@/components/winui";
+import WpButton from "@/components/theme/WpButton.vue";
 
 const router = useRouter();
 const plugins = usePluginsStore();
@@ -163,9 +164,9 @@ onMounted(loadWithCache);
   <div class="wp-page recommend-page" :class="{ 'is-mobile': isMobile }">
     <div class="wp-page-header">
       <h1 class="wp-page-title">推荐</h1>
-      <button class="wp-standard-button" :disabled="loading" @click="load">
+      <WpButton :disabled="loading" @click="load" variant="standard">
         <span class="wp-icon">&#xF13E;</span>刷新
-      </button>
+      </WpButton>
     </div>
 
     <!-- 移动端搜索入口：点击进入整页搜索（桌面端搜索在标题栏） -->
@@ -181,7 +182,7 @@ onMounted(loadWithCache);
       title="还没有可用的播放源"
       description="WinPlayer 的音乐完全来自插件。前往插件管理安装一个播放源插件，或从市场添加。"
     >
-      <button class="wp-accent-button" @click="router.push('/plugins')">前往插件管理</button>
+      <WpButton @click="router.push('/plugins')" variant="accent">前往插件管理</WpButton>
     </EmptyState>
 
     <div v-else-if="loading" class="loading-wrap">

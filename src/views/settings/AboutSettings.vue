@@ -3,6 +3,8 @@ import { computed } from "vue";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useSettingsStore } from "@/stores/settings";
 import { useUpdaterStore } from "@/stores/updater";
+import WpButton from "@/components/theme/WpButton.vue";
+import WpCard from "@/components/theme/WpCard.vue";
 
 const settings = useSettingsStore();
 const updater = useUpdaterStore();
@@ -78,35 +80,35 @@ function restoreIgnored(): void {
     <!-- 关于 -->
     <section class="settings-section">
       <h2 class="settings-section-title">关于</h2>
-      <div class="settings-card">
+      <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">WinPlayer</div>
           <div class="card-description">
             版本 {{ versionText }} · 基于插件的桌面音乐播放器 · MIT License
           </div>
         </div>
-        <button class="wp-standard-button small" @click="openUrl('https://github.com/WinPlayer-dev/WinPlayer')">Github 页面</button>
-      </div>
+        <WpButton variant="standard" class="small" @click="openUrl('https://github.com/WinPlayer-dev/WinPlayer')">Github 页面</WpButton>
+      </WpCard>
 
       <!-- 自动更新 -->
-      <div class="settings-card">
+      <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">软件更新</div>
           <div class="card-description">{{ updateStatusText }}</div>
           <div v-if="settings.ignoredUpdateVersion" class="ignored-row">
             <span>已忽略版本 {{ settings.ignoredUpdateVersion }} 的自动提示</span>
-            <button class="wp-standard-button small" @click="restoreIgnored">恢复提示</button>
+            <WpButton variant="standard" class="small" @click="restoreIgnored">恢复提示</WpButton>
           </div>
         </div>
         <div class="update-actions">
-          <button class="wp-standard-button small" :disabled="busy" @click="onCheckUpdate">
+          <WpButton variant="standard" class="small" :disabled="busy" @click="onCheckUpdate">
             {{ checkButtonText }}
-          </button>
-          <button class="wp-standard-button small" @click="openReleases">Release 页面</button>
+          </WpButton>
+          <WpButton variant="standard" class="small" @click="openReleases">Release 页面</WpButton>
         </div>
-      </div>
+      </WpCard>
 
-      <div class="settings-card column">
+      <WpCard variant="column">
         <div class="card-content">
           <div class="card-header">第三方组件</div>
           <div class="card-description attribution">
@@ -116,7 +118,7 @@ function restoreIgnored(): void {
             </p>
           </div>
         </div>
-      </div>
+      </WpCard>
     </section>
   </div>
 </template>

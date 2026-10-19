@@ -246,6 +246,41 @@
   }
 }
 
+/* ------------------------------ 控件几何（主题可覆盖） ------------------------------ */
+/* 按钮 / 输入框的形状与配色集中在这里：主题只改这十几个变量，就能把整个应用的
+   控件换成另一种设计语言（例如 MD3 的胶囊按钮 + 48px 填充输入框），
+   不必逐个组件重写。组件级替换（components.Button / TextBox …）见主题文档。 */
+:root {
+  /* 尺寸 */
+  --control-height: 32px;
+  --control-height-sm: 28px;
+  --control-padding-x: 18px;
+  --control-radius: var(--radius-sm);
+  --control-font-size: 14px;
+  --control-icon-size: 36px;
+  --input-height: 32px;
+  --input-radius: var(--radius-sm);
+  --input-padding-x: 10px;
+
+  /* 主按钮（强调色） */
+  --button-accent-bg: var(--wp-accent);
+  --button-accent-bg-hover: var(--wp-accent-hover);
+  --button-accent-bg-active: var(--wp-accent-active);
+  --button-accent-fg: var(--wp-text-on-accent);
+
+  /* 次按钮（标准） */
+  --button-standard-bg: var(--wp-control-fill);
+  --button-standard-bg-hover: var(--wp-card-hover);
+  --button-standard-bg-active: var(--wp-card-active);
+  --button-standard-border: var(--wp-control-stroke);
+  --button-standard-fg: var(--wp-text-primary);
+
+  /* 图标按钮 */
+  --button-icon-radius: var(--radius-sm);
+  --button-icon-bg-hover: var(--wp-card-hover);
+  --button-icon-bg-active: var(--wp-card-active);
+}
+
 /* ------------------------------ 窗口材质（Mica / Acrylic） ------------------------------ */
 /* 材质生效时（services/windowMaterial.ts 写入 <html data-material>），
    主背景改为半透明让 DWM 材质透出；各层级卡片保持原透明度即可叠加出 WinUI 的层次感。

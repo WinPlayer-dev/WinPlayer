@@ -22,6 +22,7 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { useRefreshable } from "@/composables/useRefreshable";
 import type { PlaylistDetail, UnifiedTrack } from "@/types/plugin";
+import WpButton from "@/components/theme/WpButton.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -234,18 +235,18 @@ async function openDelete() {
           </div>
           <div v-if="header.description && isMobile" class="header-desc-wrap">
             <p class="header-desc" :class="{ expanded: descExpanded }">{{ header.description }}</p>
-            <button class="wp-standard-button small desc-toggle" @click="descExpanded = !descExpanded">
+            <WpButton class="small desc-toggle" @click="descExpanded = !descExpanded" variant="standard">
               {{ descExpanded ? "收起" : "展开简介" }}
-            </button>
+            </WpButton>
           </div>
           <div class="header-sub-actions">
             <template v-if="!isRemote">
-              <button class="wp-standard-button small" @click="openRename">
+              <WpButton class="small" @click="openRename" variant="standard">
                 <span class="wp-icon">&#xF3DE;</span>重命名
-              </button>
-              <button class="wp-standard-button small danger" @click="openDelete">
+              </WpButton>
+              <WpButton class="small danger" @click="openDelete" variant="standard">
                 <span class="wp-icon">&#xF34D;</span>删除歌单
-              </button>
+              </WpButton>
             </template>
             <span v-else class="source-badge">
               来自 {{ sourceName }}<template v-if="fromCache"> · 缓存内容，正在更新…</template>
@@ -253,15 +254,15 @@ async function openDelete() {
           </div>
         </div>
         <div class="header-actions">
-          <button class="wp-accent-button" :disabled="!tracks.length" @click="playAll">
+          <WpButton :disabled="!tracks.length" @click="playAll" variant="accent">
             <span class="wp-icon filled">&#xF610;</span>播放全部
-          </button>
-          <button class="wp-standard-button" :disabled="!tracks.length" @click="shufflePlay">
+          </WpButton>
+          <WpButton :disabled="!tracks.length" @click="shufflePlay" variant="standard">
             <span class="wp-icon">&#xEF37;</span>随机播放
-          </button>
-          <button class="wp-standard-button" :disabled="!tracks.length" @click="downloadAll">
+          </WpButton>
+          <WpButton :disabled="!tracks.length" @click="downloadAll" variant="standard">
             <span class="wp-icon">&#xF151;</span>
-          </button>
+          </WpButton>
         </div>
       </div>
 
@@ -276,7 +277,7 @@ async function openDelete() {
         title="歌单加载失败"
         :description="loadError"
       >
-        <button class="wp-standard-button" @click="router.back()">返回</button>
+        <WpButton @click="router.back()" variant="standard">返回</WpButton>
       </EmptyState>
 
       <SongTable

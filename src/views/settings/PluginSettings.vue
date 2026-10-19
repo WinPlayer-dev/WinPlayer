@@ -5,6 +5,8 @@ import { useSettingsStore } from "@/stores/settings";
 import { OFFICIAL_MARKET_SOURCE } from "@/stores/plugins";
 import { toast } from "@/services/toast";
 import type { MarketSource } from "@/types/plugin";
+import WpButton from "@/components/theme/WpButton.vue";
+import WpCard from "@/components/theme/WpCard.vue";
 
 const settings = useSettingsStore();
 
@@ -48,7 +50,7 @@ function saveMirror() {
     <!-- 插件市场 -->
     <section class="settings-section">
       <h2 class="settings-section-title">插件市场</h2>
-      <div class="settings-card">
+      <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">GitHub 镜像源</div>
           <div class="card-description">
@@ -62,11 +64,11 @@ function saveMirror() {
             PlaceholderText="https://ghproxy.net/"
             @update:Text="mirrorDraft = String($event ?? '')"
           />
-          <button class="wp-standard-button small" @click="saveMirror">保存</button>
+          <WpButton variant="standard" class="small" @click="saveMirror">保存</WpButton>
         </div>
-      </div>
+      </WpCard>
 
-      <div class="settings-card column">
+      <WpCard variant="column">
         <div class="card-content">
           <div class="card-header">市场源列表</div>
           <div class="card-description">
@@ -89,7 +91,7 @@ function saveMirror() {
               <div class="source-name">{{ source.name }}</div>
               <div class="source-url ellipsis">{{ source.url }}</div>
             </div>
-            <button class="wp-standard-button small danger" @click="removeSource(index)">移除</button>
+            <WpButton variant="standard" class="small danger" @click="removeSource(index)">移除</WpButton>
           </li>
         </ul>
 
@@ -106,9 +108,9 @@ function saveMirror() {
             PlaceholderText="https://example.com/market-index.json"
             @update:Text="newSourceUrl = String($event ?? '')"
           />
-          <button class="wp-standard-button small" @click="addSource">添加</button>
+          <WpButton variant="standard" class="small" @click="addSource">添加</WpButton>
         </div>
-      </div>
+      </WpCard>
     </section>
   </div>
 </template>

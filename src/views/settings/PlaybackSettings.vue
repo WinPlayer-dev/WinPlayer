@@ -7,6 +7,8 @@ import { useIsMobile } from "@/composables/useIsMobile";
 import { getAudioEngine } from "@/services/audio";
 import { EQ_FREQS, EQ_PRESETS, formatEqFreq } from "@/constants/eqPresets";
 import type { PluginCapability } from "@/types/plugin";
+import WpCard from "@/components/theme/WpCard.vue";
+import WpButton from "@/components/theme/WpButton.vue";
 
 const settings = useSettingsStore();
 const pluginsStore = usePluginsStore();
@@ -204,7 +206,7 @@ function formatGain(gain: number | undefined): string {
     <!-- 来源偏好 -->
     <section class="settings-section">
       <h2 class="settings-section-title">来源偏好</h2>
-      <div v-for="{ kind, options, onSelect } in sourceRows" :key="kind.key" class="settings-card">
+      <WpCard variant="row" v-for="{ kind, options, onSelect } in sourceRows" :key="kind.key" >
         <div class="card-content">
           <div class="card-header">{{ kind.title }}</div>
           <div class="card-description">{{ kind.description }}</div>
@@ -215,9 +217,9 @@ function formatGain(gain: number | undefined): string {
           :SelectedIndex="sourceIndex(settings[kind.key], options)"
           @SelectionChanged="onSelect"
         />
-      </div>
+      </WpCard>
 
-      <div v-if="showSearchFormat" class="settings-card column">
+      <WpCard variant="column" v-if="showSearchFormat" >
         <div class="card-content">
           <div class="card-header">搜索格式</div>
           <div class="card-description">
@@ -231,14 +233,14 @@ function formatGain(gain: number | undefined): string {
           :PlaceholderText="DEFAULT_SOURCE_SEARCH_FORMAT"
           @update:Text="onFormatChange"
         />
-      </div>
+      </WpCard>
     </section>
 
     <!-- 无缝播放 -->
     <section class="settings-section">
       <h2 class="settings-section-title">无缝播放</h2>
       <template v-if="!isMobile">
-        <div class="settings-card">
+        <WpCard variant="row" >
           <div class="card-content">
             <div class="card-header">横向淡入淡出（Crossfade）</div>
             <div class="card-description">
@@ -246,26 +248,26 @@ function formatGain(gain: number | undefined): string {
             </div>
           </div>
           <ToggleSwitch :IsOn="settings.crossfadeEnabled" @Toggled="onCrossfadeToggle" />
-        </div>
-        <div class="settings-card">
+        </WpCard>
+        <WpCard variant="row" >
           <div class="card-content">
             <div class="card-header">无缝衔接（Gapless）</div>
             <div class="card-description">始终开启：关闭淡入淡出后，自动切歌在上一曲播完的瞬间零间隙接续下一曲</div>
           </div>
-        </div>
+        </WpCard>
       </template>
-      <div v-else class="settings-card">
+      <WpCard variant="row" v-else >
         <div class="card-content">
           <div class="card-header">无缝衔接（Gapless）</div>
           <div class="card-description">移动端自动切歌时无缝衔接下一曲（不支持混音过渡）</div>
         </div>
-      </div>
+      </WpCard>
     </section>
 
     <!-- 输出设备（仅桌面端可枚举选择） -->
     <section v-if="!isMobile" class="settings-section">
       <h2 class="settings-section-title">输出设备</h2>
-      <div class="settings-card">
+      <WpCard variant="row" >
         <div class="card-content">
           <div class="card-header">音频输出</div>
           <div class="card-description">
@@ -278,17 +280,22 @@ function formatGain(gain: number | undefined): string {
             :SelectedIndex="outputDeviceIndex"
             @SelectionChanged="onOutputDeviceChange"
           />
-          <button class="wp-standard-button small" :disabled="devicesLoading" @click="loadOutputDevices">
+          <WpButton
+            variant="standard"
+            class="small"
+            :disabled="devicesLoading"
+            @click="loadOutputDevices"
+          >
             {{ devicesLoading ? "刷新中…" : "刷新" }}
-          </button>
+          </WpButton>
         </div>
-      </div>
+      </WpCard>
     </section>
 
     <!-- 音效（均衡器） -->
     <section class="settings-section">
       <h2 class="settings-section-title">音效</h2>
-      <div class="settings-card">
+      <WpCard variant="row" >
         <div class="card-content">
           <div class="card-header">均衡器</div>
           <div class="card-description">
@@ -296,10 +303,10 @@ function formatGain(gain: number | undefined): string {
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.eqEnabled" @Toggled="onEqToggle" />
-      </div>
+      </WpCard>
 
       <template v-if="settings.eqEnabled">
-        <div class="settings-card">
+        <WpCard variant="row" >
           <div class="card-content">
             <div class="card-header">预设</div>
             <div class="card-description">快速套用常见音色；手动拖动滑杆后会自动变为「自定义」</div>
@@ -310,9 +317,9 @@ function formatGain(gain: number | undefined): string {
             :SelectedIndex="eqPresetIndex"
             @SelectionChanged="onEqPresetChange"
           />
-        </div>
+        </WpCard>
 
-        <div class="settings-card column">
+        <WpCard variant="column" >
           <div class="eq-sliders-row">
             <div v-for="band in eqBands" :key="band.freq" class="eq-band">
               <span class="eq-gain">{{ formatGain(settings.eqGains[band.index]) }}</span>
@@ -334,9 +341,9 @@ function formatGain(gain: number | undefined): string {
             </div>
           </div>
           <div class="eq-actions">
-            <button class="wp-standard-button small" @click="settings.resetEq()">重置</button>
+            <WpButton variant="standard" class="small" @click="settings.resetEq()">重置</WpButton>
           </div>
-        </div>
+        </WpCard>
       </template>
     </section>
   </div>

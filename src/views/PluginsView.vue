@@ -5,8 +5,10 @@ import QRCode from "qrcode";
 import { usePluginsStore, type PluginRecord } from "@/stores/plugins";
 import { toast } from "@/services/toast";
 import EmptyState from "@/components/common/EmptyState.vue";
+import ThemesTab from "@/views/themes/ThemesTab.vue";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { ComboBox, ContentDialog, NumberBox, TextBox, ToggleSwitch } from "@/components/winui";
+import WpButton from "@/components/theme/WpButton.vue";
 import type {
   LoginPollResult,
   LoginProfile,
@@ -18,7 +20,7 @@ import type {
 const plugins = usePluginsStore();
 const isMobile = useIsMobile();
 
-const tab = ref<"installed" | "market">("installed");
+const tab = ref<"installed" | "market" | "themes">("installed");
 const urlValue = ref("");
 const marketLoading = ref(false);
 const marketEntries = ref<MarketEntry[]>([]);
@@ -449,13 +451,18 @@ onUnmounted(() => {
       <button class="tab" :class="{ active: tab === 'market' }" @click="tab = 'market'">
         插件市场
       </button>
+      <button class="tab" :class="{ active: tab === 'themes' }" @click="tab = 'themes'">
+        主题
+      </button>
       <div class="tab-actions">
-        <button class="wp-standard-button small" @click="installFromFile">
-          <span class="wp-icon">&#xF42F;</span>从本地安装
-        </button>
-        <button class="wp-standard-button small" @click="openUrlDialog">
-          <span class="wp-icon">&#xF4E5;</span>从 URL 安装
-        </button>
+        <template v-if="tab !== 'themes'">
+          <WpButton class="small" @click="installFromFile" variant="standard">
+            <span class="wp-icon">&#xF42F;</span>从本地安装
+          </WpButton>
+          <WpButton class="small" @click="openUrlDialog" variant="standard">
+            <span class="wp-icon">&#xF4E5;</span>从 URL 安装
+          </WpButton>
+        </template>
       </div>
     </div>
 
@@ -468,8 +475,8 @@ onUnmounted(() => {
         title="尚未安装任何插件"
         description="插件决定音乐来自哪里。你可以从本地导入 .zip/.json 插件包、通过 URL 安装，或在插件市场中浏览。"
       >
-        <button class="wp-accent-button" @click="installFromFile">从本地安装</button>
-        <button class="wp-standard-button" @click="tab = 'market'">浏览市场</button>
+        <WpButton @click="installFromFile" variant="accent">从本地安装</WpButton>
+        <WpButton @click="tab = 'market'" variant="standard">浏览市场</WpButton>
       </EmptyState>
 
       <div v-else class="plugin-list">
@@ -499,9 +506,9 @@ onUnmounted(() => {
 
           <div class="plugin-side">
             <ToggleSwitch :IsOn="record.enabled" @Toggled="onToggle(record, $event)" />
-            <button class="wp-standard-button small danger" @click="confirmUninstall(record)">
+            <WpButton class="small danger" @click="confirmUninstall(record)" variant="standard">
               卸载
-            </button>
+            </WpButton>
           </div>
 
           <!-- 扫码登录（能力：login） -->
@@ -520,7 +527,7 @@ onUnmounted(() => {
                   {{ statusText(record.entry.id) }}
                 </span>
               </div>
-              <button class="wp-standard-button small" @click="confirmLogout(record)">退出登录</button>
+              <WpButton class="small" @click="confirmLogout(record)" variant="standard">退出登录</WpButton>
             </template>
 
             <template v-else-if="qrActive(record.entry.id)">
@@ -532,7 +539,7 @@ onUnmounted(() => {
                 <div v-if="errorText(record.entry.id)" class="login-error">
                   {{ errorText(record.entry.id) }}
                 </div>
-                <button class="wp-standard-button small" @click="cancelQr(record)">取消</button>
+                <WpButton class="small" @click="cancelQr(record)" variant="standard">取消</WpButton>
               </div>
             </template>
 
@@ -547,13 +554,12 @@ onUnmounted(() => {
                   {{ errorText(record.entry.id) }}
                 </div>
               </div>
-              <button
-                class="wp-accent-button small"
+              <WpButton class="small"
                 :disabled="loginBusyNow(record.entry.id)"
                 @click="startQrLogin(record)"
-              >
+               variant="accent">
                 {{ loginBusyNow(record.entry.id) ? "获取中…" : "扫码登录" }}
-              </button>
+              </WpButton>
             </template>
           </div>
 
@@ -611,11 +617,11 @@ onUnmounted(() => {
     </template>
 
     <!-- 插件市场 -->
-    <template v-else>
+    <template v-else-if="tab === 'market'">
       <div class="market-toolbar">
-        <button class="wp-standard-button small" :disabled="marketLoading" @click="loadMarket">
+        <WpButton class="small" :disabled="marketLoading" @click="loadMarket" variant="standard">
           <span class="wp-icon">&#xF13E;</span>{{ marketLoading ? "加载中…" : "刷新市场" }}
-        </button>
+        </WpButton>
       </div>
       <div v-if="!marketEntries.length" class="hint">
         {{ marketLoading ? "正在加载市场索引…" : "市场索引为空或加载失败" }}
@@ -640,34 +646,35 @@ onUnmounted(() => {
                 {{ entry.version ? `v${entry.version}` : "版本未知" }}
               </span>
               <div class="market-actions">
-                <button class="wp-standard-button small" @click="openEntrySource(entry)">
+                <WpButton class="small" @click="openEntrySource(entry)" variant="standard">
                   来源
-                </button>
-                <button
-                  v-if="marketStatus(entry) === 'updatable' || marketStatus(entry) === 'none'"
-                  class="wp-accent-button small"
+                </WpButton>
+                <WpButton
+                  v-if="marketStatus(entry) === 'updatable' || marketStatus(entry) === 'none'" class="small"
                   :disabled="installingId === entry.id + entry.url"
                   @click="installFromMarket(entry)"
-                >
+                 variant="accent">
                   {{ installingId === entry.id + entry.url ? "安装中…" : marketStatus(entry) === "updatable" ? "更新" : "安装" }}
-                </button>
-                <button
-                  v-else-if="marketStatus(entry) === 'unknown'"
-                  class="wp-standard-button small"
+                </WpButton>
+                <WpButton
+                  v-else-if="marketStatus(entry) === 'unknown'" class="small"
                   :disabled="installingId === entry.id + entry.url"
                   @click="installFromMarket(entry)"
-                >
+                 variant="standard">
                   {{ installingId === entry.id + entry.url ? "安装中…" : "重新安装" }}
-                </button>
-                <button v-else class="wp-standard-button small" @click="uninstallFromMarket(entry)">
+                </WpButton>
+                <WpButton v-else class="small" @click="uninstallFromMarket(entry)" variant="standard">
                   卸载
-                </button>
+                </WpButton>
               </div>
             </div>
           </div>
         </div>
       </div>
     </template>
+
+    <!-- 主题：安装 / 切换 / 市场 -->
+    <ThemesTab v-else />
 
     <ContentDialog
       ref="urlDialogRef"

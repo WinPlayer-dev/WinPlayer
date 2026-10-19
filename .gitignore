@@ -58,3 +58,8 @@ Cargo.lock
 
 TODO.md
 mobile_todolist.md
+
+# --- Playwright 回归测试的截图产物（脚本本身入库，便于团队复用）---
+.playwright/*.png
+
+src/themes/

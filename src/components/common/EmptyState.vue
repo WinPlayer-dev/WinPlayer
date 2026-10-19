@@ -1,55 +1,24 @@
 <script setup lang="ts">
-/** 空状态占位 */
+/**
+ * 空状态占位——可被主题替换。
+ *
+ * 分发层：主题覆盖时用主题组件，否则用内置实现（EmptyStateBase.vue）。
+ * 插槽原样透传（调用方会在默认插槽里放操作按钮）。
+ */
+import EmptyStateBase from "@/components/common/EmptyStateBase.vue";
+import { themeSlot } from "@/components/theme/themeSlot";
+
 defineProps<{
   icon?: string;
   title: string;
   description?: string;
 }>();
+
+const ThemedEmptyState = themeSlot("EmptyState", EmptyStateBase);
 </script>
 
 <template>
-  <div class="empty-state">
-    <span class="wp-icon empty-icon" v-html="icon || '&#xE852;'" />
-    <div class="empty-title">{{ title }}</div>
-    <div v-if="description" class="empty-description">{{ description }}</div>
-    <div class="empty-actions">
-      <slot />
-    </div>
-  </div>
+  <ThemedEmptyState :icon="icon" :title="title" :description="description">
+    <slot />
+  </ThemedEmptyState>
 </template>
-
-<style scoped>
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 80px 24px;
-  gap: var(--space-md);
-  text-align: center;
-}
-
-.empty-icon {
-  font-size: 42px;
-  color: var(--wp-text-tertiary);
-  margin-bottom: var(--space-sm);
-}
-
-.empty-title {
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.empty-description {
-  font-size: 13px;
-  color: var(--wp-text-secondary);
-  max-width: 420px;
-  line-height: 1.6;
-}
-
-.empty-actions {
-  margin-top: var(--space-lg);
-  display: flex;
-  gap: var(--space-md);
-}
-</style>

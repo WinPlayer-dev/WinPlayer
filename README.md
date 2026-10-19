@@ -23,6 +23,7 @@
 ## ✨ 特性
 
 - 🎨 **WinUI 设计语言** —— 基于 [WinUIonWeb](https://github.com/Furry-Xiyi/WinUIonWeb) 组件库，完整的 Fluent 动画与材质，无边框自定义标题栏，Mica 风格背景，亮/暗主题跟随系统并可手动切换
+- 🖌️ **可深度定制的主题系统** —— 主题包（zip）可替换配色令牌、圆角/密度/字体/动效、壁纸与背景氛围层，还能**重写标题栏 / 侧边栏 / 播放条 / 媒体卡片 / 空状态 / 页面骨架**等界面组件；内置基于 MDUI 的 Material Design 3 主题，支持从主题市场安装、即时切换，详见 [docs/THEME-DEVELOPMENT.md](docs/THEME-DEVELOPMENT.md)
 - 🧩 **插件化播放源** —— 播放源完全由插件提供，开箱即可通过插件市场、URL 或本地文件安装；插件在 **Web Worker 沙箱**中运行，网络请求经 Rust 后端代理，与主界面隔离
 - 🔌 **统一的插件协议** —— 各来源 API 格式千差万别，插件负责将其适配为统一格式；插件可提供搜索、歌曲直链、歌单、推荐、歌词、用户信息等能力
 - 🔍 **聚合搜索** —— 顶栏搜索框同时检索所有已启用的插件源，结果按来源分组展示
@@ -31,6 +32,7 @@
 - 📚 **本地曲库** —— 我喜欢的音乐、自定义歌单，数据持久化于本地 SQLite
 - 🖥️ **系统媒体控件（SMTC）** —— 播放信息与进度同步到 Windows 系统媒体浮出窗 / 锁屏 / 蓝牙设备，可在系统侧直接播放、暂停、切歌（设置 → 系统集成 可关闭）
 - 🗂 **插件管理** —— 启用 / 禁用、参数配置、卸载，支持配置多个插件市场源
+- 🛍 **主题市场** —— 在插件管理页的「主题」标签中浏览 / 安装 / 更新主题，支持自定义市场源
 
 ## 📦 安装 / 构建
 
@@ -79,6 +81,28 @@ export default {
 
 完整协议见 [docs/PLUGIN-DEVELOPMENT.md](docs/PLUGIN-DEVELOPMENT.md)。
 
+## 🖌 主题开发
+
+主题包 = `theme.json` + 可选的 `theme.css` / 资源 / `.vue` 组件。
+
+```json
+{
+  "id": "com.example.midnight",
+  "name": "Midnight",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "tokens": { "dark": { "--wp-accent": "#4cc2ff", "--wp-base": "#0d1420" } },
+  "density": { "radiusScale": 2, "fontFamily": "\"Noto Sans SC\", sans-serif" },
+  "appearance": { "wallpaper": "assets/bg.jpg", "wallpaperBlur": 24 },
+  "css": "theme.css",
+  "components": { "PlayerBar": "components/PlayerBar.vue" }
+}
+```
+
+主题组件是普通 Vue 单文件组件，在运行时编译加载，可重写 6 个核心界面组件。
+完整字段、可用模块白名单、MDUI 组件用法与市场索引格式见
+[docs/THEME-DEVELOPMENT.md](docs/THEME-DEVELOPMENT.md)。
+
 ## 🗂 项目结构
 
 ```
@@ -91,6 +115,7 @@ WinPlayer/
 │   ├── services/           # 音频、数据库、插件安装等服务
 │   └── types/              # 统一数据类型与插件协议类型
 ├── src-tauri/              # Rust 后端（窗口、SQLite、HTTP 代理、插件管理）
+├── src/themes/             # 内置主题（Material You / MD3），作为主题开发范本
 ├── plugins/                # 示例插件（开发调试用，不随应用打包）
 └── docs/                   # 插件开发文档等
 ```

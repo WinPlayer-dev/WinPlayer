@@ -7,6 +7,8 @@ import { onBeforeUnmount, ref } from "vue";
 import { bindingFromEvent, formatBinding } from "@/services/shortcuts";
 import { useShortcutsStore } from "@/stores/shortcuts";
 import { SHORTCUT_ACTIONS, type ShortcutActionId } from "@/types/shortcut";
+import WpCard from "@/components/theme/WpCard.vue";
+import WpButton from "@/components/theme/WpButton.vue";
 
 const shortcuts = useShortcutsStore();
 
@@ -86,7 +88,7 @@ onBeforeUnmount(() => finishRecording());
         快捷键仅在应用窗口处于前台时生效。
       </p>
 
-      <div v-for="action in SHORTCUT_ACTIONS" :key="action.id" class="settings-card">
+      <WpCard variant="row" v-for="action in SHORTCUT_ACTIONS" :key="action.id" >
         <div class="card-content">
           <div class="card-header">{{ action.label }}</div>
           <div class="card-description">{{ action.description }}</div>
@@ -118,10 +120,10 @@ onBeforeUnmount(() => finishRecording());
             <span class="wp-icon">&#xF36A;</span>
           </button>
         </div>
-      </div>
+      </WpCard>
 
       <div class="shortcut-actions">
-        <button class="wp-standard-button" type="button" @click="resetDefaults">恢复默认</button>
+        <WpButton variant="standard" type="button" @click="resetDefaults">恢复默认</WpButton>
       </div>
     </section>
   </div>

@@ -17,6 +17,8 @@ import {
 } from "@/stores/settings";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useIsMobile } from "@/composables/useIsMobile";
+import WpButton from "@/components/theme/WpButton.vue";
+import WpCard from "@/components/theme/WpCard.vue";
 
 const settings = useSettingsStore();
 const downloads = useDownloadsStore();
@@ -126,7 +128,7 @@ function openOffline(): void {
     <!-- 存储位置 -->
     <section class="settings-section">
       <h2 class="settings-section-title">存储位置</h2>
-      <div class="settings-card">
+      <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">下载目录</div>
           <div class="card-description">
@@ -141,24 +143,24 @@ function openOffline(): void {
           </div>
         </div>
         <div v-if="!isMobile" class="dir-actions">
-          <button class="wp-standard-button small" @click="chooseDir">
+          <WpButton variant="standard" class="small" @click="chooseDir">
             <span class="wp-icon">&#xF42F;</span>选择目录
-          </button>
-          <button
+          </WpButton>
+          <WpButton variant="standard"
             v-if="settings.downloadDir.trim()"
-            class="wp-standard-button small"
+            class="small"
             @click="resetDir"
           >
             恢复默认
-          </button>
+          </WpButton>
         </div>
-      </div>
+      </WpCard>
     </section>
 
     <!-- 文件名 -->
     <section class="settings-section">
       <h2 class="settings-section-title">文件名</h2>
-      <div class="settings-card column">
+      <WpCard variant="column">
         <div class="card-content">
           <div class="card-header">文件名模板</div>
           <div class="card-description">
@@ -173,7 +175,7 @@ function openOffline(): void {
             :PlaceholderText="DEFAULT_DOWNLOAD_NAME_TEMPLATE"
             @update:Text="(value: unknown) => (templateInput = String(value ?? ''))"
           />
-          <button class="wp-standard-button small" @click="resetTemplate">恢复默认</button>
+          <WpButton variant="standard" class="small" @click="resetTemplate">恢复默认</WpButton>
         </div>
         <div class="template-vars">
           <span class="vars-label">可用变量</span>
@@ -191,13 +193,13 @@ function openOffline(): void {
           <span class="preview-label">预览</span>
           <span class="preview-value">{{ previewName }}</span>
         </div>
-      </div>
+      </WpCard>
     </section>
 
     <!-- 下载内容 -->
     <section class="settings-section">
       <h2 class="settings-section-title">下载内容</h2>
-      <div class="settings-card">
+      <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">同时保存歌词</div>
           <div class="card-description">
@@ -205,8 +207,8 @@ function openOffline(): void {
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.downloadSaveLyrics" @Toggled="onLyricsToggle" />
-      </div>
-      <div class="settings-card">
+      </WpCard>
+      <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">缓存封面等元数据</div>
           <div class="card-description">
@@ -214,16 +216,16 @@ function openOffline(): void {
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.downloadSaveMeta" @Toggled="onMetaToggle" />
-      </div>
-      <div class="settings-card">
+      </WpCard>
+      <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">离线音乐</div>
           <div class="card-description">查看已下载的曲库、导出文件或在文件夹中定位。</div>
         </div>
-        <button class="wp-standard-button small" @click="openOffline">
+        <WpButton variant="standard" class="small" @click="openOffline">
           <span class="wp-icon">&#xF151;</span>打开
-        </button>
-      </div>
+        </WpButton>
+      </WpCard>
     </section>
   </div>
 </template>

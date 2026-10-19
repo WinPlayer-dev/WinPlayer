@@ -12,6 +12,7 @@ import { ProgressRing } from "@/components/winui";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { useRefreshable } from "@/composables/useRefreshable";
 import type { SearchResult, UnifiedAlbum, UnifiedArtist, UnifiedPlaylist, UnifiedTrack } from "@/types/plugin";
+import WpButton from "@/components/theme/WpButton.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -186,7 +187,7 @@ useRefreshable(() => {
           <span class="wp-icon">&#xF36A;</span>
         </button>
       </div>
-      <button class="wp-accent-button" :disabled="!keyword.trim() || loading" @click="submit">搜索</button>
+      <WpButton :disabled="!keyword.trim() || loading" @click="submit" variant="accent">搜索</WpButton>
     </div>
 
     <!-- 移动端热门搜索词：点击即搜 -->
@@ -203,7 +204,7 @@ useRefreshable(() => {
       title="没有可用的搜索来源"
       description="聚合搜索会同时检索所有启用了搜索能力的插件，请先在插件管理中安装并启用插件。"
     >
-      <button class="wp-accent-button" @click="router.push('/plugins')">前往插件管理</button>
+      <WpButton @click="router.push('/plugins')" variant="accent">前往插件管理</WpButton>
     </EmptyState>
 
     <template v-else>

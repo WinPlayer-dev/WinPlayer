@@ -22,6 +22,7 @@ import { copyText } from "@/services/clipboard";
 import { toast } from "@/services/toast";
 import { formatDuration, trackArtist, trackTitle } from "@/types/player";
 import type { UnifiedTrack } from "@/types/plugin";
+import WpButton from "@/components/theme/WpButton.vue";
 
 const downloads = useDownloadsStore();
 const player = usePlayerStore();
@@ -238,12 +239,12 @@ useRefreshable(() => downloads.refreshMissing());
         </div>
       </div>
       <div class="header-actions">
-        <button class="wp-accent-button" :disabled="!downloads.offlineTracks.length" @click="playAll">
+        <WpButton :disabled="!downloads.offlineTracks.length" @click="playAll" variant="accent">
           <span class="wp-icon filled">&#xF610;</span>播放全部
-        </button>
-        <button class="wp-standard-button" :disabled="!downloads.offlineTracks.length" @click="shufflePlay">
+        </WpButton>
+        <WpButton :disabled="!downloads.offlineTracks.length" @click="shufflePlay" variant="standard">
           <span class="wp-icon">&#xEF37;</span>随机播放
-        </button>
+        </WpButton>
       </div>
     </div>
 
@@ -304,7 +305,7 @@ useRefreshable(() => downloads.refreshMissing());
       <span class="missing-text">
         有 {{ downloads.missingCount }} 个已下载文件不在了（可能被移动或删除），它们不会出现在下方列表。
       </span>
-      <button class="wp-standard-button small" @click="cleanMissing">清理记录</button>
+      <WpButton class="small" @click="cleanMissing" variant="standard">清理记录</WpButton>
     </div>
 
     <template v-if="sections.length">

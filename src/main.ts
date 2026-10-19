@@ -3,6 +3,7 @@ import { createPinia } from "pinia";
 import "@/styles/tokens.css";
 import "@/styles/global.css";
 import "@/styles/mobile.css";
+import "@/styles/theme.css";
 import App from "./App.vue";
 import router from "./router";
 import { installScrollMemory } from "@/services/scrollMemory";

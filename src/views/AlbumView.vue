@@ -17,6 +17,7 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { useRefreshable } from "@/composables/useRefreshable";
 import type { AlbumDetail, UnifiedTrack } from "@/types/plugin";
+import WpButton from "@/components/theme/WpButton.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -159,24 +160,24 @@ function downloadAll() {
           </div>
           <div v-if="album.description" class="header-desc-wrap">
             <p class="header-desc" :class="{ expanded: descExpanded }">{{ album.description }}</p>
-            <button class="wp-standard-button small desc-toggle" @click="descExpanded = !descExpanded">
+            <WpButton class="small desc-toggle" @click="descExpanded = !descExpanded" variant="standard">
               {{ descExpanded ? "收起" : "展开简介" }}
-            </button>
+            </WpButton>
           </div>
           <div class="header-sub-actions">
             <span class="source-badge">来自 {{ sourceName }} · {{ tracks.length }} 首</span>
           </div>
         </div>
         <div class="header-actions">
-          <button class="wp-accent-button" :disabled="!tracks.length" @click="playAll">
+          <WpButton :disabled="!tracks.length" @click="playAll" variant="accent">
             <span class="wp-icon filled">&#xF610;</span>播放全部
-          </button>
-          <button class="wp-standard-button" :disabled="!tracks.length" @click="shufflePlay">
+          </WpButton>
+          <WpButton :disabled="!tracks.length" @click="shufflePlay" variant="standard">
             <span class="wp-icon">&#xEF37;</span>随机播放
-          </button>
-          <button class="wp-standard-button" :disabled="!tracks.length" @click="downloadAll">
+          </WpButton>
+          <WpButton :disabled="!tracks.length" @click="downloadAll" variant="standard">
             <span class="wp-icon">&#xF151;</span>
-          </button>
+          </WpButton>
         </div>
       </div>
 
@@ -186,7 +187,7 @@ function downloadAll() {
       </div>
 
       <EmptyState v-else-if="loadError" icon="&#xF3F2;" title="专辑加载失败" :description="loadError">
-        <button class="wp-standard-button" @click="router.back()">返回</button>
+        <WpButton @click="router.back()" variant="standard">返回</WpButton>
       </EmptyState>
 
       <SongTable v-else-if="tracks.length" :tracks="tracks" :show-source="false" />

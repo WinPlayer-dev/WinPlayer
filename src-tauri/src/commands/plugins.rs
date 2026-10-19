@@ -360,7 +360,7 @@ const GITHUB_NON_REPO_SEGMENTS: [&str; 7] = [
 ];
 
 /// 归一化镜像前缀：去空白与结尾斜杠，空串视为未配置
-fn normalize_mirror(mirror: &str) -> Option<String> {
+pub(crate) fn normalize_mirror(mirror: &str) -> Option<String> {
     let trimmed = mirror.trim().trim_end_matches('/').to_string();
     if trimmed.is_empty() {
         None
@@ -369,12 +369,12 @@ fn normalize_mirror(mirror: &str) -> Option<String> {
     }
 }
 
-fn is_github_url(url: &str) -> bool {
+pub(crate) fn is_github_url(url: &str) -> bool {
     GITHUB_URL_PREFIXES.iter().any(|p| url.starts_with(p))
 }
 
 /// 仅对 GitHub 系地址拼接镜像前缀（prefix + "/" + url）
-fn apply_mirror(url: &str, mirror: Option<&str>) -> String {
+pub(crate) fn apply_mirror(url: &str, mirror: Option<&str>) -> String {
     match mirror {
         Some(m) if is_github_url(url) => format!("{m}/{url}"),
         _ => url.to_string(),
@@ -408,7 +408,7 @@ fn github_repo_candidates(url: &str) -> Option<(String, String, Vec<String>)> {
     }
 }
 
-async fn download_bytes(
+pub(crate) async fn download_bytes(
     client: &reqwest::Client,
     url: &str,
 ) -> Result<Vec<u8>, String> {

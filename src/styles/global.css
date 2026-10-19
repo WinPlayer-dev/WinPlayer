@@ -118,28 +118,28 @@ button {
   margin: 0 0 var(--space-lg) 0;
 }
 
-/* WinUI 强调色按钮 */
+/* WinUI 强调色按钮（形状与配色走 --button-* / --control-* 令牌，主题可整体改写） */
 .wp-accent-button {
   display: inline-flex;
   align-items: center;
   gap: var(--space-md);
-  height: 32px;
-  padding: 0 18px;
+  height: var(--control-height);
+  padding: 0 var(--control-padding-x);
   border: none;
-  border-radius: var(--radius-sm);
-  background: var(--wp-accent);
-  color: var(--wp-text-on-accent);
-  font-size: 14px;
+  border-radius: var(--control-radius);
+  background: var(--button-accent-bg);
+  color: var(--button-accent-fg);
+  font-size: var(--control-font-size);
   cursor: pointer;
   transition: background var(--duration-fast) var(--ease-standard);
 }
 
 .wp-accent-button:hover {
-  background: var(--wp-accent-hover);
+  background: var(--button-accent-bg-hover);
 }
 
 .wp-accent-button:active {
-  background: var(--wp-accent-active);
+  background: var(--button-accent-bg-active);
 }
 
 .wp-accent-button:disabled {
@@ -153,23 +153,23 @@ button {
   display: inline-flex;
   align-items: center;
   gap: var(--space-md);
-  height: 32px;
-  padding: 0 18px;
-  border: 1px solid var(--wp-control-stroke);
-  border-radius: var(--radius-sm);
-  background: var(--wp-control-fill);
-  color: var(--wp-text-primary);
-  font-size: 14px;
+  height: var(--control-height);
+  padding: 0 var(--control-padding-x);
+  border: 1px solid var(--button-standard-border);
+  border-radius: var(--control-radius);
+  background: var(--button-standard-bg);
+  color: var(--button-standard-fg);
+  font-size: var(--control-font-size);
   cursor: pointer;
   transition: background var(--duration-fast) var(--ease-standard);
 }
 
 .wp-standard-button:hover {
-  background: var(--wp-card-hover);
+  background: var(--button-standard-bg-hover);
 }
 
 .wp-standard-button:active {
-  background: var(--wp-card-active);
+  background: var(--button-standard-bg-active);
 }
 
 .wp-standard-button.danger {
@@ -181,10 +181,10 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: var(--control-icon-size);
+  height: var(--control-icon-size);
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--button-icon-radius);
   background: transparent;
   color: var(--wp-text-primary);
   cursor: pointer;
@@ -194,11 +194,11 @@ button {
 }
 
 .wp-icon-button:hover {
-  background: var(--wp-card-hover);
+  background: var(--button-icon-bg-hover);
 }
 
 .wp-icon-button:active {
-  background: var(--wp-card-active);
+  background: var(--button-icon-bg-active);
 }
 
 .wp-icon-button.active {

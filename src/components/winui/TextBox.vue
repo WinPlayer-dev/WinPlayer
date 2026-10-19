@@ -1,95 +1,40 @@
 <script setup lang="ts">
 /**
- * WinUI 输入框（TextBox）
+ * WinUI 输入框——可被主题替换。
  *
- * 视觉对齐 WinUI 3：控件填充色背景、底部描边，聚焦时底部换成强调色
- * （用 inset 阴影叠出 2px 效果，避免改边框宽度导致文字跳动）。
- * 属性 / 事件命名沿用 XAML 风格，双向绑定为 Text / update:Text。
+ * 分发层：主题覆盖 `TextBox` 时渲染主题组件，否则渲染内置实现（TextBoxBase.vue）。
+ * 两边共享同一套 XAML 风格 props / 事件契约，因此调用方无需感知。
  */
-const props = withDefaults(
+import TextBoxBase from "@/components/winui/TextBoxBase.vue";
+import { themeSlot } from "@/components/theme/themeSlot";
+
+withDefaults(
   defineProps<{
-    /** 文本值 */
     Text?: string;
-    /** 占位文字 */
     PlaceholderText?: string;
-    /** 最大字数（0 表示不限） */
     MaxLength?: number;
-    /** 是否只读 */
     IsReadOnly?: boolean;
-    /** 是否可用 */
     IsEnabled?: boolean;
   }>(),
+  // 默认值必须与 TextBoxBase 保持一致：否则省略 IsEnabled 时，主题组件会收到
+  // undefined 并被判为「禁用」，表现就是设置页的输入框全部点不动
   { Text: "", PlaceholderText: "", MaxLength: 0, IsReadOnly: false, IsEnabled: true },
 );
 
-const emit = defineEmits<{ "update:Text": [value: string] }>();
+defineEmits<{ "update:Text": [value: string] }>();
 
-function onInput(event: Event): void {
-  emit("update:Text", (event.target as HTMLInputElement).value);
-}
+const ThemedTextBox = themeSlot("TextBox", TextBoxBase);
 </script>
 
 <template>
-  <div class="wp-text-box" :class="{ 'is-disabled': !props.IsEnabled }">
-    <input
-      class="wp-text-box-input"
-      type="text"
-      :value="props.Text"
-      :placeholder="props.PlaceholderText"
-      :maxlength="props.MaxLength > 0 ? props.MaxLength : undefined"
-      :readonly="props.IsReadOnly"
-      :disabled="!props.IsEnabled"
-      @input="onInput"
-    />
-  </div>
+  <ThemedTextBox
+    :Text="Text"
+    :PlaceholderText="PlaceholderText"
+    :MaxLength="MaxLength"
+    :IsReadOnly="IsReadOnly"
+    :IsEnabled="IsEnabled"
+    @update:Text="$emit('update:Text', $event)"
+  >
+    <slot />
+  </ThemedTextBox>
 </template>
-
-<style scoped>
-.wp-text-box {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  height: 32px;
-  padding: 0 var(--space-lg);
-  background: var(--wp-control-fill);
-  border: 1px solid transparent;
-  border-bottom-color: var(--wp-control-stroke-secondary);
-  border-radius: var(--radius-sm);
-  transition: background var(--duration-fast) var(--ease-standard);
-}
-
-.wp-text-box:hover:not(.is-disabled) {
-  background: var(--wp-card-hover);
-}
-
-.wp-text-box:focus-within {
-  background: var(--wp-layer-solid);
-  border-bottom-color: var(--wp-accent);
-  box-shadow: inset 0 -1px 0 0 var(--wp-accent);
-}
-
-.wp-text-box.is-disabled {
-  background: var(--wp-control-fill-secondary);
-}
-
-.wp-text-box-input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  outline: none;
-  background: transparent;
-  color: var(--wp-text-primary);
-  font-family: inherit;
-  font-size: 14px;
-  user-select: text;
-}
-
-.wp-text-box-input::placeholder {
-  color: var(--wp-text-secondary);
-}
-
-.wp-text-box-input:disabled {
-  color: var(--wp-text-disabled);
-  cursor: default;
-}
-</style>

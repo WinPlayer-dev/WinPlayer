@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { ComboBox, ToggleSwitch } from "@/components/winui";
 import { useSettingsStore, type UpdateCheckFrequency } from "@/stores/settings";
 import { useIsMobile, useIsWindows } from "@/composables/useIsMobile";
+import WpCard from "@/components/theme/WpCard.vue";
 
 const settings = useSettingsStore();
 // SMTC 是 Windows 专属能力，其他平台隐藏该设置项
@@ -50,7 +51,7 @@ function onFrequencyChange(_sender: unknown, payload: unknown): void {
     <!-- 触感反馈（仅移动端） -->
     <section v-if="isMobile" class="settings-section">
       <h2 class="settings-section-title">触感反馈</h2>
-      <div class="settings-card">
+      <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">震动反馈</div>
           <div class="card-description">
@@ -58,13 +59,13 @@ function onFrequencyChange(_sender: unknown, payload: unknown): void {
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.hapticsEnabled" @Toggled="onHapticsToggle" />
-      </div>
+      </WpCard>
     </section>
 
     <!-- 系统集成（SMTC 仅 Windows 提供） -->
     <section v-if="isWindows" class="settings-section">
       <h2 class="settings-section-title">系统集成</h2>
-      <div class="settings-card">
+      <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">系统媒体传输控件（SMTC）</div>
           <div class="card-description">
@@ -72,14 +73,14 @@ function onFrequencyChange(_sender: unknown, payload: unknown): void {
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.smtcEnabled" @Toggled="onSmtcToggle" />
-      </div>
+      </WpCard>
     </section>
 
     <!-- 更新 -->
     <section class="settings-section">
       <h2 class="settings-section-title">更新</h2>
 
-      <div class="settings-card">
+      <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">自动检查更新</div>
           <div class="card-description">
@@ -87,9 +88,9 @@ function onFrequencyChange(_sender: unknown, payload: unknown): void {
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.autoCheckUpdate" @Toggled="onAutoCheckToggle" />
-      </div>
+      </WpCard>
 
-      <div class="settings-card">
+      <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">自动检查频率</div>
           <div class="card-description">
@@ -105,9 +106,9 @@ function onFrequencyChange(_sender: unknown, payload: unknown): void {
             (_sender: unknown, payload: unknown) => onFrequencyChange(_sender, payload)
           "
         />
-      </div>
+      </WpCard>
 
-      <div class="settings-card">
+      <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">接收预览版本（Beta）</div>
           <div class="card-description">
@@ -115,7 +116,7 @@ function onFrequencyChange(_sender: unknown, payload: unknown): void {
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.updateIncludePrerelease" @Toggled="onPrereleaseToggle" />
-      </div>
+      </WpCard>
     </section>
   </div>
 </template>

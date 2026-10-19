@@ -25,7 +25,8 @@ fn db_migrations() -> Vec<Migration> {
 // 移动端通过动态库入口启动，需要导出 tauri 的 mobile entry point 符号
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = commands::cache::register(
+    // 主题资源协议（壁纸 / 字体 / 图片）与图片缓存协议同样是自定义异步协议
+    let builder = commands::themes::register(commands::cache::register(
         tauri::Builder::default()
             .plugin(tauri_plugin_dialog::init())
             .plugin(tauri_plugin_fs::init())
@@ -66,6 +67,11 @@ pub fn run() {
                 commands::plugins::plugin_remove,
                 commands::plugins::plugin_storage_get,
                 commands::plugins::plugin_storage_set,
+                commands::themes::theme_list,
+                commands::themes::theme_read_text,
+                commands::themes::theme_install_from_path,
+                commands::themes::theme_install_from_url,
+                commands::themes::theme_remove,
                 commands::smtc::smtc_sync,
                 commands::window::window_set_material,
                 updater::updater_platform,
@@ -96,7 +102,7 @@ pub fn run() {
                 player::init(app);
                 Ok(())
             }),
-    );
+    ));
     builder
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

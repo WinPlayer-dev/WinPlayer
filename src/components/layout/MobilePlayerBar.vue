@@ -16,6 +16,7 @@ import { getSetting, setSetting } from "@/services/db";
 import { findLyricIndex } from "@/services/lrc";
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
+import WpIconButton from "@/components/theme/WpIconButton.vue";
 import {
   PLAYBACK_RATES,
   PLAY_MODE_LABEL,
@@ -622,34 +623,21 @@ onBeforeUnmount(() => {
         <div class="mini-title ellipsis">{{ trackTitle(player.currentTrack) }}</div>
         <div class="mini-artist ellipsis">{{ trackArtist(player.currentTrack) }}</div>
       </div>
-      <button
-        class="wp-icon-button mini-action"
-        :title="liked ? '取消喜欢' : '添加到我喜欢'"
-        @click.stop="toggleLikeCurrent"
-      >
+      <WpIconButton class="mini-action" :title="liked ? '取消喜欢' : '添加到我喜欢'" @click.stop="toggleLikeCurrent">
         <transition name="icon-pop" mode="out-in">
           <span class="wp-icon" :class="{ filled: liked }" :key="liked ? 'liked' : 'unliked'">{{ liked ? "&#xF47E;" : "&#xF47A;" }}</span>
         </transition>
-      </button>
-      <button
-        class="wp-icon-button mini-action"
-        :title="player.playing ? '暂停' : '播放'"
-        @click.stop="player.togglePlay"
-      >
+      </WpIconButton>
+      <WpIconButton class="mini-action" :title="player.playing ? '暂停' : '播放'" @click.stop="player.togglePlay">
         <transition name="icon-pop" mode="out-in">
           <span v-if="player.loading" key="loading" class="wp-icon">&#xF709;</span>
           <span v-else-if="player.playing" key="play" class="wp-icon filled">&#xF5AC;</span>
           <span v-else key="pause" class="wp-icon filled">&#xF610;</span>
         </transition>
-      </button>
-      <button
-        class="wp-icon-button mini-action"
-        title="下一首"
-        :disabled="!player.queue.length"
-        @click.stop="player.next()"
-      >
+      </WpIconButton>
+      <WpIconButton class="mini-action" title="下一首" :disabled="!player.queue.length" @click.stop="player.next()">
         <span class="wp-icon filled">&#xF574;</span>
-      </button>
+      </WpIconButton>
     </footer>
 
     <!-- 全屏播放页（沉浸式歌词） -->
@@ -798,9 +786,9 @@ onBeforeUnmount(() => {
             <div class="offset-panel">
               <div class="offset-header">
                 <span class="offset-title">更多</span>
-                <button class="wp-icon-button" title="关闭" @click="showMore = false">
+                <WpIconButton title="关闭" @click="showMore = false">
                   <span class="wp-icon">&#xF36A;</span>
-                </button>
+                </WpIconButton>
               </div>
               <div class="more-list">
                 <button class="more-row" @click="showMore = false; showOffset = true">
@@ -831,9 +819,9 @@ onBeforeUnmount(() => {
             <div class="offset-panel">
               <div class="offset-header">
                 <span class="offset-title">歌词偏移</span>
-                <button class="wp-icon-button" title="关闭" @click="showOffset = false">
+                <WpIconButton title="关闭" @click="showOffset = false">
                   <span class="wp-icon">&#xF36A;</span>
-                </button>
+                </WpIconButton>
               </div>
               <div class="offset-hint">歌词比音乐早出现时按 + ，整体后移</div>
               <div class="offset-row">
@@ -852,9 +840,9 @@ onBeforeUnmount(() => {
             <div class="offset-panel">
               <div class="offset-header">
                 <span class="offset-title">播放速度</span>
-                <button class="wp-icon-button" title="关闭" @click="showRate = false">
+                <WpIconButton title="关闭" @click="showRate = false">
                   <span class="wp-icon">&#xF36A;</span>
-                </button>
+                </WpIconButton>
               </div>
               <div class="offset-hint">保持音调变速，适合播客 / 有声书</div>
               <div class="rate-grid">
@@ -882,9 +870,9 @@ onBeforeUnmount(() => {
                 <button v-if="player.queue.length" class="queue-sheet-clear" @click="player.clearQueue()">
                   清空
                 </button>
-                <button class="wp-icon-button" title="关闭" @click="showQueue = false">
+                <WpIconButton title="关闭" @click="showQueue = false">
                   <span class="wp-icon">&#xF36A;</span>
-                </button>
+                </WpIconButton>
               </div>
               <div ref="queueListRef" class="queue-sheet-body">
                 <div v-if="!player.queue.length" class="queue-sheet-empty">队列为空，去发现音乐吧</div>

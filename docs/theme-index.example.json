@@ -1,0 +1,37 @@
+{
+  "name": "WinPlayer 官方主题市场",
+  "themes": [
+    {
+      "id": "com.winplayer.theme.md3",
+      "name": "Material You",
+      "version": "1.0.0",
+      "description": "基于 MDUI 2 的 Material Design 3 主题：MD3 配色与状态层、Navigation Rail 侧边导航、药丸播放控件与自适应深色。",
+      "author": "WinPlayer",
+      "preview": "previews/md3.png",
+      "url": "https://github.com/WinPlayer-dev/plugin-market/releases/download/themes/md3-1.0.0.zip",
+      "homepage": "https://github.com/WinPlayer-dev/WinPlayer",
+      "tags": ["material", "md3", "浅色友好", "深色友好"]
+    },
+    {
+      "id": "com.example.glass",
+      "name": "Glassmorphism",
+      "version": "0.9.0",
+      "description": "毛玻璃拟态：半透明分层、动态壁纸模糊、极简描边。演示 appearance 壁纸与 translucentSurfaces 的用法。",
+      "author": "Example",
+      "preview": "previews/glass.png",
+      "url": "https://example.com/themes/glass-0.9.0.zip",
+      "homepage": "https://example.com/themes/glass",
+      "tags": ["glass", "壁纸", "模糊"]
+    },
+    {
+      "id": "com.example.terminal",
+      "name": "Terminal Green",
+      "version": "1.0.0",
+      "description": "终端复古配色：等宽字体、硬边圆角、扫描线覆盖层。演示纯 CSS 主题（不含组件、无需信任确认）。",
+      "author": "Example",
+      "preview": "previews/terminal.png",
+      "url": "https://example.com/themes/terminal-1.0.0.zip",
+      "tags": ["dark", "monospace", "复古"]
+    }
+  ]
+}

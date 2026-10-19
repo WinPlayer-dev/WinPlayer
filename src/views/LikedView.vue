@@ -8,6 +8,7 @@ import MobilePageHeader from "@/components/layout/MobilePageHeader.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { useRefreshable } from "@/composables/useRefreshable";
+import WpButton from "@/components/theme/WpButton.vue";
 
 const router = useRouter();
 const library = useLibraryStore();
@@ -53,15 +54,15 @@ function downloadAll() {
           <div class="header-sub">{{ library.liked.length }} 首</div>
         </div>
         <div class="header-actions">
-          <button class="wp-accent-button" @click="playAll">
+          <WpButton @click="playAll" variant="accent">
             <span class="wp-icon filled">&#xF610;</span>播放全部
-          </button>
-          <button class="wp-standard-button" @click="shufflePlay">
+          </WpButton>
+          <WpButton @click="shufflePlay" variant="standard">
             <span class="wp-icon">&#xEF37;</span>随机播放
-          </button>
-          <button class="wp-standard-button" @click="downloadAll">
+          </WpButton>
+          <WpButton @click="downloadAll" variant="standard">
             <span class="wp-icon">&#xF151;</span>
-          </button>
+          </WpButton>
         </div>
       </div>
 
@@ -78,7 +79,7 @@ function downloadAll() {
       title="还没有喜欢的音乐"
       description="浏览搜索结果或推荐，点击歌曲行的心形按钮即可收藏。"
     >
-      <button class="wp-accent-button" @click="router.push('/')">去发现音乐</button>
+      <WpButton @click="router.push('/')" variant="accent">去发现音乐</WpButton>
     </EmptyState>
   </div>
 </template>

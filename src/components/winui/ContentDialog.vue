@@ -7,6 +7,7 @@
  * Hide() 可直接关闭（结果视为 "None"）。对话框渲染到 body，带遮罩、按钮区与 Esc 关闭。
  */
 import { nextTick, onBeforeUnmount, ref, watch } from "vue";
+import WpButton from "@/components/theme/WpButton.vue";
 import { registerBackInterceptor } from "@/services/backButton";
 
 const props = withDefaults(
@@ -134,32 +135,36 @@ defineExpose({ ShowAsync: showAsync, Hide: hide });
             v-if="props.PrimaryButtonText || props.SecondaryButtonText || props.CloseButtonText"
             class="wp-content-dialog-buttons"
           >
-            <button
+            <!-- 按钮走 WpButton：主题覆盖 components.Button 后，对话框按钮一起换皮 -->
+            <WpButton
               v-if="props.PrimaryButtonText"
               ref="primaryRef"
-              class="wp-accent-button wp-dialog-button"
+              variant="accent"
+              class="wp-dialog-button"
               :disabled="!props.IsPrimaryButtonEnabled"
               @click="close('Primary')"
             >
               {{ props.PrimaryButtonText }}
-            </button>
-            <button
+            </WpButton>
+            <WpButton
               v-if="props.SecondaryButtonText"
               ref="secondaryRef"
-              class="wp-standard-button wp-dialog-button"
+              variant="standard"
+              class="wp-dialog-button"
               :disabled="!props.IsSecondaryButtonEnabled"
               @click="close('Secondary')"
             >
               {{ props.SecondaryButtonText }}
-            </button>
-            <button
+            </WpButton>
+            <WpButton
               v-if="props.CloseButtonText"
               ref="closeRef"
-              class="wp-standard-button wp-dialog-button"
+              variant="standard"
+              class="wp-dialog-button"
               @click="close('None')"
             >
               {{ props.CloseButtonText }}
-            </button>
+            </WpButton>
           </div>
         </div>
       </div>

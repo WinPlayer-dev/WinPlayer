@@ -1,0 +1,76 @@
+/**
+ * 主题系统的基础样式。
+ *
+ * 这里只做两件事，且都在「没有主题」时保持零影响：
+ *
+ * 1. 为 density 缩放提供可复用的尺寸变量（--row-height / --control-height /
+ *    --font-scale），主题与内置组件都能引用；
+ * 2. 主题声明 `translucentSurfaces` 时，把主要容器的背景改成半透明，
+ *    让 ThemeBackdrop 的壁纸透出来（标记由 stores/themes.ts 写入 <html>）。
+ *
+ * 具体配色仍全部来自 styles/tokens.css，本文件不定义任何颜色常量。
+ */
+
+/* ------------------------------ 尺寸变量 ------------------------------ */
+
+:root {
+  /* 列表行高（媒体卡片、歌单行、队列项共用；紧凑主题可覆盖） */
+  --row-height: 40px;
+  /* 控件高度（按钮 / 输入框基准；紧凑主题可覆盖） */
+  --control-height: 32px;
+  /* 字号缩放倍率（由主题的 density.fontScale 覆盖） */
+  --font-scale: 1;
+}
+
+/* 字号缩放：只作用于正文级别，标题保持层次不被放大破坏 */
+body {
+  font-size: calc(14px * var(--font-scale));
+}
+
+/* ------------------------------ 半透明内容层 ------------------------------ */
+
+/**
+ * 壁纸主题下，让「大面积底色」透出壁纸：
+ * - 侧边栏 / 播放条 / 标题栏使用弱半透明背景；
+ * - 页面内容区不再铺满 --wp-base（否则壁纸完全被盖住）。
+ *
+ * 用 backdrop-filter 而不是纯 rgba：壁纸有模糊时仍能保持可读对比度。
+ */
+:root[data-theme-surface="translucent"] .app-content {
+  background: transparent;
+}
+
+:root[data-theme-surface="translucent"] .app-shell {
+  background: transparent;
+}
+
+:root[data-theme-surface="translucent"] .titlebar,
+:root[data-theme-surface="translucent"] .sidenav,
+:root[data-theme-surface="translucent"] .playerbar {
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+}
+
+/* ------------------------------ 主题自绘背景 ------------------------------ */
+
+/**
+ * 主题覆盖 components.Background 时（stores/themes.ts 写入 data-theme-background），
+ * 应用外壳让出底色：否则 --wp-base 会把主题画的背景层整块盖住。
+ * 页面内的卡片 / 面板仍保留各自的底色，层次不受影响。
+ */
+:root[data-theme-background="custom"] .app-shell,
+:root[data-theme-background="custom"] body {
+  background: transparent;
+}
+
+/* ------------------------------ 主题可访问性 ------------------------------ */
+
+/* 主题把动画关到最小时（motionScale 很小）给系统降级留一条统一出口 */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-normal: 0ms;
+    --duration-slow: 0ms;
+    --duration-control-fast: 0ms;
+  }
+}

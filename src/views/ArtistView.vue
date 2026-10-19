@@ -19,6 +19,7 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { useRefreshable } from "@/composables/useRefreshable";
 import type { UnifiedAlbum, UnifiedArtist, UnifiedTrack } from "@/types/plugin";
+import WpButton from "@/components/theme/WpButton.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -180,15 +181,15 @@ function downloadAll() {
             <div class="banner-source">来自 {{ sourceName }}</div>
           </div>
           <div class="banner-actions">
-            <button class="wp-accent-button" :disabled="!hotTracks.length" @click="playAll">
+            <WpButton :disabled="!hotTracks.length" @click="playAll" variant="accent">
               <span class="wp-icon filled">&#xF610;</span>播放热门歌曲
-            </button>
-            <button class="wp-standard-button" :disabled="!hotTracks.length" @click="shufflePlay">
+            </WpButton>
+            <WpButton :disabled="!hotTracks.length" @click="shufflePlay" variant="standard">
               <span class="wp-icon">&#xEF37;</span>随机播放
-            </button>
-            <button class="wp-standard-button" :disabled="!hotTracks.length" @click="downloadAll">
+            </WpButton>
+            <WpButton :disabled="!hotTracks.length" @click="downloadAll" variant="standard">
               <span class="wp-icon">&#xF151;</span>缓存热门
-            </button>
+            </WpButton>
           </div>
         </div>
       </div>
@@ -199,7 +200,7 @@ function downloadAll() {
       </div>
 
       <EmptyState v-else-if="loadError" icon="&#xF3F2;" title="歌手页加载失败" :description="loadError">
-        <button class="wp-standard-button" @click="router.back()">返回</button>
+        <WpButton @click="router.back()" variant="standard">返回</WpButton>
       </EmptyState>
 
       <template v-else>

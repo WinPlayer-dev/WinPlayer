@@ -1,19 +1,25 @@
 <script setup lang="ts">
+/**
+ * 应用根组件：只做「初始化 + 挂骨架」。
+ *
+ * 骨架收拢在 PageShell.vue，以便主题整体替换（components.PageShell）。
+ * 全局浮层（Toast / 右键菜单 / 更新对话框…）也由骨架渲染，
+ * 因此主题换骨架时这些宿主能力不会丢。
+ */
 import { onMounted, onUnmounted, watch } from "vue";
 import { RouterView, useRouter } from "vue-router";
-import TitleBar from "@/components/layout/TitleBar.vue";
-import SideNav from "@/components/layout/SideNav.vue";
-import PlayerBar from "@/components/layout/PlayerBar.vue";
-import MobileTabBar from "@/components/layout/MobileTabBar.vue";
-import MobilePlayerBar from "@/components/layout/MobilePlayerBar.vue";
-import MobilePullToRefresh from "@/components/layout/MobilePullToRefresh.vue";
+import PageShell from "@/components/layout/PageShell.vue";
+import { themeSlot } from "@/components/theme/themeSlot";
 import { useIsMobile } from "@/composables/useIsMobile";
 import ToastHost from "@/components/common/ToastHost.vue";
 import ContextMenuHost from "@/components/common/ContextMenuHost.vue";
 import PlaylistPickerHost from "@/components/common/PlaylistPickerHost.vue";
 import ShortcutHost from "@/components/common/ShortcutHost.vue";
 import UpdateDialogHost from "@/components/common/UpdateDialogHost.vue";
+import ThemeBackdrop from "@/components/theme/ThemeBackdrop.vue";
+import ThemeBackgroundBase from "@/components/theme/ThemeBackgroundBase.vue";
 import { useSettingsStore } from "@/stores/settings";
+import { useThemesStore } from "@/stores/themes";
 import { usePluginsStore } from "@/stores/plugins";
 import { useLibraryStore } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
@@ -28,6 +34,7 @@ import { toast } from "@/services/toast";
 const router = useRouter();
 
 const settings = useSettingsStore();
+const themes = useThemesStore();
 const plugins = usePluginsStore();
 const library = useLibraryStore();
 const player = usePlayerStore();
@@ -35,6 +42,15 @@ const downloads = useDownloadsStore();
 const shortcuts = useShortcutsStore();
 const updater = useUpdaterStore();
 const isMobile = useIsMobile();
+
+/** 页面骨架：主题可用 components.PageShell 整体替换（含错误边界回退） */
+const ThemedPageShell = themeSlot("PageShell", PageShell);
+
+/**
+ * 应用背景层：主题可用 components.Background 整体接管（例如 MD3 主题用 MDUI 色板绘制）。
+ * 没有覆盖时渲染 ThemeBackgroundBase（默认什么都不画，保持原有 --wp-base 背景）。
+ */
+const ThemedBackground = themeSlot("Background", ThemeBackgroundBase);
 
 // 注册于 load() 之前：设置读出后立即把开关同步给系统媒体控件（SMTC）
 const stopSmtcWatch = watch(
@@ -53,6 +69,8 @@ onMounted(async () => {
   await settings.load();
   await Promise.all([library.loadAll(), player.restore(), shortcuts.load()]);
   await plugins.loadInstalled();
+  // 主题只依赖设置与本地文件，尽早恢复且不阻塞后续初始化（失败会静默回退默认外观）
+  void themes.init();
   initSmtc(player);
   // 离线下载：订阅进度、解析默认目录、载入离线索引（不阻塞首屏）
   void downloads.init();
@@ -88,22 +106,17 @@ onUnmounted(() => {
 
 <template>
   <div class="app-shell" :class="{ 'is-mobile': isMobile }">
-    <TitleBar v-if="!isMobile" class="app-titlebar" />
-    <div class="app-body">
-      <SideNav v-if="!isMobile" class="app-sidenav" />
-      <main class="app-content">
-        <router-view v-slot="{ Component }">
+    <ThemedBackground />
+    <ThemeBackdrop />
+    <ThemedPageShell :mobile="isMobile">
+      <template #content>
+        <RouterView v-slot="{ Component }">
           <transition name="wp-route" mode="out-in">
             <component :is="Component" />
           </transition>
-        </router-view>
-      </main>
-    </div>
-    <!-- 移动端：迷你播放条 + 底部导航栏；桌面端：完整播放条 -->
-    <MobilePlayerBar v-if="isMobile" />
-    <MobileTabBar v-if="isMobile" />
-    <MobilePullToRefresh v-if="isMobile" />
-    <PlayerBar v-if="!isMobile" class="app-playerbar" />
+        </RouterView>
+      </template>
+    </ThemedPageShell>
     <ToastHost />
     <ContextMenuHost />
     <PlaylistPickerHost />
@@ -117,6 +130,9 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  position: relative;
+  /* 建立独立层叠上下文：主题背景层 z-index:0 永远在内容之下 */
+  isolation: isolate;
   background: var(--wp-base);
   color: var(--wp-text-primary);
 }
@@ -124,34 +140,5 @@ onUnmounted(() => {
 /* 移动端：为顶部状态栏 / 刘海留出安全区（桌面端不生效） */
 .app-shell.is-mobile {
   padding-top: var(--safe-area-top);
-}
-
-.app-titlebar {
-  height: var(--titlebar-height);
-  flex: none;
-  z-index: 40;
-}
-
-.app-body {
-  flex: 1;
-  display: flex;
-  min-height: 0;
-}
-
-.app-sidenav {
-  width: var(--sidenav-width);
-  flex: none;
-}
-
-.app-content {
-  flex: 1;
-  min-width: 0;
-  position: relative;
-}
-
-.app-playerbar {
-  height: var(--playerbar-height);
-  flex: none;
-  z-index: 30;
 }
 </style>
