@@ -308,6 +308,34 @@ export const usePluginsStore = defineStore("plugins", () => {
   }
 
   /**
+   * 跨插件搜一首歌（歌单导入时给没有来源信息的曲目补身份）。
+   *
+   * 按「歌曲信息源」偏好排序，逐个插件串行尝试，取第一个有结果的插件的第一首；
+   * 全部失败返回 null，由调用方保留原占位曲目。
+   */
+  async function searchTrack(keyword: string): Promise<UnifiedTrack | null> {
+    const trimmed = keyword.trim();
+    if (!trimmed) return null;
+    const targets = sortByPreferredSource(
+      enabledRecords.value
+        .filter((r) => hasCapability(r, "search"))
+        .map((record) => ({ record })),
+      settingsStore.trackSourceId,
+    );
+    for (const { record } of targets) {
+      try {
+        const host = await getHost(record.entry.id);
+        const result = await host.invoke<SearchResult>("search", { keyword: trimmed, page: 1 });
+        const song = result?.songs?.[0];
+        if (song) return { ...song, sourceId: record.entry.id };
+      } catch {
+        // 这个插件不可用（未登录 / 网络错误），换下一个
+      }
+    }
+    return null;
+  }
+
+  /**
    * 在指定插件里按搜索格式重新定位曲目（播放源/歌词源用）。
    * 用设置中的「搜索格式」拼接关键词，取该插件搜索结果的第一首；
    * 插件不可用、搜索失败或无结果时返回 null，由调用方回退原曲目来源。
@@ -777,6 +805,7 @@ export const usePluginsStore = defineStore("plugins", () => {
     getAvatar,
     getUserPlaylistsAll,
     getUserPlaylists,
+    searchTrack,
     addToUserPlaylist,
     removeFromUserPlaylist,
     fetchMarketEntries,
@@ -807,7 +836,7 @@ const KEYWORD_VARIABLES: Record<string, (track: UnifiedTrack) => string> = {
 };
 
 /** 按「搜索格式」拼接曲目的搜索关键词，默认「{歌曲名} - {歌手名}」 */
-function formatTrackKeyword(track: UnifiedTrack, format: string): string {
+export function formatTrackKeyword(track: UnifiedTrack, format: string): string {
   let keyword = format?.trim() ? format : "{歌曲名} - {歌手名}";
   for (const [token, resolve] of Object.entries(KEYWORD_VARIABLES)) {
     keyword = keyword.split(token).join(resolve(track));

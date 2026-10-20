@@ -28,6 +28,25 @@ export function toast(
   }, actual);
 }
 
+/**
+ * 手动收掉一条 Toast（长任务用：先弹「正在导入…」，结束后原地替换成结果）。
+ * id 无效时静默忽略。
+ */
+export function dismissToast(id: number): void {
+  const index = state.items.findIndex((t) => t.id === id);
+  if (index >= 0) state.items.splice(index, 1);
+}
+
+/**
+ * 打开一条不自动消失的 Toast，返回它的 id（配合 [`dismissToast`] 收尾）。
+ * 用于导入 / 导出这类耗时操作，避免用户以为卡住了。
+ */
+export function toastSticky(message: string, type: ToastItem["type"] = "info"): number {
+  counter += 1;
+  state.items.push({ id: counter, message, type });
+  return counter;
+}
+
 export function useToasts(): ToastItem[] {
   return state.items;
 }

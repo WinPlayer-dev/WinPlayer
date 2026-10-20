@@ -14,6 +14,7 @@ import { usePlayerStore } from "@/stores/player";
 import { useDownloadsStore } from "@/stores/downloads";
 import { pluginDisplayName, usePluginsStore } from "@/stores/plugins";
 import { toast } from "@/services/toast";
+import { exportPlaylist, type PlaylistFileFormat } from "@/services/playlistIO";
 import { getCachedData, setCachedData } from "@/services/cache";
 import SongTable from "@/components/common/SongTable.vue";
 import TrackListToolbar from "@/components/common/TrackListToolbar.vue";
@@ -79,6 +80,11 @@ interface DialogRef {
 }
 const renameDialogRef = ref<DialogRef | null>(null);
 const deleteDialogRef = ref<DialogRef | null>(null);
+const exportDialogRef = ref<DialogRef | null>(null);
+/** 导出格式：默认 JSON（能原样导回），也可选 M3U8 给其他播放器 */
+const exportFormat = ref<PlaylistFileFormat>("json");
+/** 导出中：避免重复点击 */
+const exporting = ref(false);
 
 const localPlaylist = () => library.playlists.find((item) => item.id === playlistId.value);
 
@@ -252,6 +258,27 @@ async function openRename() {
   await library.renamePlaylist(playlistId.value, renameValue.value);
 }
 
+/** 打开导出对话框（先选格式，再弹系统保存框） */
+async function openExport(): Promise<void> {
+  exportFormat.value = "json";
+  const result = await exportDialogRef.value?.ShowAsync();
+  if (result !== "Primary") return;
+  exporting.value = true;
+  try {
+    const ok = await exportPlaylist(
+      header.value?.name ?? "歌单",
+      header.value?.description ?? "",
+      tracks.value,
+      exportFormat.value,
+    );
+    if (ok) toast("歌单已导出", "success");
+  } catch (error) {
+    toast(`导出失败: ${error}`, "error");
+  } finally {
+    exporting.value = false;
+  }
+}
+
 async function openDelete() {
   const result = await deleteDialogRef.value?.ShowAsync();
   if (result !== "Primary") return;
@@ -287,6 +314,9 @@ async function openDelete() {
             <template v-if="!isRemote">
               <WpButton class="small" @click="openRename" variant="standard">
                 <span class="wp-icon">&#xF3DE;</span>重命名
+              </WpButton>
+              <WpButton class="small" :disabled="exporting" @click="openExport" variant="standard">
+                <span class="wp-icon">&#xF3B3;</span>导出
               </WpButton>
               <WpButton class="small danger" @click="openDelete" variant="standard">
                 <span class="wp-icon">&#xF34D;</span>删除歌单
@@ -360,6 +390,30 @@ async function openDelete() {
     </template>
 
     <ContentDialog
+      ref="exportDialogRef"
+      Title="导出歌单"
+      PrimaryButtonText="导出"
+      CloseButtonText="取消"
+    >
+      <div class="export-form">
+        <label class="export-option" :class="{ active: exportFormat === 'json' }">
+          <input v-model="exportFormat" type="radio" value="json" />
+          <span class="export-text">
+            <span class="export-name">WinPlayer 歌单（.json）</span>
+            <span class="export-desc">保留完整曲目信息，导回本应用可原样恢复；体积较大</span>
+          </span>
+        </label>
+        <label class="export-option" :class="{ active: exportFormat === 'm3u' }">
+          <input v-model="exportFormat" type="radio" value="m3u" />
+          <span class="export-text">
+            <span class="export-name">M3U8 播放列表（.m3u8）</span>
+            <span class="export-desc">标准格式，可给其他播放器使用；导入时需要重新搜索歌曲</span>
+          </span>
+        </label>
+      </div>
+    </ContentDialog>
+
+    <ContentDialog
       ref="renameDialogRef"
       Title="重命名歌单"
       PrimaryButtonText="保存"
@@ -386,6 +440,50 @@ async function openDelete() {
 </template>
 
 <style scoped>
+/* 导出格式选择（两个单选项，各带一行说明） */
+.export-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 8px);
+}
+
+.export-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm, 8px);
+  padding: var(--space-sm, 8px) var(--space-md, 12px);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.export-option:hover {
+  background: var(--wp-control-hover);
+}
+
+.export-option.active {
+  background: var(--wp-accent-subtle, rgba(0, 120, 212, 0.12));
+}
+
+.export-option input {
+  margin-top: 3px;
+}
+
+.export-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.export-name {
+  font-size: 13px;
+  color: var(--wp-text-primary);
+}
+
+.export-desc {
+  font-size: 12px;
+  color: var(--wp-text-secondary);
+}
+
 .header-cover {
   width: 96px;
   height: 96px;

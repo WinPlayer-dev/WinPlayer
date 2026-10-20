@@ -6,6 +6,7 @@ import { useLibraryStore, type LocalPlaylist } from "@/stores/library";
 import { usePluginsStore, type AggregatedSourceResult } from "@/stores/plugins";
 import { useDownloadsStore } from "@/stores/downloads";
 import { openContextMenu, type ContextMenuItem } from "@/services/contextMenu";
+import { openImportDialog } from "@/services/playlistIO";
 import type { UnifiedPlaylist } from "@/types/plugin";
 
 const router = useRouter();
@@ -246,9 +247,14 @@ function isActive(name: string): boolean {
 
       <div class="nav-section-header">
         <span class="nav-section-title">歌单</span>
-        <button class="add-button" title="新建歌单" @click="openCreateDialog">
-          <span class="wp-icon">&#xF10A;</span>
-        </button>
+        <span class="add-buttons">
+          <button class="add-button" title="导入歌单（.json / .m3u8）" @click="openImportDialog">
+            <span class="wp-icon">&#xF3B3;</span>
+          </button>
+          <button class="add-button" title="新建歌单" @click="openCreateDialog">
+            <span class="wp-icon">&#xF10A;</span>
+          </button>
+        </span>
       </div>
 
       <ul class="nav-list">
@@ -493,6 +499,14 @@ function isActive(name: string): boolean {
   font-size: 13px;
   font-weight: 600;
   color: var(--wp-text-secondary);
+}
+
+/* 导入 + 新建两个并列的小按钮 */
+.add-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
 }
 
 .add-button {

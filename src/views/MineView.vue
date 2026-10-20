@@ -12,6 +12,7 @@ import { usePlayerStore } from "@/stores/player";
 import { useDownloadsStore } from "@/stores/downloads";
 import { pluginDisplayName, usePluginsStore, type AggregatedSourceResult, type AppAvatar } from "@/stores/plugins";
 import { openContextMenuAt } from "@/services/contextMenu";
+import { openImportDialog } from "@/services/playlistIO";
 import { useRefreshable } from "@/composables/useRefreshable";
 import type { UnifiedPlaylist } from "@/types/plugin";
 import CachedImage from "@/components/common/CachedImage.vue";
@@ -269,9 +270,14 @@ function onPlaylistClick(playlist: LocalPlaylist) {
     <div class="section-header">
       <span class="section-title">歌单</span>
       <span v-if="library.playlists.length" class="section-count">{{ library.playlists.length }}</span>
-      <button class="add-button" title="新建歌单" @click="openCreateDialog">
-        <span class="wp-icon">&#xF10A;</span>
-      </button>
+      <span class="add-buttons">
+        <button class="add-button" title="导入歌单（.json / .m3u8）" @click="openImportDialog">
+          <span class="wp-icon">&#xF3B3;</span>
+        </button>
+        <button class="add-button" title="新建歌单" @click="openCreateDialog">
+          <span class="wp-icon">&#xF10A;</span>
+        </button>
+      </span>
     </div>
 
     <ul class="playlist-list">
@@ -482,8 +488,15 @@ function onPlaylistClick(playlist: LocalPlaylist) {
   color: var(--wp-text-tertiary);
 }
 
-.add-button {
+/* 导入 + 新建两个并列的小按钮 */
+.add-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   margin-left: auto;
+}
+
+.add-button {
   width: 32px;
   height: 32px;
   border: none;

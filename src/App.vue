@@ -14,6 +14,7 @@ import { useIsMobile } from "@/composables/useIsMobile";
 import ToastHost from "@/components/common/ToastHost.vue";
 import ContextMenuHost from "@/components/common/ContextMenuHost.vue";
 import PlaylistPickerHost from "@/components/common/PlaylistPickerHost.vue";
+import PlaylistImportHost from "@/components/common/PlaylistImportHost.vue";
 import ShortcutHost from "@/components/common/ShortcutHost.vue";
 import UpdateDialogHost from "@/components/common/UpdateDialogHost.vue";
 import ThemeBackdrop from "@/components/theme/ThemeBackdrop.vue";
@@ -149,6 +150,7 @@ onUnmounted(() => {
     <ToastHost />
     <ContextMenuHost />
     <PlaylistPickerHost />
+    <PlaylistImportHost />
     <ShortcutHost />
     <UpdateDialogHost />
   </div>
