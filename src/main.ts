@@ -7,6 +7,7 @@ import "@/styles/theme.css";
 import App from "./App.vue";
 import router from "./router";
 import { installScrollMemory } from "@/services/scrollMemory";
+import { installKeyboardInset } from "@/services/keyboard";
 import { useIsMobile } from "@/composables/useIsMobile";
 
 const app = createApp(App);
@@ -20,6 +21,8 @@ if (useIsMobile()) {
   document.documentElement.classList.add("is-mobile");
   // 返回时恢复滚动位置
   installScrollMemory(router);
+  // 软键盘：给 <html> 挂 keyboard-open 并写入 --keyboard-inset
+  installKeyboardInset();
 }
 
 app.mount("#app");

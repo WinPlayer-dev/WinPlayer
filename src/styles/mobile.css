@@ -302,6 +302,31 @@ html.is-mobile .wp-content-dialog-body {
   -webkit-overflow-scrolling: touch;
 }
 
+/* ------------------------------ 软键盘让位 ------------------------------ */
+/* 由 services/keyboard.ts 在键盘弹起时给 <html> 挂 .keyboard-open，
+   并写入 --keyboard-inset：**需要额外补的**底部留白。
+
+   仅在 adjustPan（窗口不变、底部被盖住）时 inset 才非 0；
+   adjustResize 下窗口本身已经变矮，inset 为 0，下面的补充规则全部是空操作，
+   不会出现「重复留白」。 */
+html.keyboard-open .wp-page,
+html.keyboard-open .settings-page.mobile {
+  /* 用 padding 而非 margin，背景色随内容一并延伸，不露出底色缝隙 */
+  padding-bottom: calc(var(--keyboard-inset, 0px) + var(--space-2xl));
+}
+
+/* 底部动作面板 / 输入型对话框：抬到键盘之上，并限制高度避免顶到状态栏。
+   对话框 teleport 到 body，用 html 作用域才命中。 */
+html.keyboard-open .wp-content-dialog {
+  margin-bottom: var(--keyboard-inset, 0px);
+  max-height: calc(100vh - var(--keyboard-inset, 0px) - var(--space-2xl));
+}
+
+/* 对话框内容区随面板一起变矮，保证内部仍可滚动 */
+html.keyboard-open .wp-content-dialog-body {
+  -webkit-overflow-scrolling: touch;
+}
+
 /* ------------------------------ 横屏（手机） ------------------------------ */
 /* 横屏高度很小：把详情页头部 / 歌手横幅改为左右排布以降低高度占用，
    压缩底部导航与迷你播放条，并为左右两侧的刘海 / 挖孔留出安全区。

@@ -33,6 +33,7 @@ import { initTray, disposeTray } from "@/services/tray";
 import { setAppHidden, setOptimizeEnabled } from "@/services/backgroundMode";
 import { refreshAccentFromCover } from "@/services/coverAccent";
 import { installBackButton, uninstallBackButton } from "@/services/backButton";
+import { uninstallKeyboardInset } from "@/services/keyboard";
 import { toast } from "@/services/toast";
 
 const router = useRouter();
@@ -133,6 +134,7 @@ onUnmounted(() => {
   disposeSmtc();
   disposeTray();
   void uninstallBackButton();
+  uninstallKeyboardInset();
 });
 </script>
 

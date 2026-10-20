@@ -11,6 +11,7 @@
  */
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { hasActiveRefresh, runActiveRefresh } from "@/services/pullToRefresh";
+import { isKeyboardOpen } from "@/services/keyboard";
 import { hapticImpact } from "@/services/haptics";
 
 /** 触发刷新所需的下拉距离（像素） */
@@ -37,7 +38,9 @@ function scroller(): HTMLElement | null {
 }
 
 function onStart(event: TouchEvent): void {
-  if (refreshing.value || !hasActiveRefresh()) {
+  // 软键盘弹起时不接管：键盘动画会让可视区高度持续变化，
+  // 手指在键盘上方滚动列表很容易被误判为「下拉刷新」。
+  if (refreshing.value || !hasActiveRefresh() || isKeyboardOpen()) {
     active = false;
     return;
   }
