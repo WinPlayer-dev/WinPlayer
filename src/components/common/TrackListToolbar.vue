@@ -50,6 +50,9 @@ const directionTitle = computed(() => {
   return props.Descending ? `${label}：降序（点击切为升序）` : `${label}：升序（点击切为降序）`;
 });
 
+/** 升降序图标码点：升序 arrow_sort_up_24_regular (F821)，降序 arrow_sort_down_24_regular (F811) */
+const directionIcon = computed(() => (props.Descending ? "&#xF811;" : "&#xF821;"));
+
 function onQueryInput(value: string): void {
   emit("update:Query", value);
 }
@@ -102,7 +105,7 @@ function clearQuery(): void {
           @SelectionChanged="onSortChange"
         />
         <WpIconButton :title="directionTitle" @click="toggleDirection">
-          <span class="wp-icon" :class="{ 'is-up': !props.Descending }">&#xF5A9;</span>
+          <span class="wp-icon" :class="{ 'is-up': !props.Descending }" v-html="directionIcon"></span>
         </WpIconButton>
       </template>
     </div>
@@ -179,10 +182,8 @@ function clearQuery(): void {
   flex: none;
 }
 
-/* 升序时箭头朝上（图标默认朝下） */
-.toolbar-tail .wp-icon.is-up {
-  transform: rotate(180deg);
-}
+/* 升序时箭头朝上（降序时用 arrow_sort_down_24_regular，图标自身方向已正确，
+   不需要再旋转）。保留 .is-up 类仅用于样式钩子（如 hover 高亮）。 */
 
 /* 移动端：搜索框独占一行，排序控件收窄 */
 @media (max-width: 720px) {

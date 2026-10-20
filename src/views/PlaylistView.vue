@@ -316,7 +316,7 @@ async function openDelete() {
                 <span class="wp-icon">&#xF3DE;</span>重命名
               </WpButton>
               <WpButton class="small" :disabled="exporting" @click="openExport" variant="standard">
-                <span class="wp-icon">&#xF3B3;</span>导出
+                <span class="wp-icon">&#xE0C8;</span>导出
               </WpButton>
               <WpButton class="small danger" @click="openDelete" variant="standard">
                 <span class="wp-icon">&#xF34D;</span>删除歌单

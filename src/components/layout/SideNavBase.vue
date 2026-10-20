@@ -249,7 +249,7 @@ function isActive(name: string): boolean {
         <span class="nav-section-title">歌单</span>
         <span class="add-buttons">
           <button class="add-button" title="导入歌单（.json / .m3u8）" @click="openImportDialog">
-            <span class="wp-icon">&#xF3B3;</span>
+            <span class="wp-icon">&#xF15A;</span>
           </button>
           <button class="add-button" title="新建歌单" @click="openCreateDialog">
             <span class="wp-icon">&#xF10A;</span>
