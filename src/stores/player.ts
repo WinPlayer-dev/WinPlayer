@@ -155,6 +155,8 @@ export const usePlayerStore = defineStore("player", () => {
     playing.value = true;
     loading.value = false;
     idleSince = 0;
+    // 只有真正出过一次声才清零重试计数，避免"刚 load 就失败"把计数吃掉
+    retryCount = 0;
   });
   engine.on("paused", () => {
     playing.value = false;
@@ -181,7 +183,9 @@ export const usePlayerStore = defineStore("player", () => {
   engine.on("error", (message) => {
     loading.value = false;
     playing.value = false;
-    toast(message, "error");
+    // 播放中途出错（直链过期、网络抖动、解码失败）：先尝试自动恢复，
+    // 恢复不了才把错误抛给用户
+    void recoverFromError(message);
   });
 
   /* ------------------------------ 睡眠定时器 ------------------------------ */
@@ -201,6 +205,72 @@ export const usePlayerStore = defineStore("player", () => {
 
   // 定时器由 services/sleepTimer 持有，这里只注册"到点后做什么"
   setSleepStopHandler(stopForSleepTimer);
+
+  /* ------------------------------ 播放失败自动恢复 ------------------------------ */
+
+  /** 当前曲目已自动重试次数（成功加载 / 换曲后清零，避免无限重试） */
+  let retryCount = 0;
+
+  /** 单曲最多自动重试次数：直链过期、网络抖动都靠它兜一下 */
+  const MAX_RETRY = 2;
+
+  /** 错误信息是否属于"重试也没用"的类型（没权限 / 没版权 / 缺少来源） */
+  function isFatalError(message: string): boolean {
+    return /版权|VIP|会员|未登录|不可用|缺少.*来源|不存在|已下架/i.test(message);
+  }
+
+  /**
+   * 引擎报错后的自动恢复。
+   *
+   * 先丢弃旧直链、从当前位置重新解析一次（`getSongUrl` 内部还有跨插件回退），
+   * 重试次数用尽或错误属于「重试无意义」的类型时，才把错误提示给用户并
+   * 停下播放。恢复期间保持 `loading` 态，避免进度条闪回开头。
+   */
+  async function recoverFromError(message: string): Promise<void> {
+    const track = currentTrack.value;
+    const index = currentIndex.value;
+    if (!track || index < 0) {
+      toast(message, "error");
+      return;
+    }
+    if (isFatalError(message)) {
+      toast(message, "error");
+      return;
+    }
+    if (retryCount >= MAX_RETRY) {
+      retryCount = 0;
+      toast(`${message}（已重试 ${MAX_RETRY} 次，可手动点击播放重试）`, "error");
+      return;
+    }
+    retryCount += 1;
+    const resumeAt = Math.max(0, enginePosition);
+    loading.value = true;
+    try {
+      // 丢弃预载与播放链：它们指向的直链可能和刚失败的是同一批
+      resetPreload(true);
+      clearPreloadSlot(true);
+      const url = await resolvePlayUrl(track);
+      if (currentIndex.value !== index) return; // 期间用户切了歌
+      engine.load(url);
+      engine.volume = volume.value;
+      engine.muted = muted.value;
+      engine.setRate(rate.value);
+      await engine.play();
+      // 回到出错前的位置继续（首帧之前 seek 可能被忽略，故首帧后再补一次）
+      if (resumeAt > 1) {
+        engine.seek(resumeAt);
+        window.setTimeout(() => {
+          if (currentIndex.value === index && enginePosition < resumeAt - 2) engine.seek(resumeAt);
+        }, 800);
+      }
+      playing.value = true;
+      toast(`播放出错，已自动重试（${retryCount}/${MAX_RETRY}）`, "info");
+    } catch (error) {
+      loading.value = false;
+      playing.value = false;
+      toast(`无法播放「${track.name}」: ${error}`, "error");
+    }
+  }
 
   /* ------------------------------ 播放控制 ------------------------------ */
 
@@ -225,8 +295,10 @@ export const usePlayerStore = defineStore("player", () => {
     const track = queue.value[index].track;
     console.log(`[player] 播放请求 #${index}: ${track.sourceId}:${track.id} 《${track.name}》`);
     loading.value = true;
+    retryCount = 0; // 换曲即重置自动重试预算
     try {
       const url = await resolvePlayUrl(track);
+      if (currentIndex.value !== index) return; // 解析期间用户已切歌
       loadedTrackKey = trackUid(track);
       // 先重置时长，防止上一曲的时长残留（新时长由引擎事件上报）
       duration.value = track.duration ? track.duration / 1000 : 0;

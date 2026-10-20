@@ -328,14 +328,23 @@ export const usePluginsStore = defineStore("plugins", () => {
   }
 
   /**
-   * 获取某首歌的播放直链。配置了播放源时优先按搜索格式在该源重新搜曲取直链，
-   * 失败回退原来源。
+   * 获取某首歌的播放直链。
    *
-   * 高音质被版权 / 会员权限拒绝时会沿 `QUALITY_DESCENT` 逐档降级重试，
-   * 全部失败才抛错——避免用户选了「无损」反而一首歌都听不到。
+   * 三段回退，任一段成功即返回：
+   * 1. **播放源偏好**（设置里的「播放源」）：按搜索格式在该源重新搜曲；
+   * 2. **曲目自身来源**：直接用曲目 ID 取直链；
+   * 3. **其它启用插件**：逐个按关键词重搜（每个插件只取第一条），
+   *    用于原来源下架 / 限地区 / 未登录的场景。
+   *
+   * 每一段内部还会沿 `QUALITY_DESCENT` 逐档降级，高音质被版权 / 会员权限
+   * 拒绝也能出声。全部失败时汇总各段的原因抛错，便于用户判断是「没登录」
+   * 还是「所有来源都没有这首歌」。
    */
   async function getSongUrl(track: UnifiedTrack): Promise<SongUrlResult> {
+    const failures: string[] = [];
     const playSourceId = settingsStore.playSourceId;
+
+    // 1. 播放源偏好
     if (playSourceId && playSourceId !== track.sourceId) {
       const relocated = await relocateTrack(playSourceId, track);
       if (relocated) {
@@ -343,13 +352,48 @@ export const usePluginsStore = defineStore("plugins", () => {
           const host = await getHost(playSourceId);
           return await invokeWithQualityFallback(host, playSourceId, relocated.id);
         } catch (error) {
-          console.warn(`[plugins] 播放源 ${playSourceId} 解析失败，回退原来源`, error);
+          failures.push(`${pluginDisplayName(records.value, playSourceId)}: ${describeError(error)}`);
+        }
+      } else {
+        failures.push(`${pluginDisplayName(records.value, playSourceId)}: 未搜索到对应歌曲`);
+      }
+    }
+
+    // 2. 曲目自身来源
+    if (track.sourceId) {
+      try {
+        const host = await getHost(track.sourceId);
+        return await invokeWithQualityFallback(host, track.sourceId, track.id);
+      } catch (error) {
+        failures.push(`${pluginDisplayName(records.value, track.sourceId)}: ${describeError(error)}`);
+      }
+    } else {
+      failures.push("曲目缺少来源信息");
+    }
+
+    // 3. 其它启用插件（跳过前面已经试过的来源）
+    const tried = new Set([track.sourceId ?? "", playSourceId].filter(Boolean));
+    const keyword = formatTrackKeyword(track, settingsStore.sourceSearchFormat);
+    if (keyword) {
+      for (const record of enabledRecords.value) {
+        if (tried.has(record.entry.id)) continue;
+        if (!hasCapability(record, "songUrl") || !hasCapability(record, "search")) continue;
+        const sample = await relocateTrack(record.entry.id, track);
+        if (!sample) continue;
+        try {
+          const host = await getHost(record.entry.id);
+          const result = await invokeWithQualityFallback(host, record.entry.id, sample.id);
+          // 命中备用来源：提示一次，让用户知道换源了
+          toast(`原来源无法播放，已改用「${record.entry.manifest.name}」`, "info");
+          return result;
+        } catch (error) {
+          failures.push(`${record.entry.manifest.name}: ${describeError(error)}`);
         }
       }
     }
-    if (!track.sourceId) throw new Error("歌曲缺少来源信息");
-    const host = await getHost(track.sourceId);
-    return invokeWithQualityFallback(host, track.sourceId, track.id);
+
+    const detail = failures.length ? failures.join("；") : "没有可用的播放来源";
+    throw new Error(`无法获取播放地址（已尝试 ${Math.max(1, failures.length)} 个来源）：${detail}`);
   }
 
   /** 按「从高到低」候选链请求直链：高音质失败自动降级，全部失败抛最后一次错误 */
@@ -800,6 +844,14 @@ function withCover<T extends { cover?: string }>(item: T): T {
 export function pluginDisplayName(records: PluginRecord[], sourceId?: string): string {
   if (!sourceId) return "";
   return records.find((r) => r.entry.id === sourceId)?.entry.manifest.name ?? sourceId;
+}
+
+/** 把各种来源的错误压成一句可读文本（汇总多来源失败原因时用） */
+export function describeError(error: unknown): string {
+  if (error instanceof Error) return error.message || error.name;
+  const text = String(error ?? "").trim();
+  // Worker 抛出的错误常带 "Error: " 前缀，去掉避免重复
+  return text.replace(/^Error:\s*/i, "") || "未知错误";
 }
 
 export type { UnifiedPlaylist };
