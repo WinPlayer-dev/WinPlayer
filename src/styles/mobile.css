@@ -177,8 +177,14 @@
 }
 
 /* ------------------------------ 触摸目标尺寸 ------------------------------ */
-/* 移动端把常用控件的最小可点面积提到约 44px：WinUI 桌面尺寸偏小，手指容易点错。
-   全部以 .app-shell.is-mobile 限定，桌面端完全不受影响。 */
+/* 移动端把常用控件的最小可点面积提到 44px（iOS HIG / Material 的推荐值）：
+   WinUI 桌面尺寸偏小，手指容易点偏。全部以 .app-shell.is-mobile 限定，
+   桌面端完全不受影响。
+
+   两类做法：
+   - 视觉尺寸本来就合适、只是偏小 → 直接把宽高提到 44px；
+   - 视觉尺寸需要保持（圆点 / 胶囊 / 贴边的行内按钮）→ 用透明伪元素把命中区
+     撑到 44px，外观不变，也不改动布局。 */
 .app-shell.is-mobile .wp-icon-button {
   width: 44px;
   height: 44px;
@@ -212,6 +218,63 @@
 .app-shell.is-mobile .add-button {
   width: 40px;
   height: 40px;
+}
+
+/* 搜索框清空键：视觉仍是 28px 的圆点，命中区扩到 44px。
+   放在搜索框右端，撑开的 8px 落在输入框与内边距上，不会挡住文字末尾。 */
+.app-shell.is-mobile .search-clear {
+  position: relative;
+}
+
+.app-shell.is-mobile .search-clear::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+
+/* 设置页顶部分类胶囊：32 → 44。容器是 overflow-x: auto，不能用伪元素外扩
+   （纵向会被裁剪），因此直接加高胶囊本体。 */
+.app-shell.is-mobile .settings-tab-item {
+  height: 44px;
+  padding: 0 18px;
+  font-size: 14px;
+}
+
+/* 离线页行内操作（显示 / 导出 / 删除）：28 → 44。
+   三个按钮共 132px，行内标题用 min-width: 0 自动截断，窄屏也放得下。 */
+.app-shell.is-mobile .offline-row .row-action {
+  width: 44px;
+  height: 44px;
+}
+
+/* 离线页「正在下载」任务行里的暂停 / 继续 / 移除 */
+.app-shell.is-mobile .task-row .task-action {
+  width: 44px;
+  height: 44px;
+}
+
+/* 全屏播放页：顶部收起 / 更多 / 喜欢与底部播放模式 / 上下曲 / 队列，40 → 44 */
+.app-shell.is-mobile .full-icon-button {
+  width: 44px;
+  height: 44px;
+}
+
+/* 全屏页队列抽屉：拖拽把手与移除键 32 → 44。
+   行高 52px，44px 命中区加 4px 上下留白刚好铺满，相邻两键不会互相覆盖。 */
+.app-shell.is-mobile .queue-sheet-handle,
+.app-shell.is-mobile .queue-sheet-remove {
+  width: 44px;
+  height: 44px;
+}
+
+/* 队列抽屉的「清空」：纯文字按钮，加高到 44px 并补足横向内边距 */
+.app-shell.is-mobile .queue-sheet-clear {
+  min-height: 44px;
+  padding: 0 14px;
 }
 
 /* ------------------------------ 对话框 / 软键盘 ------------------------------ */
