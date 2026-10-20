@@ -22,7 +22,7 @@ import CachedImage from "@/components/common/CachedImage.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { useRefreshable } from "@/composables/useRefreshable";
-import { useTrackList } from "@/composables/useTrackList";
+import { useTrackList, trackIdentity } from "@/composables/useTrackList";
 import type { PlaylistDetail, UnifiedTrack } from "@/types/plugin";
 import WpButton from "@/components/theme/WpButton.vue";
 
@@ -66,6 +66,7 @@ const descExpanded = ref(false);
 /** 搜索 + 排序：按当前的 tracks 派生，刷新后自动重算 */
 const {
   query: queryText,
+  sortKey,
   tracks: visibleTracks,
   filtering,
   toolbarProps,
@@ -215,6 +216,35 @@ async function onRemove(track: UnifiedTrack) {
   await loadLocal(playlistId.value);
 }
 
+/* ------------------------------ 拖拽排序 ------------------------------ */
+
+/** 只有本地自建歌单可以拖拽排序（插件歌单的顺序由平台维护） */
+const canReorder = computed(() => !isRemote.value);
+
+/**
+ * 拖拽落位：把 from 处的曲目移到 to 处。
+ *
+ * 注意不能直接用 `visibleTracks` 的下标写库——它可能是搜索 / 排序后的视图，
+ * 与数据库里的 position 顺序不一致。这里只操作「无搜索、无自定义排序」时的
+ * 全量顺序，其余情况先提示用户切回默认视图（避免产生看不懂的库内顺序）。
+ */
+async function onReorder(from: number, to: number): Promise<void> {
+  if (from === to) return;
+  if (queryText.value.trim() || sortKey.value !== "default") {
+    toast("请先在默认顺序下调整曲目位置（清空搜索并选择「默认顺序」）", "info");
+    return;
+  }
+  const ordered = [...tracks.value];
+  const [moved] = ordered.splice(from, 1);
+  if (!moved) return;
+  ordered.splice(to, 0, moved);
+  await library.reorderPlaylistTracks(
+    playlistId.value,
+    ordered.map((track) => trackIdentity(track)),
+  );
+  await loadLocal(playlistId.value);
+}
+
 async function openRename() {
   renameValue.value = localPlaylist()?.name ?? "";
   const result = await renameDialogRef.value?.ShowAsync();
@@ -302,7 +332,9 @@ async function openDelete() {
           :tracks="visibleTracks"
           :show-source="!isRemote"
           :removable="!isRemote || isMine"
+          :reorderable="canReorder"
           @remove="onRemove"
+          @reorder="onReorder"
         />
 
         <EmptyState

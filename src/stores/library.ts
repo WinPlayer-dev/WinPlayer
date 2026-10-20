@@ -208,6 +208,63 @@ export const useLibraryStore = defineStore("library", () => {
     await loadPlaylists();
   }
 
+  /**
+   * 按「曲目键数组」重排歌单内曲目（拖拽排序用）。
+   *
+   * `orderedKeys` 是用户看到的最终顺序（`trackKey` 形式）。只更新顺序确实
+   * 变化的行，并且一次性把 position 归一化成 0..n-1，避免反复拖动后出现
+   * 空洞或重复值。歌单里存在但不在 `orderedKeys` 里的曲目会被追加到末尾
+   * （防止调用方漏传导致曲目"消失"）。
+   */
+  async function reorderPlaylistTracks(
+    playlistId: number,
+    orderedKeys: string[],
+  ): Promise<void> {
+    const db = await getDb();
+    const rows = await db.select<Array<{ id: number; track: string; position: number }>>(
+      "select id, track, position from playlist_tracks where playlist_id = $1 order by position asc",
+      [playlistId],
+    );
+    if (!rows.length) return;
+
+    const keyOf = (row: { track: string }): string | null => {
+      try {
+        return trackKey(JSON.parse(row.track) as UnifiedTrack);
+      } catch {
+        return null;
+      }
+    };
+
+    const byKey = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      const key = keyOf(row);
+      if (key) byKey.set(key, row);
+    }
+
+    const ordered: Array<(typeof rows)[number]> = [];
+    const used = new Set<number>();
+    for (const key of orderedKeys) {
+      const row = byKey.get(key);
+      if (row && !used.has(row.id)) {
+        ordered.push(row);
+        used.add(row.id);
+      }
+    }
+    // 兜底：未出现在入参里的曲目按原顺序追加，保证不会丢歌
+    for (const row of rows) {
+      if (!used.has(row.id)) ordered.push(row);
+    }
+
+    // 只写真正变了位置的条目，减少无谓的 UPDATE
+    for (const [index, row] of ordered.entries()) {
+      if (row.position !== index) {
+        await db.execute("update playlist_tracks set position = $1 where id = $2", [index, row.id]);
+      }
+    }
+    await db.execute("update playlists set updated_at = $1 where id = $2", [Date.now(), playlistId]);
+    await loadPlaylists();
+  }
+
   return {
     liked,
     playlists,
@@ -224,5 +281,6 @@ export const useLibraryStore = defineStore("library", () => {
     getPlaylistTracks,
     addTracksToPlaylist,
     removeTrackFromPlaylist,
+    reorderPlaylistTracks,
   };
 });

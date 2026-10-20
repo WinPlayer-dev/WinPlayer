@@ -2,7 +2,7 @@
 /**
  * 歌曲列表（WinUI ListView 风格）
  */
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { usePlayerStore } from "@/stores/player";
@@ -25,16 +25,21 @@ const props = withDefaults(
     /** 列表操作：remove / 无 */
     removable?: boolean;
     emptyText?: string;
+    /** 是否允许拖拽排序（自建歌单详情页开启） */
+    reorderable?: boolean;
   }>(),
   {
     showSource: false,
     removable: false,
     emptyText: "暂无歌曲",
+    reorderable: false,
   },
 );
 
 const emit = defineEmits<{
   remove: [track: UnifiedTrack];
+  /** 拖拽排序：把 from 位置的曲目移动到 to 位置（数组下标） */
+  reorder: [from: number, to: number];
 }>();
 
 const player = usePlayerStore();
@@ -75,8 +80,9 @@ function albumCell(track: UnifiedTrack): CellLink | null {
 }
 
 const rows = computed(() =>
-  props.tracks.map((track) => ({
+  props.tracks.map((track, index) => ({
     track,
+    index,
     key: `${track.sourceId ?? ""}:${track.id}`,
     liked: library.isLiked(track),
     downloaded: downloads.isDownloaded(track),
@@ -95,6 +101,11 @@ function playRow(index: number) {
 
 /** 移动端没有双击，单击整行即播放（桌面端仍保持双击播放） */
 function onRowClick(index: number) {
+  // 拖拽结束时浏览器仍会补发 click：吞掉它，避免"拖完就播放"
+  if (suppressClick) {
+    suppressClick = false;
+    return;
+  }
   if (isMobile) playRow(index);
 }
 
@@ -204,6 +215,111 @@ const longPress = useLongPress();
 function onRowPointerDown(event: PointerEvent, track: UnifiedTrack) {
   longPress.start(event, (point) => openContextMenuAt(point.x, point.y, rowMenuItems(track)));
 }
+
+/* ------------------------------ 拖拽排序 ------------------------------ */
+
+/**
+ * 拖拽排序交互（`reorderable` 打开时生效）：
+ * - 桌面端：按住行首的拖拽手柄拖动（HTML5 drag & drop）；
+ * - 移动端：按住行的任意位置长拖（pointer 事件），手势位移超过阈值才进入
+ *   拖拽态，避免和原有的「长按弹菜单」「单击播放」打架。
+ *
+ * 两种方式都只在本地维护「拖动中行 / 目标位置」用于渲染反馈，松手后才 emit
+ * `reorder`，由页面写库并重新拉取顺序。
+ */
+const dragFrom = ref(-1);
+const dragTo = ref(-1);
+const dragging = ref(false);
+/** 刚刚完成一次拖拽：吞掉随之而来的补发 click（否则移动端拖完会顺带播放） */
+let suppressClick = false;
+
+/** 桌面 HTML5 拖拽：记录起始下标 */
+function onNativeDragStart(event: DragEvent, index: number): void {
+  if (!props.reorderable) return;
+  dragFrom.value = index;
+  dragTo.value = index;
+  dragging.value = true;
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+    // Firefox 需要 setData 才会真正开始拖拽
+    event.dataTransfer.setData("text/plain", String(index));
+  }
+}
+
+function onNativeDragOver(event: DragEvent, index: number): void {
+  if (!props.reorderable || dragFrom.value < 0) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  dragTo.value = index;
+}
+
+function onNativeDrop(event: DragEvent, index: number): void {
+  if (!props.reorderable) return;
+  event.preventDefault();
+  finishReorder(index);
+}
+
+function onNativeDragEnd(): void {
+  // 拖到列表外松手：直接复位，不写库
+  resetDrag();
+}
+
+function resetDrag(): void {
+  dragFrom.value = -1;
+  dragTo.value = -1;
+  dragging.value = false;
+}
+
+/** 提交排序：下标合法且确实变了才 emit */
+function finishReorder(toIndex: number): void {
+  const from = dragFrom.value;
+  resetDrag();
+  if (from < 0 || toIndex < 0 || from === toIndex) return;
+  suppressClick = true;
+  // 兜底：某些平台不补发 click，定时复位避免一直吞点击
+  window.setTimeout(() => {
+    suppressClick = false;
+  }, 400);
+  emit("reorder", from, toIndex);
+}
+
+/** 移动端长拖：用 pointer 事件 + 位移阈值，与长按菜单区分 */
+let touchDragTimer = 0;
+let touchDragStartY = 0;
+let touchDragFrom = -1;
+
+function onTouchDragDown(event: PointerEvent, index: number): void {
+  if (!props.reorderable || event.pointerType === "mouse") return;
+  touchDragFrom = index;
+  touchDragStartY = event.clientY;
+  window.clearTimeout(touchDragTimer);
+  // 280ms 后仍按着才进入拖拽候选（与长按菜单的时长错开，避免同时触发）
+  touchDragTimer = window.setTimeout(() => {
+    if (touchDragFrom !== index) return;
+    dragFrom.value = index;
+    dragTo.value = index;
+    dragging.value = true;
+    // 进入拖拽后不再触发长按菜单与单击播放
+    longPress.end();
+  }, 280);
+}
+
+function onTouchDragMove(event: PointerEvent): void {
+  if (!props.reorderable || dragFrom.value < 0) return;
+  // 用位移换算目标行：每行高度固定 48px（移动端卡片行高见样式）
+  const rowHeight = isMobile ? 56 : 48;
+  const delta = Math.round((event.clientY - touchDragStartY) / rowHeight);
+  const next = Math.min(props.tracks.length - 1, Math.max(0, dragFrom.value + delta));
+  dragTo.value = next;
+}
+
+function onTouchDragUp(): void {
+  window.clearTimeout(touchDragTimer);
+  touchDragTimer = 0;
+  touchDragFrom = -1;
+  if (dragFrom.value < 0) return;
+  finishReorder(dragTo.value);
+}
 </script>
 
 <template>
@@ -224,7 +340,13 @@ function onRowPointerDown(event: PointerEvent, track: UnifiedTrack) {
       v-for="(row, index) in rows"
       :key="row.key"
       class="table-row"
-      :class="{ playing: row.playing }"
+      :class="{
+        playing: row.playing,
+        reorderable: reorderable,
+        'drag-source': dragging && dragFrom === index,
+        'drag-target': dragging && dragTo === index && dragTo !== dragFrom,
+      }"
+      :draggable="reorderable && !isMobile"
       @click="onRowClick(index)"
       @dblclick="playRow(index)"
       @contextmenu="openRowMenu(row.track, $event)"
@@ -233,6 +355,10 @@ function onRowPointerDown(event: PointerEvent, track: UnifiedTrack) {
       @pointerup="longPress.end"
       @pointercancel="longPress.end"
       @pointerleave="longPress.end"
+      @dragstart="onNativeDragStart($event, index)"
+      @dragover="onNativeDragOver($event, index)"
+      @drop="onNativeDrop($event, index)"
+      @dragend="onNativeDragEnd"
     >
       <span class="col-index">
         <span v-if="row.playing" class="wp-icon filled index-playing">&#xF5AC;</span>
@@ -240,6 +366,20 @@ function onRowPointerDown(event: PointerEvent, track: UnifiedTrack) {
         <span class="index-hover wp-icon filled" @click="playRow(index)">&#xF610;</span>
       </span>
       <span class="col-title">
+        <!-- 拖拽手柄（仅可排序列表显示）：桌面端直接拖它，移动端同样按它拖动。
+             不设 draggable：实际拖动由外层行的 HTML5 拖拽 / 指针手势承担，
+             手柄只提供"抓手"的视觉与移动端按住起点。 -->
+        <span
+          v-if="reorderable"
+          class="drag-handle wp-icon"
+          title="拖动调整顺序"
+          aria-label="拖动调整顺序"
+          @pointerdown.stop="onTouchDragDown($event, index)"
+          @pointermove.stop="onTouchDragMove"
+          @pointerup.stop="onTouchDragUp"
+          @pointercancel.stop="onTouchDragUp"
+          @click.stop
+        >&#xE76F;</span>
         <CachedImage v-if="row.track.cover" :src="row.track.cover" class="row-cover" />
         <span v-else-if="isMobile" class="row-cover row-cover-placeholder">
           <span class="wp-icon">&#xE852;</span>
@@ -369,6 +509,49 @@ function onRowPointerDown(event: PointerEvent, track: UnifiedTrack) {
   color: var(--wp-text-tertiary);
   font-size: 12px;
   position: relative;
+}
+
+/* ---------------- 拖拽排序 ---------------- */
+
+/* 手柄：贴在标题列最左侧（序号列右侧），平时低调、悬停行才显形。
+   touch-action: none 让移动端按住手柄拖动时不触发页面滚动。 */
+.drag-handle {
+  flex: none;
+  font-size: 15px;
+  color: var(--wp-text-tertiary);
+  opacity: 0;
+  cursor: grab;
+  touch-action: none;
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+
+.table-row.reorderable:hover .drag-handle,
+.table-row.drag-source .drag-handle {
+  opacity: 1;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* 移动端没有 hover：手柄常显，且给足点击宽度 */
+.song-table.is-mobile .drag-handle {
+  opacity: 0.5;
+  width: 22px;
+  margin-left: -6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 拖动中的源行：淡出，给目标位置让出视觉焦点 */
+.table-row.drag-source {
+  opacity: 0.45;
+}
+
+/* 目标行：顶部画一条强调色落点线 */
+.table-row.drag-target {
+  box-shadow: inset 0 2px 0 0 var(--wp-accent);
 }
 
 .index-hover {
