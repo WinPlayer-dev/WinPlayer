@@ -16,11 +16,13 @@ import { pluginDisplayName, usePluginsStore } from "@/stores/plugins";
 import { toast } from "@/services/toast";
 import { getCachedData, setCachedData } from "@/services/cache";
 import SongTable from "@/components/common/SongTable.vue";
+import TrackListToolbar from "@/components/common/TrackListToolbar.vue";
 import MobilePageHeader from "@/components/layout/MobilePageHeader.vue";
 import CachedImage from "@/components/common/CachedImage.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { useRefreshable } from "@/composables/useRefreshable";
+import { useTrackList } from "@/composables/useTrackList";
 import type { PlaylistDetail, UnifiedTrack } from "@/types/plugin";
 import WpButton from "@/components/theme/WpButton.vue";
 
@@ -58,6 +60,17 @@ const loadError = ref("");
 const renameValue = ref("");
 /** 简介是否展开（默认折叠两行，避免长简介撑爆头部） */
 const descExpanded = ref(false);
+
+/* ------------------------------ 搜索 + 排序 ------------------------------ */
+
+/** 搜索 + 排序：按当前的 tracks 派生，刷新后自动重算 */
+const {
+  query: queryText,
+  tracks: visibleTracks,
+  filtering,
+  toolbarProps,
+  clearQuery,
+} = useTrackList(() => tracks.value);
 
 /** ContentDialog 通过 ShowAsync() 打开（库没有 IsOpen prop） */
 interface DialogRef {
@@ -160,25 +173,26 @@ watch(() => route.fullPath, () => void loadRoute(), { immediate: true });
 useRefreshable(loadRoute);
 
 function playAll() {
-  if (tracks.value.length) void player.playTracks(tracks.value, 0);
+  if (visibleTracks.value.length) void player.playTracks(visibleTracks.value, 0);
 }
 
 function shufflePlay() {
-  if (tracks.value.length) {
-    void player.playTracks(tracks.value, Math.floor(Math.random() * tracks.value.length));
+  const current = visibleTracks.value;
+  if (current.length) {
+    void player.playTracks(current, Math.floor(Math.random() * current.length));
   }
 }
 
-/** 缓存全部到本地（已下载的自动跳过），并记录来源歌单用于离线分组 */
+/** 缓存全部到本地（已下载的自动跳过），并记录来源歌单用于离线分组；只缓存当前筛选结果 */
 function downloadAll() {
-  if (!tracks.value.length) return;
+  if (!visibleTracks.value.length) return;
   const name = header.value?.name ?? "歌单";
   if (isRemote.value) {
-    void downloads.enqueue(tracks.value, [
+    void downloads.enqueue(visibleTracks.value, [
       { kind: "playlist", sourceId: sourceId.value, id: String(route.params.id ?? ""), name },
     ]);
   } else {
-    void downloads.enqueue(tracks.value, [
+    void downloads.enqueue(visibleTracks.value, [
       { kind: "playlist", id: String(playlistId.value), name },
     ]);
   }
@@ -254,13 +268,13 @@ async function openDelete() {
           </div>
         </div>
         <div class="header-actions">
-          <WpButton :disabled="!tracks.length" @click="playAll" variant="accent">
+          <WpButton :disabled="!visibleTracks.length" @click="playAll" variant="accent">
             <span class="wp-icon filled">&#xF610;</span>播放全部
           </WpButton>
-          <WpButton :disabled="!tracks.length" @click="shufflePlay" variant="standard">
+          <WpButton :disabled="!visibleTracks.length" @click="shufflePlay" variant="standard">
             <span class="wp-icon">&#xEF37;</span>随机播放
           </WpButton>
-          <WpButton :disabled="!tracks.length" @click="downloadAll" variant="standard">
+          <WpButton :disabled="!visibleTracks.length" @click="downloadAll" variant="standard">
             <span class="wp-icon">&#xF151;</span>
           </WpButton>
         </div>
@@ -280,24 +294,37 @@ async function openDelete() {
         <WpButton @click="router.back()" variant="standard">返回</WpButton>
       </EmptyState>
 
-      <SongTable
-        v-else-if="tracks.length"
-        :tracks="tracks"
-        :show-source="!isRemote"
-        :removable="!isRemote || isMine"
-        @remove="onRemove"
-      />
+      <template v-else>
+        <TrackListToolbar v-bind="toolbarProps" />
 
-      <EmptyState
-        v-else
-        icon="&#xF4EE;"
-        title="歌单还是空的"
-        :description="
-          isRemote
-            ? '这个歌单暂时没有可展示的歌曲，可能是插件没有登录或内容受地区限制。'
-            : '在搜索结果或喜欢的音乐里，把歌曲添加到这个歌单吧。'
-        "
-      />
+        <SongTable
+          v-if="visibleTracks.length"
+          :tracks="visibleTracks"
+          :show-source="!isRemote"
+          :removable="!isRemote || isMine"
+          @remove="onRemove"
+        />
+
+        <EmptyState
+          v-else-if="filtering"
+          icon="&#xF4A3;"
+          title="没有匹配的歌曲"
+          :description="`「${queryText}」在这个歌单里没有找到。试试歌名、歌手或专辑名的一部分。`"
+        >
+          <WpButton @click="clearQuery" variant="standard">清空搜索</WpButton>
+        </EmptyState>
+
+        <EmptyState
+          v-else
+          icon="&#xF4EE;"
+          title="歌单还是空的"
+          :description="
+            isRemote
+              ? '这个歌单暂时没有可展示的歌曲，可能是插件没有登录或内容受地区限制。'
+              : '在搜索结果或喜欢的音乐里，把歌曲添加到这个歌单吧。'
+          "
+        />
+      </template>
     </template>
 
     <ContentDialog
