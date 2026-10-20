@@ -4,6 +4,7 @@ mod smtc;
 #[cfg(windows)]
 mod tray;
 mod updater;
+mod window_state;
 
 use tauri_plugin_sql::{Migration, MigrationKind};
 // 关闭拦截（托盘）：需要 `Manager` 提供的 `app_handle` / `get_webview_window`
@@ -85,6 +86,9 @@ pub fn run() {
                 commands::themes::theme_remove,
                 commands::smtc::smtc_sync,
                 commands::window::window_set_material,
+                commands::window::window_state_set_enabled,
+                commands::window::window_state_saved,
+                commands::window::window_state_reset,
                 commands::tray::tray_set_close_behavior,
                 commands::tray::tray_toggle_window,
                 commands::tray::tray_hide_window,
@@ -121,6 +125,9 @@ pub fn run() {
                 if let Err(e) = tray::init(app) {
                     eprintln!("[tray] 托盘初始化失败: {e}");
                 }
+                // 窗口状态记忆：读上次的尺寸/位置/最大化并套回主窗口
+                window_state::init(app);
+                window_state::restore(app.handle());
                 Ok(())
             })
             .on_window_event(|window, event| {
@@ -132,6 +139,21 @@ pub fn run() {
                         if tray::should_intercept_close(window.app_handle()) {
                             api.prevent_close();
                         }
+                    }
+                }
+                // 窗口状态记忆：拖动/缩放/最大化切换都会触发 Resized / Moved，
+                // 这里统一走防抖落盘；真正关闭前再同步写一次。
+                if window.label() == "main" {
+                    match event {
+                        tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
+                            if let Some(webview) = window.app_handle().get_webview_window("main") {
+                                window_state::on_window_moved(&webview);
+                            }
+                        }
+                        tauri::WindowEvent::CloseRequested { .. } => {
+                            window_state::save_now(window.app_handle())
+                        }
+                        _ => {}
                     }
                 }
             }),

@@ -3,7 +3,10 @@ import { computed } from "vue";
 import { ComboBox, ToggleSwitch } from "@/components/winui";
 import { useSettingsStore, type CloseBehavior, type UpdateCheckFrequency } from "@/stores/settings";
 import { useIsMobile, useIsWindows } from "@/composables/useIsMobile";
+import { resetWindowState } from "@/services/windowState";
+import { toast } from "@/services/toast";
 import WpCard from "@/components/theme/WpCard.vue";
+import WpButton from "@/components/theme/WpButton.vue";
 
 const settings = useSettingsStore();
 // SMTC 是 Windows 专属能力，其他平台隐藏该设置项
@@ -70,6 +73,20 @@ function onOptimizeToggle(event: { IsOn: boolean }): void {
 function onHistoryToggle(event: { IsOn: boolean }): void {
   void settings.setHistoryEnabled(Boolean(event?.IsOn));
 }
+
+function onRememberWindowToggle(event: { IsOn: boolean }): void {
+  void settings.setRememberWindowState(Boolean(event?.IsOn));
+}
+
+/** 重置窗口：清掉存档并把窗口恢复成默认尺寸且居中 */
+async function resetWindow(): Promise<void> {
+  try {
+    await resetWindowState();
+    toast("窗口已恢复默认大小并居中", "success");
+  } catch (error) {
+    toast(`重置失败: ${error}`, "error");
+  }
+}
 </script>
 
 <template>
@@ -117,6 +134,20 @@ function onHistoryToggle(event: { IsOn: boolean }): void {
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.backgroundOptimize" @Toggled="onOptimizeToggle" />
+      </WpCard>
+
+      <WpCard variant="row">
+        <div class="card-content">
+          <div class="card-header">记住窗口大小与位置</div>
+          <div class="card-description">
+            退出时记住窗口的尺寸、位置与最大化状态，下次启动原样还原；若显示器有变化导致窗口跑到屏幕外，
+            会自动回到主屏居中
+          </div>
+        </div>
+        <div class="card-control window-state-control">
+          <WpButton variant="standard" class="small" @click="resetWindow">重置</WpButton>
+          <ToggleSwitch :IsOn="settings.rememberWindowState" @Toggled="onRememberWindowToggle" />
+        </div>
       </WpCard>
 
       <WpCard variant="row">
@@ -190,3 +221,12 @@ function onHistoryToggle(event: { IsOn: boolean }): void {
     </section>
   </div>
 </template>
+
+<style scoped>
+/* 「重置」按钮与开关并排放在卡片右侧 */
+.window-state-control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm, 8px);
+}
+</style>

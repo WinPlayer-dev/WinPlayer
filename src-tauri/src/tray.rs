@@ -137,6 +137,8 @@ pub fn quit_app(app: &AppHandle) {
     if let Some(state) = app.try_state::<TrayState>() {
         state.quitting.store(true, Ordering::Release);
     }
+    // 退出前同步落盘窗口尺寸/位置：app.exit 不触发窗口事件，这里兜底
+    crate::window_state::save_before_exit(app);
     // 先销毁托盘图标，避免任务栏残留幽灵图标
     if let Some(tray) = app.tray_by_id("main") {
         let _ = tray.set_visible(false);

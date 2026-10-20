@@ -9,6 +9,7 @@ import { useIsMobile } from "@/composables/useIsMobile";
 import { setHapticsEnabled } from "@/services/haptics";
 import { clearDataCache } from "@/services/cache";
 import { applyWindowMaterial, type WindowMaterial } from "@/services/windowMaterial";
+import { setWindowStateEnabled } from "@/services/windowState";
 import {
   EQ_CUSTOM_PRESET_ID,
   EQ_PRESETS,
@@ -77,6 +78,8 @@ export const useSettingsStore = defineStore("settings", () => {
   const fontFamily = ref("");
   /** 窗口材质：Mica / Acrylic / 关闭（仅 Windows 桌面生效，其余平台 no-op） */
   const windowMaterial = ref<WindowMaterial>("mica");
+  /** 是否记住窗口尺寸 / 位置 / 最大化状态（仅桌面端；关闭后不再写盘） */
+  const rememberWindowState = ref(true);
   /** 关闭按钮行为：关闭到托盘 / 最小化到任务栏 / 直接退出（仅 Windows 桌面） */
   const closeBehavior = ref<CloseBehavior>("tray");
   /** 后台优化：窗口隐藏（托盘/最小化）时降低渲染与轮询开销（默认开启） */
@@ -177,6 +180,9 @@ export const useSettingsStore = defineStore("settings", () => {
     getAudioEngine().setOutputDevice(outputDevice.value);
     fontFamily.value = await getSetting<string>("settings.fontFamily", "");
     windowMaterial.value = await getSetting<WindowMaterial>("settings.windowMaterial", "mica");
+    rememberWindowState.value = await getSetting<boolean>("settings.rememberWindowState", true);
+    // 启动时按持久化值决定是否继续记录窗口状态（Rust 侧默认开启）
+    await setWindowStateEnabled(rememberWindowState.value);
     closeBehavior.value = await getSetting<CloseBehavior>("settings.closeBehavior", "tray");
     backgroundOptimize.value = await getSetting<boolean>("settings.backgroundOptimize", true);
     // 把关闭行为同步给 Rust（托盘拦截关闭、最小化/退出判定）
@@ -230,6 +236,13 @@ export const useSettingsStore = defineStore("settings", () => {
     windowMaterial.value = value;
     await applyWindowMaterial(value);
     await setSetting("settings.windowMaterial", value);
+  }
+
+  /** 切换「记住窗口大小与位置」：同步给 Rust，关闭后停止写盘（已有存档保留） */
+  async function setRememberWindowState(value: boolean): Promise<void> {
+    rememberWindowState.value = value;
+    await setSetting("settings.rememberWindowState", value);
+    await setWindowStateEnabled(value);
   }
 
   /** 切换关闭按钮行为：同步给 Rust（托盘拦截 / 最小化 / 退出判定） */
@@ -434,6 +447,7 @@ export const useSettingsStore = defineStore("settings", () => {
     theme,
     fontFamily,
     windowMaterial,
+    rememberWindowState,
     closeBehavior,
     backgroundOptimize,
     hapticsEnabled,
@@ -467,6 +481,7 @@ export const useSettingsStore = defineStore("settings", () => {
     setTheme,
     setFontFamily,
     setWindowMaterial,
+    setRememberWindowState,
     setCloseBehavior,
     setBackgroundOptimize,
     setHaptics,

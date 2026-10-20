@@ -49,3 +49,24 @@ pub fn window_set_material(
 ) -> Result<String, String> {
     Ok("none".to_string())
 }
+
+/* ------------------------------ 窗口状态记忆 ------------------------------ */
+
+/// 前端设置项「记住窗口大小与位置」：关闭后不再写盘（已有存档保留，
+/// 下次开启时仍按最后一次记录的尺寸还原）。
+#[tauri::command]
+pub fn window_state_set_enabled(app: tauri::AppHandle, enabled: bool) {
+    crate::window_state::set_enabled(&app, enabled);
+}
+
+/// 是否已有窗口状态存档（设置页据此提示「已记住」/「暂无记录」）
+#[tauri::command]
+pub fn window_state_saved(app: tauri::AppHandle) -> bool {
+    crate::window_state::has_saved_state(&app)
+}
+
+/// 清空存档并把窗口恢复成默认尺寸且居中
+#[tauri::command]
+pub fn window_state_reset(app: tauri::AppHandle) -> Result<(), String> {
+    crate::window_state::reset(&app)
+}
