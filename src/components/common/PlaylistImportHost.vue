@@ -53,20 +53,40 @@ const needsResolve = computed(() => {
   ).length;
 });
 
+/**
+ * 每次打开递增的令牌：用户关掉后立刻又点开时，上一次 `ShowAsync` 的回调
+ * 已经作废，不能让它把新对话框顺手关掉。
+ */
+let openToken = 0;
+
 watch(
   () => importDialogState.visible,
-  (visible) => {
+  async (visible) => {
     if (!visible) {
       dialogRef.value?.Hide();
       return;
     }
+    const token = ++openToken;
     // 重置状态（每次打开都是全新一次导入）
     parsed.value = null;
     targetId.value = 0;
     newName.value = "";
     busy.value = false;
     progress.value = null;
-    void dialogRef.value?.ShowAsync();
+
+    const shown = dialogRef.value?.ShowAsync();
+    if (!shown) {
+      // 组件还没挂载（极早期调用）：把状态退回去，别让 visible 卡在 true，
+      // 否则之后每次 openImportDialog() 都看不出变化。
+      if (token === openToken) closeImportDialog();
+      return;
+    }
+    await shown;
+    if (token !== openToken) return;
+    // ContentDialog 只有 ShowAsync / Hide、没有 hide 事件，必须在这里把状态
+    // 同步回「已关闭」——否则点「取消」后 visible 仍为 true，下次
+    // openImportDialog() 再设 true 时 watch 收不到变化，对话框就打不开了。
+    if (importDialogState.visible) closeImportDialog();
   },
 );
 
@@ -134,7 +154,6 @@ async function doImport(): Promise<void> {
     Title="导入歌单"
     CloseButtonText="取消"
     DefaultButton="Close"
-    @hide="closeImportDialog()"
   >
     <div class="import">
       <!-- 第一步：说明 + 选文件 -->
@@ -144,7 +163,8 @@ async function doImport(): Promise<void> {
           缺少来源信息的歌曲会自动跨插件重新搜索。
         </p>
         <WpButton class="pick-button" :disabled="busy" @click="pickFile">
-          <span class="wp-icon">&#xF3B3;</span>
+          <!-- arrow_import_24_regular (F15A)：F3B3 实际是 desktop_sync_16_regular，不是导入图标 -->
+          <span class="wp-icon">&#xF15A;</span>
           {{ busy ? "正在读取…" : "选择歌单文件…" }}
         </WpButton>
       </template>
