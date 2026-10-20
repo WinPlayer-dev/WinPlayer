@@ -9,6 +9,7 @@ import KeymapSettings from "@/views/settings/KeymapSettings.vue";
 import PluginSettings from "@/views/settings/PluginSettings.vue";
 import StorageSettings from "@/views/settings/StorageSettings.vue";
 import DownloadSettings from "@/views/settings/DownloadSettings.vue";
+import BackupSettings from "@/views/settings/BackupSettings.vue";
 import AboutSettings from "@/views/settings/AboutSettings.vue";
 
 const route = useRoute();
@@ -33,6 +34,7 @@ const CATEGORIES: SettingsCategory[] = [
   { key: "plugins", label: "插件", icon: "&#xE9EA;", component: PluginSettings }, // ic_fluent_puzzle_piece_24_regular
   { key: "storage", label: "存储", icon: "&#xE467;", component: StorageSettings }, // ic_fluent_database_24_regular
   { key: "download", label: "下载与离线", icon: "&#xE38E;", component: DownloadSettings }, // ic_fluent_cloud_arrow_down_24_regular
+  { key: "backup", label: "备份与还原", icon: "&#xF2CD;", component: BackupSettings }, // ic_fluent_arrow_sync_24_regular（迁移/同步）
   { key: "about", label: "关于", icon: "&#xF4A4;", component: AboutSettings }, // ic_fluent_info_24_regular
 ];
 
