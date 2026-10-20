@@ -10,6 +10,7 @@ import { ContentDialog, PersonPicture, TextBox } from "@/components/winui";
 import { useLibraryStore, type LocalPlaylist } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
 import { useDownloadsStore } from "@/stores/downloads";
+import { useHistoryStore } from "@/stores/history";
 import { pluginDisplayName, usePluginsStore, type AggregatedSourceResult, type AppAvatar } from "@/stores/plugins";
 import { openContextMenuAt } from "@/services/contextMenu";
 import { openImportDialog } from "@/services/playlistIO";
@@ -22,6 +23,7 @@ const library = useLibraryStore();
 const player = usePlayerStore();
 const plugins = usePluginsStore();
 const downloads = useDownloadsStore();
+const history = useHistoryStore();
 
 /* ------------------------------ 头像（插件能力） ------------------------------ */
 
@@ -103,11 +105,13 @@ async function loadPlatformPlaylists() {
 onMounted(() => {
   void loadAvatar();
   void loadPlatformPlaylists();
+  // 最近播放的计数徽标：直接进本页时历史可能还没加载完
+  if (!history.loaded) void history.load();
 });
 
 // 下拉刷新：重新读取头像与平台歌单
 useRefreshable(async () => {
-  await Promise.all([loadAvatar(), loadPlatformPlaylists()]);
+  await Promise.all([loadAvatar(), loadPlatformPlaylists(), history.load()]);
 });
 
 /* ------------------------------ 新建 / 重命名 / 删除 ------------------------------ */
@@ -255,6 +259,16 @@ function onPlaylistClick(playlist: LocalPlaylist) {
       <span class="wp-icon liked-icon">&#xF47A;</span>
       <span class="liked-label">我喜欢的音乐</span>
       <span v-if="library.liked.length" class="liked-badge">{{ library.liked.length }}</span>
+      <span class="wp-icon liked-chevron">&#xF2B1;</span>
+    </button>
+
+    <!-- 最近播放 -->
+    <button class="liked-entry history-entry" @click="router.push({ name: 'history' })">
+      <span class="wp-icon liked-icon">&#xF2A1;</span>
+      <span class="liked-label">最近播放</span>
+      <span v-if="history.entries.length" class="liked-badge">
+        {{ history.entries.length }} 首
+      </span>
       <span class="wp-icon liked-chevron">&#xF2B1;</span>
     </button>
 
