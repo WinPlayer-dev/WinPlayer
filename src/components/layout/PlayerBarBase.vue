@@ -23,6 +23,7 @@ import LyricsPanel from "./LyricsPanel.vue";
 import DownloadPanel from "./DownloadPanel.vue";
 import WpIconButton from "@/components/theme/WpIconButton.vue";
 import { useSleepTimer } from "@/services/sleepTimer";
+import { useQualityControl } from "@/services/quality";
 import SleepTimerPicker from "@/components/common/SleepTimerPicker.vue";
 
 const player = usePlayerStore();
@@ -115,8 +116,8 @@ function toggleDownloads(): void {
   }
 }
 
-/** 「更多」二级菜单：一级列出不常用入口，二级展开倍速档位 / 输出设备 / 睡眠定时器 */
-const moreView = ref<"root" | "rate" | "device" | "sleep" | null>(null);
+/** 「更多」二级菜单：一级列出不常用入口，二级展开倍速档位 / 输出设备 / 音质 / 睡眠定时器 */
+const moreView = ref<"root" | "rate" | "device" | "quality" | "sleep" | null>(null);
 const morePicker = ref<HTMLElement | null>(null);
 
 /** 睡眠定时器：按钮高亮与二级菜单摘要都依赖它的状态 */
@@ -127,6 +128,25 @@ const sleepSummary = computed(() => {
   if (!sleepTimer.countingDown.value) return "未设置";
   return sleepTimer.remainingLabel.value;
 });
+
+/** 音质快速切换：跟随当前曲目实际会用到的播放源；插件不支持时整项隐藏 */
+const quality = useQualityControl(() => player.currentTrack);
+const qualityLabel = computed(() => {
+  const info = quality.support.value;
+  if (!info) return "默认";
+  return info.options.find((option) => option.value === info.current)?.label ?? info.current;
+});
+/** 当前档位是否为该插件的最高档（用于菜单项提示） */
+const qualityIsTop = computed(() => {
+  const info = quality.support.value;
+  if (!info) return false;
+  return info.current === info.options[info.options.length - 1]?.value;
+});
+
+async function pickQuality(value: string): Promise<void> {
+  await quality.setQuality(value);
+  moreView.value = null;
+}
 
 /** 输出设备（「更多」菜单内联选择，打开二级菜单时读取） */
 const DEFAULT_OUTPUT_LABEL = "系统默认";
@@ -351,6 +371,18 @@ onUnmounted(() => {
                     <span class="wp-icon more-item-chevron">&#xF2B0;</span>
                   </span>
                 </button>
+                <button
+                  v-if="quality.support.value"
+                  class="more-item"
+                  :class="{ 'is-on': qualityIsTop }"
+                  @click="moreView = 'quality'"
+                >
+                  <span class="more-item-label">播放音质</span>
+                  <span class="more-item-tail">
+                    <span class="more-item-value">{{ qualityLabel }}</span>
+                    <span class="wp-icon more-item-chevron">&#xF2B0;</span>
+                  </span>
+                </button>
                 <button class="more-item" :class="{ 'is-on': sleepActive }" @click="moreView = 'sleep'">
                   <span class="more-item-label">睡眠定时器</span>
                   <span class="more-item-tail">
@@ -391,6 +423,27 @@ onUnmounted(() => {
                     class="wp-icon more-item-check"
                   >&#xF294;</span>
                 </button>
+              </div>
+              <div v-else-if="moreView === 'quality'" key="quality" class="more-page">
+                <button class="more-back" @click="moreView = 'root'">
+                  <span class="wp-icon">&#xF2AA;</span>
+                  <span>播放音质</span>
+                </button>
+                <button
+                  v-for="option in quality.support.value?.options ?? []"
+                  :key="option.value"
+                  class="more-item"
+                  @click="pickQuality(option.value)"
+                >
+                  <span class="more-item-label">{{ option.label }}</span>
+                  <span
+                    v-if="quality.current.value === option.value"
+                    class="wp-icon more-item-check"
+                  >&#xF294;</span>
+                </button>
+                <p class="more-hint">
+                  写入 {{ quality.support.value?.sourceName }} 的音质设置；取不到时自动降级
+                </p>
               </div>
               <div v-else key="sleep" class="more-page">
                 <button class="more-back" @click="moreView = 'root'">
@@ -774,6 +827,15 @@ onUnmounted(() => {
 /* 已生效的开关型菜单项（如睡眠定时器倒计时中）：值文本用强调色提示 */
 .more-item.is-on .more-item-value {
   color: var(--wp-accent);
+}
+
+/* 二级菜单里的说明文字（音质可能被自动降级等） */
+.more-hint {
+  margin: 4px 0 0;
+  padding: 0 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--wp-text-tertiary);
 }
 
 /* 浮层进出场（WinUI 飞出近似）：进场缩放+上浮淡入，退场快速收回。

@@ -10,6 +10,7 @@ import { cachedImgUrl } from "@/services/imageCache";
 import { httpFetchJson } from "@/services/proxy";
 import { toast } from "@/services/toast";
 import { applyGithubMirror, resolveAssetUrl } from "@/services/githubMirror";
+import { QUALITY_DESCENT, QUALITY_SETTING_KEY } from "@/services/quality";
 import { useSettingsStore } from "@/stores/settings";
 import type {
   AlbumDetail,
@@ -326,7 +327,13 @@ export const usePluginsStore = defineStore("plugins", () => {
     }
   }
 
-  /** 获取某首歌的播放直链。配置了播放源时优先按搜索格式在该源重新搜曲取直链，失败回退原来源 */
+  /**
+   * 获取某首歌的播放直链。配置了播放源时优先按搜索格式在该源重新搜曲取直链，
+   * 失败回退原来源。
+   *
+   * 高音质被版权 / 会员权限拒绝时会沿 `QUALITY_DESCENT` 逐档降级重试，
+   * 全部失败才抛错——避免用户选了「无损」反而一首歌都听不到。
+   */
   async function getSongUrl(track: UnifiedTrack): Promise<SongUrlResult> {
     const playSourceId = settingsStore.playSourceId;
     if (playSourceId && playSourceId !== track.sourceId) {
@@ -334,18 +341,54 @@ export const usePluginsStore = defineStore("plugins", () => {
       if (relocated) {
         try {
           const host = await getHost(playSourceId);
-          const result = await host.invoke<SongUrlResult>("getSongUrl", { id: relocated.id });
-          if (result?.url) return result;
-        } catch {
-          /* 播放源解析失败，回退到曲目自身来源 */
+          return await invokeWithQualityFallback(host, playSourceId, relocated.id);
+        } catch (error) {
+          console.warn(`[plugins] 播放源 ${playSourceId} 解析失败，回退原来源`, error);
         }
       }
     }
     if (!track.sourceId) throw new Error("歌曲缺少来源信息");
     const host = await getHost(track.sourceId);
-    const result = await host.invoke<SongUrlResult>("getSongUrl", { id: track.id });
-    if (!result?.url) throw new Error("来源未返回可用的播放地址");
-    return result;
+    return invokeWithQualityFallback(host, track.sourceId, track.id);
+  }
+
+  /** 按「从高到低」候选链请求直链：高音质失败自动降级，全部失败抛最后一次错误 */
+  async function invokeWithQualityFallback(
+    host: PluginHost,
+    sourceId: string,
+    id: string,
+  ): Promise<SongUrlResult> {
+    const current = currentQualityOf(sourceId);
+    const known = QUALITY_DESCENT as readonly string[];
+    const start = known.indexOf(current);
+    // 未识别的档位（自定义插件值）：只请求它本身，不猜降级链
+    const candidates: Array<string | undefined> =
+      start >= 0 ? known.slice(start) : current ? [current] : [undefined];
+    let lastError: unknown = null;
+    for (const [index, quality] of candidates.entries()) {
+      try {
+        const result = await host.invoke<SongUrlResult>("getSongUrl", { id, quality });
+        if (result?.url) {
+          if (index > 0) {
+            console.warn(
+              `[plugins] ${sourceId} 音质 ${current} 不可用，已降级到 ${quality ?? "插件默认"}`,
+            );
+          }
+          return result;
+        }
+        lastError = new Error("来源未返回可用的播放地址");
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError ?? new Error("来源未返回可用的播放地址");
+  }
+
+  /** 读取插件的音质设置（未声明 quality 设置项时返回空串，表示由插件自行决定） */
+  function currentQualityOf(sourceId: string): string {
+    const record = records.value.find((entry) => entry.entry.id === sourceId);
+    if (!record) return "";
+    return String(record.settings[QUALITY_SETTING_KEY] ?? "");
   }
 
   /** 获取歌词（失败返回 null，不打断播放）。配置了歌词源时优先在该源重新搜曲取词，失败回退原来源 */
@@ -662,6 +705,8 @@ export const usePluginsStore = defineStore("plugins", () => {
     records,
     loading,
     enabledRecords,
+    /** 「播放源」偏好（空串 = 跟随曲目自身来源）；音质入口据此判断实际生效的插件 */
+    playSourcePreference: computed(() => settingsStore.playSourceId),
     hasCapability,
     loadInstalled,
     getHost,

@@ -17,6 +17,7 @@ import { findLyricIndex } from "@/services/lrc";
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
 import { useSleepTimer } from "@/services/sleepTimer";
+import { useQualityControl } from "@/services/quality";
 import WpIconButton from "@/components/theme/WpIconButton.vue";
 import SleepTimerPicker from "@/components/common/SleepTimerPicker.vue";
 import {
@@ -43,6 +44,8 @@ const showRate = ref(false);
 const showMore = ref(false);
 /** 睡眠定时器面板 */
 const showSleep = ref(false);
+/** 播放音质面板 */
+const showQuality = ref(false);
 
 /** 选择播放倍速并关闭面板 */
 function selectRate(value: number): void {
@@ -59,6 +62,20 @@ const sleepSummary = computed(() => {
   if (!sleepTimer.countingDown.value) return "";
   return sleepTimer.remainingLabel.value;
 });
+
+/* ------------------------------ 播放音质 ------------------------------ */
+
+const quality = useQualityControl(() => player.currentTrack);
+const qualityLabel = computed(() => {
+  const info = quality.support.value;
+  if (!info) return "默认";
+  return info.options.find((option) => option.value === info.current)?.label ?? info.current;
+});
+
+function selectQuality(value: string): void {
+  void quality.setQuality(value);
+  showQuality.value = false;
+}
 
 /** 打开离线音乐页并逐层收起浮层 */
 function openOffline(): void {
@@ -577,6 +594,7 @@ watch(showFull, (open) => {
     showRate.value = false;
     showMore.value = false;
     showSleep.value = false;
+    showQuality.value = false;
     return;
   }
   void loadLyricOffset();
@@ -595,6 +613,10 @@ watch(showFull, (open) => {
     }
     if (showSleep.value) {
       showSleep.value = false;
+      return true;
+    }
+    if (showQuality.value) {
+      showQuality.value = false;
       return true;
     }
     if (showQueue.value) {
@@ -828,6 +850,16 @@ onBeforeUnmount(() => {
                   <span class="more-row-value">{{ sleepSummary || "未设置" }}</span>
                   <span class="wp-icon more-row-chevron">&#xF2B0;</span>
                 </button>
+                <button
+                  v-if="quality.support.value"
+                  class="more-row"
+                  @click="showMore = false; showQuality = true"
+                >
+                  <span class="wp-icon more-row-icon">&#xF2CE;</span>
+                  <span class="more-row-label">播放音质</span>
+                  <span class="more-row-value">{{ qualityLabel }}</span>
+                  <span class="wp-icon more-row-chevron">&#xF2B0;</span>
+                </button>
                 <button class="more-row" @click="openOffline">
                   <span class="wp-icon more-row-icon">&#xF151;</span>
                   <span class="more-row-label">离线音乐</span>
@@ -897,6 +929,38 @@ onBeforeUnmount(() => {
               </div>
               <div class="offset-hint">到点后暂停播放，不会退出应用</div>
               <SleepTimerPicker tone="dark" @close="showSleep = false" />
+            </div>
+          </div>
+        </transition>
+
+        <!-- 播放音质（写入当前播放源的音质设置） -->
+        <transition name="full-fade">
+          <div v-if="showQuality" class="full-offset" @click.self="showQuality = false">
+            <div class="offset-panel">
+              <div class="offset-header">
+                <span class="offset-title">播放音质</span>
+                <WpIconButton title="关闭" @click="showQuality = false">
+                  <span class="wp-icon">&#xF36A;</span>
+                </WpIconButton>
+              </div>
+              <div class="offset-hint">
+                {{ quality.support.value?.sourceName }} · 取不到该档位时自动降级
+              </div>
+              <div class="quality-list">
+                <button
+                  v-for="option in quality.support.value?.options ?? []"
+                  :key="option.value"
+                  class="quality-option"
+                  :class="{ active: quality.current.value === option.value }"
+                  @click="selectQuality(option.value)"
+                >
+                  <span>{{ option.label }}</span>
+                  <span
+                    v-if="quality.current.value === option.value"
+                    class="wp-icon quality-check"
+                  >&#xF294;</span>
+                </button>
+              </div>
             </div>
           </div>
         </transition>
@@ -1563,6 +1627,45 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.92);
   color: #111;
   font-weight: 600;
+}
+
+/* 播放音质：纵向档位列表（档位文本较长，不适合网格） */
+.quality-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: var(--space-lg) 0 var(--space-sm);
+}
+
+.quality-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 46px;
+  padding: 0 var(--space-lg);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+
+.quality-option:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.quality-option.active {
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.92);
+  color: #111;
+  font-weight: 600;
+}
+
+.quality-check {
+  font-size: 14px;
 }
 
 /* 「更多」二级菜单：入口列表 */
