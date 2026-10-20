@@ -1,5 +1,6 @@
 <div align="center">
 
+![banner](./docs/imgs/banner.png)
 # WinPlayer
 
 **一款遵循 WinUI 设计规范、基于 Tauri 2 构建、以插件驱动播放源的桌面音乐播放器**
