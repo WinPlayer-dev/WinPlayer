@@ -79,6 +79,8 @@ const stopOptimizeWatch = watch(
 
 onMounted(async () => {
   await settings.load();
+  // 快捷键：先订阅全局热键事件再载入绑定（载入会立即把绑定推给 Rust 重建注册表）
+  await shortcuts.initGlobalEvents();
   await Promise.all([library.loadAll(), player.restore(), shortcuts.load()]);
   // 播放历史：只读一次库，供「最近播放」页与 SongTable 的播放次数列使用
   void history.load();

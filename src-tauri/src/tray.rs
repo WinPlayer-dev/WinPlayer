@@ -35,6 +35,10 @@ const MAIN_WINDOW: &str = "main";
 /// 时是否置为 hidden 依版本而异，因此由 Rust 侧主动广播。
 pub const EVENT_VISIBILITY: &str = "app://visibility";
 
+/// 托盘菜单「上一首 / 下一首」事件：前端订阅后走自己的切歌逻辑。
+/// 全局快捷键（`crate::global_shortcuts`）复用同一条通道。
+pub const EVENT_ACTION: &str = "app://tray-action";
+
 /// 关闭行为
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CloseBehavior {
@@ -195,7 +199,7 @@ pub fn init(app: &tauri::App) -> tauri::Result<()> {
                 } else {
                     "previous"
                 };
-                let _ = app.emit("app://tray-action", action);
+                let _ = app.emit(EVENT_ACTION, action);
             }
             MENU_QUIT => quit_app(app),
             _ => {}

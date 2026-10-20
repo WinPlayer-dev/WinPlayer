@@ -43,6 +43,7 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 symphonia = { version = "0.5", features = ["mp3", "aac", "isomp4", "flac", "pcm", "vorbis", "ogg"] }
 rodio = { version = "0.20", default-features = false }
 rtrb = "0.3"
+tauri-plugin-global-shortcut = "2.3.2"
 
 # 仅 Windows 平台生效的原生依赖（SMTC / 系统托盘 / 窗口材质）
 [target.'cfg(windows)'.dependencies]

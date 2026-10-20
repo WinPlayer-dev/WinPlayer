@@ -1,4 +1,6 @@
 mod commands;
+#[cfg(desktop)]
+mod global_shortcuts;
 mod player;
 mod smtc;
 #[cfg(windows)]
@@ -43,6 +45,8 @@ pub fn run() {
             .plugin(tauri_plugin_dialog::init())
             .plugin(tauri_plugin_fs::init())
             .plugin(tauri_plugin_opener::init())
+            // 系统级全局快捷键（桌面端；移动端由媒体通知/线控负责，不注册热键）
+            .plugin(tauri_plugin_global_shortcut::Builder::new().build())
             // 安卓媒体控件（媒体通知/锁屏/线控），桌面端自动 no-op
             .plugin(tauri_plugin_media_session::init())
             // 安卓 APK 安装（自动更新），桌面端自动 no-op
@@ -89,6 +93,8 @@ pub fn run() {
                 commands::window::window_state_set_enabled,
                 commands::window::window_state_saved,
                 commands::window::window_state_reset,
+                commands::window::global_shortcut_apply,
+                commands::window::global_shortcut_status,
                 commands::tray::tray_set_close_behavior,
                 commands::tray::tray_toggle_window,
                 commands::tray::tray_hide_window,
@@ -128,6 +134,10 @@ pub fn run() {
                 // 窗口状态记忆：读上次的尺寸/位置/最大化并套回主窗口
                 window_state::init(app);
                 window_state::restore(app.handle());
+                // 全局快捷键：先按默认值注册，前端读到设置后再覆盖
+                // （默认值与应用内快捷键不冲突，前端加载完成前也能用）
+                #[cfg(desktop)]
+                crate::global_shortcuts::apply_defaults(app.handle());
                 Ok(())
             })
             .on_window_event(|window, event| {
