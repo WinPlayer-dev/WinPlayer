@@ -16,7 +16,9 @@ import { getSetting, setSetting } from "@/services/db";
 import { findLyricIndex } from "@/services/lrc";
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
+import { useSleepTimer } from "@/services/sleepTimer";
 import WpIconButton from "@/components/theme/WpIconButton.vue";
+import SleepTimerPicker from "@/components/common/SleepTimerPicker.vue";
 import {
   PLAYBACK_RATES,
   PLAY_MODE_LABEL,
@@ -39,12 +41,24 @@ const showOffset = ref(false);
 const showRate = ref(false);
 /** 「更多」二级菜单面板 */
 const showMore = ref(false);
+/** 睡眠定时器面板 */
+const showSleep = ref(false);
 
 /** 选择播放倍速并关闭面板 */
 function selectRate(value: number): void {
   void player.setRate(value);
   showRate.value = false;
 }
+
+/* ------------------------------ 睡眠定时器 ------------------------------ */
+
+const sleepTimer = useSleepTimer();
+/** 面板入口的摘要文案 */
+const sleepSummary = computed(() => {
+  if (sleepTimer.mode.value === "after-track") return "播完当前曲";
+  if (!sleepTimer.countingDown.value) return "";
+  return sleepTimer.remainingLabel.value;
+});
 
 /** 打开离线音乐页并逐层收起浮层 */
 function openOffline(): void {
@@ -562,6 +576,7 @@ watch(showFull, (open) => {
     showOffset.value = false;
     showRate.value = false;
     showMore.value = false;
+    showSleep.value = false;
     return;
   }
   void loadLyricOffset();
@@ -576,6 +591,10 @@ watch(showFull, (open) => {
     }
     if (showRate.value) {
       showRate.value = false;
+      return true;
+    }
+    if (showSleep.value) {
+      showSleep.value = false;
       return true;
     }
     if (showQueue.value) {
@@ -803,6 +822,12 @@ onBeforeUnmount(() => {
                   <span class="more-row-value">{{ formatRate(player.rate) }}</span>
                   <span class="wp-icon more-row-chevron">&#xF2B0;</span>
                 </button>
+                <button class="more-row" @click="showMore = false; showSleep = true">
+                  <span class="wp-icon more-row-icon">&#xF2A1;</span>
+                  <span class="more-row-label">睡眠定时器</span>
+                  <span class="more-row-value">{{ sleepSummary || "未设置" }}</span>
+                  <span class="wp-icon more-row-chevron">&#xF2B0;</span>
+                </button>
                 <button class="more-row" @click="openOffline">
                   <span class="wp-icon more-row-icon">&#xF151;</span>
                   <span class="more-row-label">离线音乐</span>
@@ -856,6 +881,22 @@ onBeforeUnmount(() => {
                   {{ formatRate(value) }}
                 </button>
               </div>
+            </div>
+          </div>
+        </transition>
+
+        <!-- 睡眠定时器（定时停止 / 播完当前曲停止 / 到点停止） -->
+        <transition name="full-fade">
+          <div v-if="showSleep" class="full-offset" @click.self="showSleep = false">
+            <div class="offset-panel">
+              <div class="offset-header">
+                <span class="offset-title">睡眠定时器</span>
+                <WpIconButton title="关闭" @click="showSleep = false">
+                  <span class="wp-icon">&#xF36A;</span>
+                </WpIconButton>
+              </div>
+              <div class="offset-hint">到点后暂停播放，不会退出应用</div>
+              <SleepTimerPicker tone="dark" @close="showSleep = false" />
             </div>
           </div>
         </transition>

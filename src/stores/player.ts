@@ -6,6 +6,11 @@ import { getAudioEngine } from "@/services/audio";
 import { isThrottled } from "@/services/backgroundMode";
 import { findLyricIndex, mergeTranslation, parseLrc } from "@/services/lrc";
 import { getSetting, setSetting } from "@/services/db";
+import {
+  checkSleepDeadline,
+  notifyTrackFinished,
+  setSleepStopHandler,
+} from "@/services/sleepTimer";
 import { toast } from "@/services/toast";
 import { hapticTap } from "@/services/haptics";
 import { usePluginsStore } from "./plugins";
@@ -128,6 +133,8 @@ export const usePlayerStore = defineStore("player", () => {
   /* ------------------------------ 引擎事件 ------------------------------ */
 
   engine.on("timeupdate", (time) => {
+    // 睡眠定时器到点：放在最前，后台节流时也必须生效
+    checkSleepDeadline();
     if (isThrottled()) {
       // 后台优化：跳过响应式进度写（省去重渲染与 lyricIndex 计算），
       // 但预加载判断照常进行——用非响应式的 enginePosition 喂给它，
@@ -160,13 +167,40 @@ export const usePlayerStore = defineStore("player", () => {
     handleEnded();
   });
   engine.on("advanced", (url, index) => {
+    // 「播完当前曲目停止」：引擎在这里已经完成衔接，硬切回上一首的结尾不现实
+    // （crossfade 时双流已经在混音）。先让元数据切到新曲再暂停，避免界面停在
+    // 上一首上；紧接着清掉播放链 / 预载槽，防止它继续往下播。
+    const stop = notifyTrackFinished();
     handleAdvanced(url, index);
+    if (stop) {
+      engine.pause();
+      resetPreload(true);
+      playing.value = false;
+    }
   });
   engine.on("error", (message) => {
     loading.value = false;
     playing.value = false;
     toast(message, "error");
   });
+
+  /* ------------------------------ 睡眠定时器 ------------------------------ */
+
+  /**
+   * 睡眠定时器到点：暂停播放并丢弃预载 / 播放链。
+   *
+   * 只 pause 不 stop：重新点播放时能接着当前进度继续（用户半夜醒来还想听）。
+   * 但必须清掉播放链——否则引擎在后台仍会沿链自动换曲，「定时停止」形同虚设。
+   */
+  function stopForSleepTimer(): void {
+    if (engine.paused === false || playing.value) engine.pause();
+    playing.value = false;
+    resetPreload(true);
+    toast("睡眠定时器已停止播放", "info");
+  }
+
+  // 定时器由 services/sleepTimer 持有，这里只注册"到点后做什么"
+  setSleepStopHandler(stopForSleepTimer);
 
   /* ------------------------------ 播放控制 ------------------------------ */
 

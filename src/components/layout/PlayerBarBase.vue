@@ -22,6 +22,8 @@ import QueuePanel from "./QueuePanel.vue";
 import LyricsPanel from "./LyricsPanel.vue";
 import DownloadPanel from "./DownloadPanel.vue";
 import WpIconButton from "@/components/theme/WpIconButton.vue";
+import { useSleepTimer } from "@/services/sleepTimer";
+import SleepTimerPicker from "@/components/common/SleepTimerPicker.vue";
 
 const player = usePlayerStore();
 const library = useLibraryStore();
@@ -113,9 +115,18 @@ function toggleDownloads(): void {
   }
 }
 
-/** 「更多」二级菜单：一级列出不常用入口，二级展开倍速档位 / 输出设备 */
-const moreView = ref<"root" | "rate" | "device" | null>(null);
+/** 「更多」二级菜单：一级列出不常用入口，二级展开倍速档位 / 输出设备 / 睡眠定时器 */
+const moreView = ref<"root" | "rate" | "device" | "sleep" | null>(null);
 const morePicker = ref<HTMLElement | null>(null);
+
+/** 睡眠定时器：按钮高亮与二级菜单摘要都依赖它的状态 */
+const sleepTimer = useSleepTimer();
+const sleepActive = computed(() => sleepTimer.mode.value !== "off");
+const sleepSummary = computed(() => {
+  if (sleepTimer.mode.value === "after-track") return "播完当前曲";
+  if (!sleepTimer.countingDown.value) return "未设置";
+  return sleepTimer.remainingLabel.value;
+});
 
 /** 输出设备（「更多」菜单内联选择，打开二级菜单时读取） */
 const DEFAULT_OUTPUT_LABEL = "系统默认";
@@ -319,7 +330,7 @@ onUnmounted(() => {
         <span class="wp-icon">&#xF4EE;</span>
       </WpIconButton>
       <div ref="morePicker" class="more-picker">
-        <WpIconButton :active="player.rate !== 1" title="更多" @click="toggleMoreMenu">
+        <WpIconButton :active="player.rate !== 1 || sleepActive" title="更多" @click="toggleMoreMenu">
           <span class="wp-icon">&#xE825;</span>
         </WpIconButton>
         <transition name="more-menu">
@@ -340,6 +351,13 @@ onUnmounted(() => {
                     <span class="wp-icon more-item-chevron">&#xF2B0;</span>
                   </span>
                 </button>
+                <button class="more-item" :class="{ 'is-on': sleepActive }" @click="moreView = 'sleep'">
+                  <span class="more-item-label">睡眠定时器</span>
+                  <span class="more-item-tail">
+                    <span class="more-item-value">{{ sleepSummary }}</span>
+                    <span class="wp-icon more-item-chevron">&#xF2B0;</span>
+                  </span>
+                </button>
               </div>
               <div v-else-if="moreView === 'rate'" key="rate" class="more-page">
                 <button class="more-back" @click="moreView = 'root'">
@@ -356,7 +374,7 @@ onUnmounted(() => {
                   <span v-if="player.rate === value" class="wp-icon more-item-check">&#xF294;</span>
                 </button>
               </div>
-              <div v-else key="device" class="more-page">
+              <div v-else-if="moreView === 'device'" key="device" class="more-page">
                 <button class="more-back" @click="moreView = 'root'">
                   <span class="wp-icon">&#xF2AA;</span>
                   <span>输出设备</span>
@@ -373,6 +391,13 @@ onUnmounted(() => {
                     class="wp-icon more-item-check"
                   >&#xF294;</span>
                 </button>
+              </div>
+              <div v-else key="sleep" class="more-page">
+                <button class="more-back" @click="moreView = 'root'">
+                  <span class="wp-icon">&#xF2AA;</span>
+                  <span>睡眠定时器</span>
+                </button>
+                <SleepTimerPicker @close="moreView = null" />
               </div>
             </transition>
           </div>
@@ -743,6 +768,11 @@ onUnmounted(() => {
 
 .more-item-check {
   font-size: 14px;
+  color: var(--wp-accent);
+}
+
+/* 已生效的开关型菜单项（如睡眠定时器倒计时中）：值文本用强调色提示 */
+.more-item.is-on .more-item-value {
   color: var(--wp-accent);
 }
 
