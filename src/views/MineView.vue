@@ -458,6 +458,8 @@ function onPlaylistClick(playlist: LocalPlaylist) {
   background: var(--wp-card-active);
 }
 
+/* 三个并列入口：从第二个起与上一个留出间距 */
+.history-entry,
 .offline-entry {
   margin-top: var(--space-sm);
 }
