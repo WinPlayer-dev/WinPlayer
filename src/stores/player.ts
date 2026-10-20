@@ -41,6 +41,19 @@ export const usePlayerStore = defineStore("player", () => {
   /** 播放倍速（0.5–2.0，保持音调；全局设置，持久化） */
   const rate = ref(1);
 
+  /* ------------------------------ A-B 循环 ------------------------------ */
+
+  /** A 点（秒）；null 表示未打点 */
+  const abPointA = ref<number | null>(null);
+  /** B 点（秒）；null 表示未打点 */
+  const abPointB = ref<number | null>(null);
+  /** 循环区间是否生效（A、B 都已打点才可能为 true） */
+  const abEnabled = computed(
+    () => abPointA.value !== null && abPointB.value !== null && abPointB.value > abPointA.value,
+  );
+  /** 回跳保护：一次 seek 后到下一次 timeupdate 前不再重复触发，避免抖动时连跳 */
+  let abJumping = false;
+
   /** 当前已加载音频的曲目标识（用于判断是否需要解析直链） */
   let loadedTrackKey: string | null = null;
 
@@ -132,11 +145,58 @@ export const usePlayerStore = defineStore("player", () => {
     originalQueue.value = [];
   }
 
+  /** 清空 A-B 循环（换曲、用户清除时调用；换歌后区间不再有意义） */
+  function clearAbLoop(): void {
+    abPointA.value = null;
+    abPointB.value = null;
+    abJumping = false;
+  }
+
+  /** 打 A 点（当前进度；暂停时也可打点） */
+  function setAbPointA(time = currentTime.value): void {
+    abPointA.value = Math.max(0, time);
+    // A 点越过 B 点时把 B 点作废，逼用户重新打 B（保持 A < B 的语义）
+    if (abPointB.value !== null && abPointB.value <= abPointA.value) abPointB.value = null;
+    abJumping = false;
+  }
+
+  /** 打 B 点（不能早于 A；没有 A 时自动把当前进度当 A） */
+  function setAbPointB(time = currentTime.value): void {
+    if (abPointA.value === null) abPointA.value = 0;
+    abPointB.value = Math.max(abPointA.value! + 0.5, Math.max(0, time));
+    abJumping = false;
+  }
+
+  /** 一键设置 A-B：A = 当前位置，B = 当前位置 + span 秒（默认 30s） */
+  function setAbLoopAroundCurrent(span = 30): void {
+    const start = Math.max(0, currentTime.value);
+    const end = duration.value > 0 ? Math.min(duration.value, start + span) : start + span;
+    abPointA.value = start;
+    abPointB.value = end;
+    abJumping = false;
+  }
+
+  /**
+   * 进度到达 B 点：跳回 A 点续播。
+   *
+   * 只 `seek` 而不重新 load，保证无缝；跳转后抑制到下一帧 timeupdate，
+   * 避免引擎尚未真正移回 A 时重复触发（网络源 seek 可能延迟数秒）。
+   */
+  function maybeJumpAbLoop(time: number): void {
+    if (!abEnabled.value || abJumping) return;
+    if (time < abPointB.value! - 0.15) return;
+    abJumping = true;
+    engine.seek(abPointA.value!);
+    currentTime.value = abPointA.value!;
+  }
+
   /* ------------------------------ 引擎事件 ------------------------------ */
 
   engine.on("timeupdate", (time) => {
     // 睡眠定时器到点：放在最前，后台节流时也必须生效
     checkSleepDeadline();
+    // A-B 循环同样必须在后台也生效（窗口隐藏时仍要循环）
+    maybeJumpAbLoop(time);
     if (isThrottled()) {
       // 后台优化：跳过响应式进度写（省去重渲染与 lyricIndex 计算），
       // 但预加载判断照常进行——用非响应式的 enginePosition 喂给它，
@@ -315,6 +375,8 @@ export const usePlayerStore = defineStore("player", () => {
     // 只清预载槽：load 会在后端清预载槽与链，链随后由 republishChain 补回
     clearPreloadSlot();
     currentIndex.value = index;
+    // 换曲：A-B 区间属于上一首，直接作废（不持久化）
+    clearAbLoop();
     const track = queue.value[index].track;
     console.log(`[player] 播放请求 #${index}: ${track.sourceId}:${track.id} 《${track.name}》`);
     loading.value = true;
@@ -619,6 +681,7 @@ export const usePlayerStore = defineStore("player", () => {
     const item = queue.value[index];
     if (!item) return;
     currentIndex.value = index;
+    clearAbLoop();
     loadedTrackKey = trackUid(item.track);
     duration.value = item.track.duration ? item.track.duration / 1000 : 0;
     playing.value = true;
@@ -717,6 +780,7 @@ export const usePlayerStore = defineStore("player", () => {
     const item = queue.value[index];
     if (!item) return;
     currentIndex.value = index;
+    clearAbLoop();
     loadedTrackKey = trackUid(item.track);
     // 引擎无缝衔接到了新曲：属于新的一次播放，重新记一次历史
     playRecorded = false;
@@ -746,6 +810,8 @@ export const usePlayerStore = defineStore("player", () => {
    * 调用方负责先用 chainUrlAt 取到直链。
    */
   async function playUrlAt(index: number, url: string): Promise<void> {
+    // 换曲即清空 A-B 区间（与 playAt 保持一致）
+    clearAbLoop();
     // 只清预载槽：链要留着（锁屏/后台切歌全靠它），起播后再补发给引擎
     clearPreloadSlot();
     currentIndex.value = index;
@@ -1068,6 +1134,13 @@ export const usePlayerStore = defineStore("player", () => {
     setVolume,
     toggleMute,
     setRate,
+    abPointA,
+    abPointB,
+    abEnabled,
+    setAbPointA,
+    setAbPointB,
+    setAbLoopAroundCurrent,
+    clearAbLoop,
     cycleMode,
     removeFromQueue,
     clearQueue,

@@ -38,6 +38,72 @@ const seekLocal = ref(0);
 /** 本次指针交互是否产生过 update:Value（防止空区域按下用陈旧值 seek） */
 const seekTouched = ref(false);
 
+/* ------------------------------ 进度条悬停预览 ------------------------------ */
+
+/** 进度条容器（用于把鼠标位置换算成时间） */
+const seekAreaRef = ref<HTMLElement | null>(null);
+/** 悬停位置对应的时间（秒）；null 表示指针不在进度条上 */
+const hoverTime = ref<number | null>(null);
+/** 悬停气泡的横向百分比（0~100，已夹在两端留白内） */
+const hoverPercent = ref(0);
+
+/** 把指针横坐标换算成进度条上的时间并更新气泡位置 */
+function updateHover(event: PointerEvent): void {
+  const el = seekAreaRef.value;
+  if (!el || player.duration <= 0) {
+    hoverTime.value = null;
+    return;
+  }
+  const rect = el.getBoundingClientRect();
+  if (!rect.width) return;
+  const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+  hoverTime.value = ratio * player.duration;
+  hoverPercent.value = ratio * 100;
+}
+
+function onSeekHover(event: PointerEvent): void {
+  // 拖动中不显示悬停气泡（此时有滑块自带的数值气泡）
+  if (draggingSeek.value) {
+    hoverTime.value = null;
+    return;
+  }
+  updateHover(event);
+}
+
+function onSeekLeave(): void {
+  hoverTime.value = null;
+}
+
+/** A 点 / B 点在进度条上的位置（百分比），未打点时为空 */
+const abMarkA = computed(() => abPercent(player.abPointA));
+const abMarkB = computed(() => abPercent(player.abPointB));
+/** 循环区间高亮条（左 / 宽百分比） */
+const abRange = computed(() => {
+  const a = abPercent(player.abPointA);
+  const b = abPercent(player.abPointB);
+  if (a === null || b === null) return null;
+  return { left: `${a}%`, width: `${Math.max(0, b - a)}%` };
+});
+
+function abPercent(value: number | null): number | null {
+  if (value === null || player.duration <= 0) return null;
+  return Math.min(100, Math.max(0, (value / player.duration) * 100));
+}
+
+const abLabel = computed(() => {
+  if (player.abEnabled) {
+    return `${formatTime(player.abPointA!)} – ${formatTime(player.abPointB!)}`;
+  }
+  if (player.abPointA !== null) return `A ${formatTime(player.abPointA)}`;
+  return "未设置";
+});
+
+/** 打点：没有 A 打 A，有 A 没 B 打 B，都已设置则回到「重设 A」 */
+function markAbPoint(): void {
+  if (player.abPointA === null || player.abEnabled) player.setAbPointA();
+  else player.setAbPointB();
+}
+
 const seekValue = computed(() => (draggingSeek.value ? seekLocal.value : player.currentTime));
 const seekTime = computed(() => formatTime(seekValue.value));
 const progressMax = computed(() => (player.duration > 0 ? player.duration : 1));
@@ -117,7 +183,7 @@ function toggleDownloads(): void {
 }
 
 /** 「更多」二级菜单：一级列出不常用入口，二级展开倍速档位 / 输出设备 / 音质 / 睡眠定时器 */
-const moreView = ref<"root" | "rate" | "device" | "quality" | "sleep" | null>(null);
+const moreView = ref<"root" | "rate" | "device" | "quality" | "sleep" | "ab" | null>(null);
 const morePicker = ref<HTMLElement | null>(null);
 
 /** 睡眠定时器：按钮高亮与二级菜单摘要都依赖它的状态 */
@@ -319,11 +385,31 @@ onUnmounted(() => {
       <div class="seek-row">
         <span class="time">{{ seekTime }}</span>
         <div
+          ref="seekAreaRef"
           class="seek-slider"
           @pointerdown.capture="onSeekPointerDown"
           @pointerup="onSeekPointerUp"
           @pointercancel="onSeekPointerCancel"
+          @pointermove="onSeekHover"
+          @pointerleave="onSeekLeave"
         >
+          <!-- A-B 循环区间：在滑块下方画一条强调色细线，两端各一个标记 -->
+          <div v-if="abRange" class="ab-range" :style="abRange" aria-hidden="true" />
+          <span v-if="abMarkA !== null" class="ab-mark ab-mark-a" :style="{ left: `${abMarkA}%` }" aria-hidden="true">
+            A
+          </span>
+          <span v-if="abMarkB !== null" class="ab-mark ab-mark-b" :style="{ left: `${abMarkB}%` }" aria-hidden="true">
+            B
+          </span>
+          <!-- 悬停时间预览：跟随指针，pointer-events:none 不挡拖动 -->
+          <div
+            v-if="hoverTime !== null"
+            class="seek-hover"
+            :style="{ left: `${hoverPercent}%` }"
+            aria-hidden="true"
+          >
+            {{ formatTime(hoverTime) }}
+          </div>
           <Slider
             :Value="seekValue"
             :Minimum="0"
@@ -383,6 +469,13 @@ onUnmounted(() => {
                     <span class="wp-icon more-item-chevron">&#xF2B0;</span>
                   </span>
                 </button>
+                <button class="more-item" :class="{ 'is-on': player.abEnabled }" @click="moreView = 'ab'">
+                  <span class="more-item-label">A-B 循环</span>
+                  <span class="more-item-tail">
+                    <span class="more-item-value">{{ abLabel }}</span>
+                    <span class="wp-icon more-item-chevron">&#xF2B0;</span>
+                  </span>
+                </button>
                 <button class="more-item" :class="{ 'is-on': sleepActive }" @click="moreView = 'sleep'">
                   <span class="more-item-label">睡眠定时器</span>
                   <span class="more-item-tail">
@@ -404,6 +497,38 @@ onUnmounted(() => {
                 >
                   <span class="more-item-label">{{ formatRate(value) }}</span>
                   <span v-if="player.rate === value" class="wp-icon more-item-check">&#xF294;</span>
+                </button>
+              </div>
+              <div v-else-if="moreView === 'ab'" key="ab" class="more-page">
+                <button class="more-back" @click="moreView = 'root'">
+                  <span class="wp-icon">&#xF2AA;</span>
+                  <span>A-B 循环</span>
+                </button>
+                <div class="ab-summary">
+                  <span class="ab-point">A：{{ player.abPointA === null ? "未打点" : formatTime(player.abPointA) }}</span>
+                  <span class="ab-point">B：{{ player.abPointB === null ? "未打点" : formatTime(player.abPointB) }}</span>
+                </div>
+                <button class="more-item" @click="markAbPoint">
+                  <span class="more-item-label">
+                    {{ player.abPointA === null ? "打 A 点（当前位置）" : player.abEnabled ? "重新打 A 点" : "打 B 点（当前位置）" }}
+                  </span>
+                  <span class="wp-icon more-item-check">&#xF294;</span>
+                </button>
+                <button
+                  class="more-item"
+                  @click="player.setAbLoopAroundCurrent(30); moreView = null"
+                >
+                  <span class="more-item-label">快速循环当前 30 秒</span>
+                </button>
+                <div class="ab-hint">
+                  {{ player.abEnabled ? "已生效：播到 B 点会跳回 A 点继续循环" : "打满 A、B 两点后即开始循环" }}
+                </div>
+                <button
+                  class="more-item more-item-danger"
+                  :disabled="player.abPointA === null"
+                  @click="player.clearAbLoop(); moreView = null"
+                >
+                  <span class="more-item-label">清除 A-B 循环</span>
                 </button>
               </div>
               <div v-else-if="moreView === 'device'" key="device" class="more-page">
@@ -696,7 +821,79 @@ onUnmounted(() => {
   flex: none;
 }
 
+/* A-B 循环：区间高亮 + 两端 A/B 标记 */
+.ab-range {
+  position: absolute;
+  bottom: 6px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--wp-accent);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.ab-mark {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--wp-text-on-accent);
+  background: var(--wp-accent);
+  border-radius: 2px;
+  padding: 1px 2px;
+  pointer-events: none;
+}
+
+.ab-mark-a {
+  bottom: 10px;
+}
+
+.ab-mark-b {
+  bottom: 10px;
+  background: var(--wp-accent-hover);
+}
+
+/* 悬停时间预览气泡 */
+.seek-hover {
+  position: absolute;
+  bottom: calc(100% - 4px);
+  transform: translateX(-50%);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--wp-flyout);
+  border: 1px solid var(--wp-control-stroke);
+  box-shadow: var(--shadow-flyout);
+  color: var(--wp-text-primary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* A-B 二级菜单里的 A/B 点摘要 */
+/* A-B 二级菜单底部的状态说明 */
+.ab-hint {
+  padding: 2px var(--space-lg) 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--wp-text-tertiary);
+}
+
+.ab-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: 2px var(--space-lg) 6px;
+  font-size: 12px;
+  color: var(--wp-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
 .seek-slider {
+  position: relative;
   flex: 1;
   min-width: 0;
 }
@@ -778,6 +975,16 @@ onUnmounted(() => {
   font-size: 13px;
   cursor: pointer;
   text-align: left;
+}
+
+/* 破坏性操作（清除 A-B）用危险色 */
+.more-item-danger .more-item-label {
+  color: var(--wp-danger);
+}
+
+.more-item:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .more-item:hover,

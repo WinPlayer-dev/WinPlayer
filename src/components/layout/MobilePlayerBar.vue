@@ -46,6 +46,38 @@ const showMore = ref(false);
 const showSleep = ref(false);
 /** 播放音质面板 */
 const showQuality = ref(false);
+/** A-B 循环面板 */
+const showAb = ref(false);
+
+/* ------------------------------ A-B 循环 ------------------------------ */
+
+/** A/B 点在进度条上的百分比（未打点为 null） */
+function abPercent(value: number | null): number | null {
+  if (value === null || player.duration <= 0) return null;
+  return Math.min(100, Math.max(0, (value / player.duration) * 100));
+}
+
+const abMarkA = computed(() => abPercent(player.abPointA));
+const abMarkB = computed(() => abPercent(player.abPointB));
+/** 循环区间高亮（左 / 宽百分比） */
+const abRange = computed(() => {
+  const a = abPercent(player.abPointA);
+  const b = abPercent(player.abPointB);
+  if (a === null || b === null) return null;
+  return { left: `${a}%`, width: `${Math.max(0, b - a)}%` };
+});
+
+const abLabel = computed(() => {
+  if (player.abEnabled) return `${formatTime(player.abPointA!)} – ${formatTime(player.abPointB!)}`;
+  if (player.abPointA !== null) return `A ${formatTime(player.abPointA)}`;
+  return "未设置";
+});
+
+/** 打点：没有 A 打 A，有 A 没 B 打 B，都已设置则重设 A */
+function markAbPoint(): void {
+  if (player.abPointA === null || player.abEnabled) player.setAbPointA();
+  else player.setAbPointB();
+}
 
 /** 选择播放倍速并关闭面板 */
 function selectRate(value: number): void {
@@ -782,6 +814,20 @@ onBeforeUnmount(() => {
               class="full-progress-fill"
               :style="{ transform: `scaleX(${displayedPercent / 100})` }"
             />
+            <!-- A-B 循环区间与两端标记 -->
+            <div v-if="abRange" class="full-ab-range" :style="abRange" aria-hidden="true" />
+            <span
+              v-if="abMarkA !== null"
+              class="full-ab-mark"
+              :style="{ left: `${abMarkA}%` }"
+              aria-hidden="true"
+            >A</span>
+            <span
+              v-if="abMarkB !== null"
+              class="full-ab-mark is-b"
+              :style="{ left: `${abMarkB}%` }"
+              aria-hidden="true"
+            >B</span>
             <div
               class="full-progress-thumb"
               :class="{ dragging }"
@@ -848,6 +894,12 @@ onBeforeUnmount(() => {
                   <span class="wp-icon more-row-icon">&#xF831;</span>
                   <span class="more-row-label">播放速度</span>
                   <span class="more-row-value">{{ formatRate(player.rate) }}</span>
+                  <span class="wp-icon more-row-chevron">&#xF2B0;</span>
+                </button>
+                <button class="more-row" @click="showMore = false; showAb = true">
+                  <span class="wp-icon more-row-icon">&#xF4F0;</span>
+                  <span class="more-row-label">A-B 循环</span>
+                  <span class="more-row-value">{{ abLabel }}</span>
                   <span class="wp-icon more-row-chevron">&#xF2B0;</span>
                 </button>
                 <button class="more-row" @click="showMore = false; showSleep = true">
@@ -924,6 +976,40 @@ onBeforeUnmount(() => {
                   {{ formatRate(value) }}
                 </button>
               </div>
+            </div>
+          </div>
+        </transition>
+
+        <!-- A-B 循环：打点 / 快速 30 秒 / 清除 -->
+        <transition name="full-fade">
+          <div v-if="showAb" class="full-offset" @click.self="showAb = false">
+            <div class="offset-panel">
+              <div class="offset-header">
+                <span class="offset-title">A-B 循环</span>
+                <WpIconButton title="关闭" @click="showAb = false">
+                  <span class="wp-icon">&#xF36A;</span>
+                </WpIconButton>
+              </div>
+              <div class="offset-hint">
+                {{ player.abEnabled ? "已生效：播到 B 点会跳回 A 点继续循环" : "打满 A、B 两点后即开始循环" }}
+              </div>
+              <div class="offset-row">
+                <span class="ab-point">A：{{ player.abPointA === null ? "未打点" : formatTime(player.abPointA) }}</span>
+                <span class="ab-point">B：{{ player.abPointB === null ? "未打点" : formatTime(player.abPointB) }}</span>
+              </div>
+              <button class="offset-step ab-action" @click="markAbPoint">
+                {{ player.abPointA === null ? "打 A 点" : player.abEnabled ? "重设 A 点" : "打 B 点" }}
+              </button>
+              <button class="offset-step ab-action" @click="player.setAbLoopAroundCurrent(30)">
+                快速循环当前 30 秒
+              </button>
+              <button
+                class="offset-reset"
+                :disabled="player.abPointA === null"
+                @click="player.clearAbLoop()"
+              >
+                清除 A-B 循环
+              </button>
             </div>
           </div>
         </transition>
@@ -1478,6 +1564,35 @@ onBeforeUnmount(() => {
   opacity: 1;
 }
 
+/* A-B 循环：区间高亮（贴在进度条正中那条 4px 线上）+ 两端标记 */
+.full-ab-range {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  background: rgba(255, 214, 102, 0.85);
+  pointer-events: none;
+}
+
+.full-ab-mark {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  padding: 1px 3px;
+  border-radius: 3px;
+  background: rgba(255, 214, 102, 0.92);
+  color: #1a1a1a;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.full-ab-mark.is-b {
+  background: rgba(255, 176, 66, 0.95);
+}
+
 /* 拖动时跟随手指的时间气泡 */
 .full-progress-bubble {
   position: absolute;
@@ -1607,6 +1722,23 @@ onBeforeUnmount(() => {
 
 .offset-reset:active {
   background: rgba(255, 255, 255, 0.1);
+}
+
+.offset-reset:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* A-B 面板：A/B 点摘要与整行操作按钮 */
+.ab-point {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.ab-action {
+  width: 100%;
+  margin-bottom: var(--space-sm);
 }
 
 /* 播放速度：档位网格 */
