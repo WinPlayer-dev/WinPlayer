@@ -75,7 +75,7 @@ pub fn window_state_reset(app: tauri::AppHandle) -> Result<(), String> {
 
 /// 按前端的绑定重建全局热键（`bindings` 为「动作 ID → 组合键文本」，空串表示不注册）。
 /// 返回每个动作的注册结果，前端据此标注「已生效 / 被占用 / 格式不支持」。
-#[cfg(desktop)]
+#[cfg(winplayer_desktop)]
 #[tauri::command]
 pub fn global_shortcut_apply(
     app: tauri::AppHandle,
@@ -85,7 +85,7 @@ pub fn global_shortcut_apply(
 }
 
 /// 移动端没有全局热键概念，返回空列表让前端保持「不可用」状态。
-#[cfg(not(desktop))]
+#[cfg(not(winplayer_desktop))]
 #[tauri::command]
 pub fn global_shortcut_apply(
     _app: tauri::AppHandle,
@@ -95,7 +95,7 @@ pub fn global_shortcut_apply(
 }
 
 /// 当前实际注册成功的全局热键
-#[cfg(desktop)]
+#[cfg(winplayer_desktop)]
 #[tauri::command]
 pub fn global_shortcut_status(
     app: tauri::AppHandle,
@@ -104,7 +104,7 @@ pub fn global_shortcut_status(
     crate::global_shortcuts::current()
 }
 
-#[cfg(not(desktop))]
+#[cfg(not(winplayer_desktop))]
 #[tauri::command]
 pub fn global_shortcut_status(_app: tauri::AppHandle) -> Vec<serde_json::Value> {
     Vec::new()

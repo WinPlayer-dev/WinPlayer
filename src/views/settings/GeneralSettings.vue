@@ -105,6 +105,25 @@ async function resetWindow(): Promise<void> {
       </WpCard>
     </section>
 
+    <!-- 窗口（仅桌面端：移动端窗口由系统全屏托管） -->
+    <section v-if="!isMobile" class="settings-section">
+      <h2 class="settings-section-title">窗口</h2>
+
+      <WpCard variant="row">
+        <div class="card-content">
+          <div class="card-header">记住窗口大小与位置</div>
+          <div class="card-description">
+            退出时记住窗口的尺寸、位置与最大化状态，下次启动原样还原；若显示器有变化导致窗口跑到屏幕外，
+            会自动回到主屏居中
+          </div>
+        </div>
+        <div class="card-control window-state-control">
+          <WpButton variant="standard" class="small" @click="resetWindow">重置</WpButton>
+          <ToggleSwitch :IsOn="settings.rememberWindowState" @Toggled="onRememberWindowToggle" />
+        </div>
+      </WpCard>
+    </section>
+
     <!-- 系统集成（SMTC 仅 Windows 提供） -->
     <section v-if="isWindows" class="settings-section">
       <h2 class="settings-section-title">系统集成</h2>
@@ -134,20 +153,6 @@ async function resetWindow(): Promise<void> {
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.backgroundOptimize" @Toggled="onOptimizeToggle" />
-      </WpCard>
-
-      <WpCard variant="row">
-        <div class="card-content">
-          <div class="card-header">记住窗口大小与位置</div>
-          <div class="card-description">
-            退出时记住窗口的尺寸、位置与最大化状态，下次启动原样还原；若显示器有变化导致窗口跑到屏幕外，
-            会自动回到主屏居中
-          </div>
-        </div>
-        <div class="card-control window-state-control">
-          <WpButton variant="standard" class="small" @click="resetWindow">重置</WpButton>
-          <ToggleSwitch :IsOn="settings.rememberWindowState" @Toggled="onRememberWindowToggle" />
-        </div>
       </WpCard>
 
       <WpCard variant="row">

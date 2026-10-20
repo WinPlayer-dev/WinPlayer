@@ -23,6 +23,10 @@ use crate::player::PlayerEngine;
 /// 全局热键命中事件名（前端用来屏蔽应用内同名快捷键）
 pub const EVENT_GLOBAL_HOTKEY: &str = "app://global-hotkey";
 
+/// 切歌事件名：与托盘菜单共用同一条通道（`crate::tray` 只在 Windows 编译，
+/// 这里写死字符串常量，避免 macOS / Linux 引用不存在的模块）。
+const EVENT_TRACK_ACTION: &str = "app://tray-action";
+
 /// 全局热键动作（与前端 ShortcutActionId 的子集对齐）
 pub const ACTION_PLAY_PAUSE: &str = "playPause";
 pub const ACTION_PREV: &str = "prev";
@@ -117,10 +121,10 @@ fn run_action(app: &AppHandle, action: &str) {
         }
         // 上一首 / 下一首需要解析直链，交给前端（与托盘菜单同一条路径）
         ACTION_PREV => {
-            let _ = app.emit(crate::tray::EVENT_ACTION, "previous");
+            let _ = app.emit(EVENT_TRACK_ACTION, "previous");
         }
         ACTION_NEXT => {
-            let _ = app.emit(crate::tray::EVENT_ACTION, "next");
+            let _ = app.emit(EVENT_TRACK_ACTION, "next");
         }
         _ => return,
     }

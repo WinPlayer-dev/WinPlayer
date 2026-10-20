@@ -1,16 +1,26 @@
 mod commands;
-#[cfg(desktop)]
+// 全局快捷键依赖的 crate 在移动端整体不编译（其源码头部有 #![cfg(not(android, ios))]），
+// 因此整个模块只在桌面端参与编译。
+#[cfg(winplayer_desktop)]
 mod global_shortcuts;
 mod player;
 mod smtc;
 #[cfg(windows)]
 mod tray;
 mod updater;
+// 窗口状态记忆只对桌面端有意义：移动端窗口由系统全屏托管，
+// 且 center / maximize / available_monitors 等都是 #[cfg(desktop)] 的 API。
+#[cfg(winplayer_desktop)]
+#[path = "window_state.rs"]
+mod window_state;
+#[cfg(not(winplayer_desktop))]
+#[path = "window_state_mobile.rs"]
 mod window_state;
 
 use tauri_plugin_sql::{Migration, MigrationKind};
-// 关闭拦截（托盘）：需要 `Manager` 提供的 `app_handle` / `get_webview_window`
-#[cfg(windows)]
+// 关闭拦截（Windows 托盘）与窗口状态事件都用到 `Manager`
+// 提供的 `app_handle` / `get_webview_window`，移动端用不到。
+#[cfg(any(windows, winplayer_desktop))]
 use tauri::Manager;
 
 fn db_migrations() -> Vec<Migration> {
@@ -40,13 +50,22 @@ fn db_migrations() -> Vec<Migration> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 主题资源协议（壁纸 / 字体 / 图片）与图片缓存协议同样是自定义异步协议
+    // `mut` 只在桌面端用得上（按平台补注册插件），移动端会提示多余。
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_opener::init());
+
+    // 系统级全局快捷键：crate 源码对整个移动端 `#![cfg(...)]` 掉，移动端连类型
+    // 都不存在，因此不能写在链式调用里，只能按平台补注册。
+    #[cfg(winplayer_desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
+    }
+
     let builder = commands::themes::register(commands::cache::register(
-        tauri::Builder::default()
-            .plugin(tauri_plugin_dialog::init())
-            .plugin(tauri_plugin_fs::init())
-            .plugin(tauri_plugin_opener::init())
-            // 系统级全局快捷键（桌面端；移动端由媒体通知/线控负责，不注册热键）
-            .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        builder
             // 安卓媒体控件（媒体通知/锁屏/线控），桌面端自动 no-op
             .plugin(tauri_plugin_media_session::init())
             // 安卓 APK 安装（自动更新），桌面端自动 no-op
@@ -136,7 +155,7 @@ pub fn run() {
                 window_state::restore(app.handle());
                 // 全局快捷键：先按默认值注册，前端读到设置后再覆盖
                 // （默认值与应用内快捷键不冲突，前端加载完成前也能用）
-                #[cfg(desktop)]
+                #[cfg(winplayer_desktop)]
                 crate::global_shortcuts::apply_defaults(app.handle());
                 Ok(())
             })
@@ -153,6 +172,8 @@ pub fn run() {
                 }
                 // 窗口状态记忆：拖动/缩放/最大化切换都会触发 Resized / Moved，
                 // 这里统一走防抖落盘；真正关闭前再同步写一次。
+                // 移动端窗口由系统托管，不需要记状态。
+                #[cfg(winplayer_desktop)]
                 if window.label() == "main" {
                     match event {
                         tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
@@ -161,7 +182,7 @@ pub fn run() {
                             }
                         }
                         tauri::WindowEvent::CloseRequested { .. } => {
-                            window_state::save_now(window.app_handle())
+                            window_state::save_now(window.app_handle());
                         }
                         _ => {}
                     }

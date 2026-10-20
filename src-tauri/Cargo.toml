@@ -43,6 +43,11 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 symphonia = { version = "0.5", features = ["mp3", "aac", "isomp4", "flac", "pcm", "vorbis", "ogg"] }
 rodio = { version = "0.20", default-features = false }
 rtrb = "0.3"
+
+# 系统级全局快捷键：crate 内部对整个移动端 `#![cfg(not(any(android, ios)))]`，
+# 必须在移动端排除，否则移动端连 use 都编译不过。
+# 写成「非 android 且非 ios」= 桌面端（Windows / macOS / Linux）。
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2.3.2"
 
 # 仅 Windows 平台生效的原生依赖（SMTC / 系统托盘 / 窗口材质）
