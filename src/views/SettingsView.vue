@@ -71,6 +71,34 @@ watch(
   { immediate: true },
 );
 
+/* ------------------------------ 移动端顶部 Tab 跟随选中项 ------------------------------ */
+
+/**
+ * 顶部横向分类 Tab：让当前分类自动滚到可视区中间。
+ *
+ * 这个容器是 overflow-x: auto 的横向滚动条，分类多达 8 个（移动端隐藏「快捷键」
+ * 后仍有 8 个），「下载与离线」「备份与还原」「关于」默认都在屏幕外。
+ * 从别的页面深链进来（?tab=about）或点了靠后的分类后，高亮项会停在屏幕外，
+ * 用户看不到「我现在在哪一栏」，只能盲滑去找。
+ *
+ * 用 scrollIntoView({ inline: "center" }) 而不是手工算 scrollLeft：
+ * 浏览器会把滚动限制在容器自身（block 方向指定 nearest，不会带动整页），
+ * 且天然处理宽窄不一的胶囊宽度。
+ */
+const tabsRef = ref<HTMLElement | null>(null);
+
+async function scrollActiveTabIntoView(): Promise<void> {
+  if (!isMobile) return;
+  await nextTick();
+  const active = tabsRef.value?.querySelector<HTMLElement>(".settings-tab-item.active");
+  active?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+}
+
+onMounted(() => void scrollActiveTabIntoView());
+
+// 切换分类后同样跟随：否则从「通用」点到「关于」，高亮项仍在屏幕外
+watch(activeTab, () => void scrollActiveTabIntoView());
+
 /* ------------------------------ 滑动选中药丸（与 SideNav 一致） ------------------------------ */
 
 const navPill = ref({ top: 0, visible: false });
@@ -140,7 +168,7 @@ watch(activeTab, async () => {
       </nav>
 
       <!-- 移动端：顶部横向滚动分类 Tab -->
-      <nav v-else class="settings-tabs" aria-label="设置分类">
+      <nav v-else ref="tabsRef" class="settings-tabs" aria-label="设置分类">
         <button
           v-for="category in categories"
           :key="category.key"
