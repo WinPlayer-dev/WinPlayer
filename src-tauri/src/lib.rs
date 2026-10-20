@@ -24,6 +24,12 @@ fn db_migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/002_offline.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "play history",
+            sql: include_str!("../migrations/003_history.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

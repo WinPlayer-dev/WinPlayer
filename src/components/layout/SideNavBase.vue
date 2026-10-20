@@ -230,6 +230,12 @@ function isActive(name: string): boolean {
           </router-link>
         </li>
         <li>
+          <router-link :to="{ name: 'history' }" class="nav-item" :class="{ active: isActive('history') }">
+            <span class="wp-icon nav-icon">&#xF2A1;</span>
+            <span class="nav-label">最近播放</span>
+          </router-link>
+        </li>
+        <li>
           <router-link :to="{ name: 'offline' }" class="nav-item" :class="{ active: isActive('offline') }">
             <span class="wp-icon nav-icon">&#xF151;</span>
             <span class="nav-label">离线音乐</span>

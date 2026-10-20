@@ -66,6 +66,10 @@ function onCloseBehaviorChange(_sender: unknown, payload: unknown): void {
 function onOptimizeToggle(event: { IsOn: boolean }): void {
   void settings.setBackgroundOptimize(Boolean(event?.IsOn));
 }
+
+function onHistoryToggle(event: { IsOn: boolean }): void {
+  void settings.setHistoryEnabled(Boolean(event?.IsOn));
+}
 </script>
 
 <template>
@@ -123,6 +127,22 @@ function onOptimizeToggle(event: { IsOn: boolean }): void {
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.smtcEnabled" @Toggled="onSmtcToggle" />
+      </WpCard>
+    </section>
+
+    <!-- 隐私 -->
+    <section class="settings-section">
+      <h2 class="settings-section-title">隐私</h2>
+
+      <WpCard variant="row">
+        <div class="card-content">
+          <div class="card-header">记录播放历史</div>
+          <div class="card-description">
+            记录每首歌的播放次数与最近播放时间，用于「最近播放」页与播放次数统计。关闭后不再写入新记录，
+            已有记录保留并可在该页清空
+          </div>
+        </div>
+        <ToggleSwitch :IsOn="settings.historyEnabled" @Toggled="onHistoryToggle" />
       </WpCard>
     </section>
 

@@ -39,6 +39,8 @@ export interface BackupPayload {
   playlists?: Array<Record<string, unknown>>;
   playlistTracks?: Array<Record<string, unknown>>;
   offlineSongs?: Array<Record<string, unknown>>;
+  /** 播放历史（最近播放 / 播放次数） */
+  playHistory?: Array<Record<string, unknown>>;
   /** 播放队列快照（player.queue 的 value 文本） */
   queue?: string | null;
 }
@@ -54,6 +56,7 @@ export interface ImportSummary {
   playlists: number;
   playlistTracks: number;
   offlineSongs: number;
+  playHistory: number;
   queue: boolean;
   skipped: string[];
 }
@@ -79,17 +82,21 @@ export async function collectBackup(options: ExportOptions = {}): Promise<Backup
       !row.key.startsWith(CACHE_PREFIX) && (includeCredentials || !isCredentialKey(row.key)),
   );
 
-  const [likedSongs, playlists, playlistTracks, offlineSongs, queue] = await Promise.all([
-    db.select<Array<Record<string, unknown>>>("select * from liked_songs order by id asc"),
-    db.select<Array<Record<string, unknown>>>("select * from playlists order by id asc"),
-    db.select<Array<Record<string, unknown>>>(
-      "select * from playlist_tracks order by playlist_id asc, position asc",
-    ),
-    db.select<Array<Record<string, unknown>>>(
-      "select * from offline_songs order by saved_at desc",
-    ),
-    getSetting<string | null>("player.queue", null),
-  ]);
+  const [likedSongs, playlists, playlistTracks, offlineSongs, playHistory, queue] =
+    await Promise.all([
+      db.select<Array<Record<string, unknown>>>("select * from liked_songs order by id asc"),
+      db.select<Array<Record<string, unknown>>>("select * from playlists order by id asc"),
+      db.select<Array<Record<string, unknown>>>(
+        "select * from playlist_tracks order by playlist_id asc, position asc",
+      ),
+      db.select<Array<Record<string, unknown>>>(
+        "select * from offline_songs order by saved_at desc",
+      ),
+      db.select<Array<Record<string, unknown>>>(
+        "select * from play_history order by last_played desc",
+      ),
+      getSetting<string | null>("player.queue", null),
+    ]);
 
   return {
     app: "WinPlayer",
@@ -101,6 +108,7 @@ export async function collectBackup(options: ExportOptions = {}): Promise<Backup
     playlists,
     playlistTracks,
     offlineSongs,
+    playHistory,
     queue: typeof queue === "string" ? queue : queue ? JSON.stringify(queue) : null,
   };
 }
@@ -184,6 +192,7 @@ export async function restoreBackup(payload: BackupPayload): Promise<ImportSumma
     playlists: 0,
     playlistTracks: 0,
     offlineSongs: 0,
+    playHistory: 0,
     queue: false,
     skipped: [],
   };
@@ -302,7 +311,33 @@ export async function restoreBackup(payload: BackupPayload): Promise<ImportSumma
     summary.offlineSongs += 1;
   }
 
-  // 6. 播放队列
+  // 6. 播放历史：按 (source_id, track_id) 合并，次数取两者较大值（避免重复导入翻倍）
+  for (const row of payload.playHistory ?? []) {
+    const sourceId = String(row.source_id ?? "");
+    const trackId = String(row.track_id ?? "");
+    const track = typeof row.track === "string" ? row.track : "";
+    if (!track) continue;
+    await db.execute(
+      `insert into play_history
+         (source_id, track_id, track, first_played, last_played, play_count)
+       values ($1, $2, $3, $4, $5, $6)
+       on conflict(source_id, track_id) do update set
+         first_played = min(first_played, $4),
+         last_played = max(last_played, $5),
+         play_count = max(play_count, $6)`,
+      [
+        sourceId,
+        trackId,
+        track,
+        Number(row.first_played ?? Date.now()),
+        Number(row.last_played ?? Date.now()),
+        Number(row.play_count ?? 1),
+      ],
+    );
+    summary.playHistory += 1;
+  }
+
+  // 7. 播放队列
   if (typeof payload.queue === "string" && payload.queue.trim()) {
     await setSetting("player.queue", JSON.parse(payload.queue));
     summary.queue = true;
@@ -319,6 +354,7 @@ export function describeImport(summary: ImportSummary): string {
   if (summary.playlists) parts.push(`${summary.playlists} 个歌单`);
   if (summary.playlistTracks) parts.push(`${summary.playlistTracks} 首歌单曲目`);
   if (summary.offlineSongs) parts.push(`${summary.offlineSongs} 条离线索引`);
+  if (summary.playHistory) parts.push(`${summary.playHistory} 条播放历史`);
   if (summary.queue) parts.push("播放队列");
   return parts.length ? `已恢复：${parts.join("、")}` : "备份里没有可恢复的内容";
 }

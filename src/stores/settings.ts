@@ -85,6 +85,8 @@ export const useSettingsStore = defineStore("settings", () => {
   const hapticsEnabled = ref(true);
   /** 是否跟随当前播放封面提取主色作为应用强调色 */
   const coverAccent = ref(false);
+  /** 是否记录播放历史（关闭后不再写库，已有数据保留） */
+  const historyEnabled = ref(true);
   /** 缓存项策略：歌单（页面数据）/ 图片缓存开关组合 */
   const cachePolicy = ref<CachePolicy>("both");
   /** 下载目录（绝对路径；空串 = 使用平台默认目录） */
@@ -181,6 +183,8 @@ export const useSettingsStore = defineStore("settings", () => {
     await import("@/services/tray").then(({ setCloseBehavior }) => setCloseBehavior(closeBehavior.value));
     hapticsEnabled.value = await getSetting<boolean>("settings.hapticsEnabled", true);
     coverAccent.value = await getSetting<boolean>("settings.coverAccent", false);
+    historyEnabled.value = await getSetting<boolean>("settings.historyEnabled", true);
+    applyHistoryEnabled();
     cachePolicy.value = await getSetting<CachePolicy>("settings.cachePolicy", "both");
     downloadDir.value = await getSetting<string>("settings.downloadDir", "");
     downloadNameTemplate.value = await getSetting<string>(
@@ -251,6 +255,21 @@ export const useSettingsStore = defineStore("settings", () => {
   async function setCoverAccent(value: boolean): Promise<void> {
     coverAccent.value = value;
     await setSetting("settings.coverAccent", value);
+  }
+
+  /* ------------------------------ 播放历史 ------------------------------ */
+
+  /** 把开关同步给 history store（store 内部据此短路写入） */
+  function applyHistoryEnabled(): void {
+    void import("./history").then(({ useHistoryStore }) =>
+      useHistoryStore().setEnabled(historyEnabled.value),
+    );
+  }
+
+  async function setHistoryEnabled(value: boolean): Promise<void> {
+    historyEnabled.value = value;
+    applyHistoryEnabled();
+    await setSetting("settings.historyEnabled", value);
   }
 
   async function setMarketSources(value: MarketSource[]): Promise<void> {
@@ -419,6 +438,7 @@ export const useSettingsStore = defineStore("settings", () => {
     backgroundOptimize,
     hapticsEnabled,
     coverAccent,
+    historyEnabled,
     marketSources,
     githubMirror,
     smtcEnabled,
@@ -451,6 +471,7 @@ export const useSettingsStore = defineStore("settings", () => {
     setBackgroundOptimize,
     setHaptics,
     setCoverAccent,
+    setHistoryEnabled,
     setMarketSources,
     setGithubMirror,
     setSmtcEnabled,

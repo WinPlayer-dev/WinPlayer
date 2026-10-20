@@ -24,6 +24,7 @@ import { usePluginsStore } from "@/stores/plugins";
 import { useLibraryStore } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
 import { useDownloadsStore } from "@/stores/downloads";
+import { useHistoryStore } from "@/stores/history";
 import { useShortcutsStore } from "@/stores/shortcuts";
 import { useUpdaterStore } from "@/stores/updater";
 import { disposeSmtc, initSmtc, setSmtcEnabled } from "@/services/smtc";
@@ -41,6 +42,7 @@ const plugins = usePluginsStore();
 const library = useLibraryStore();
 const player = usePlayerStore();
 const downloads = useDownloadsStore();
+const history = useHistoryStore();
 const shortcuts = useShortcutsStore();
 const updater = useUpdaterStore();
 const isMobile = useIsMobile();
@@ -77,6 +79,8 @@ const stopOptimizeWatch = watch(
 onMounted(async () => {
   await settings.load();
   await Promise.all([library.loadAll(), player.restore(), shortcuts.load()]);
+  // 播放历史：只读一次库，供「最近播放」页与 SongTable 的播放次数列使用
+  void history.load();
   await plugins.loadInstalled();
   // 主题只依赖设置与本地文件，尽早恢复且不阻塞后续初始化（失败会静默回退默认外观）
   void themes.init();

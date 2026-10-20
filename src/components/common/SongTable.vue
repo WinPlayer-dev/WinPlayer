@@ -9,6 +9,7 @@ import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
 import { usePluginsStore } from "@/stores/plugins";
 import { useDownloadsStore } from "@/stores/downloads";
+import { useHistoryStore } from "@/stores/history";
 import { openContextMenu, openContextMenuAt, type ContextMenuItem } from "@/services/contextMenu";
 import { useLongPress } from "@/composables/useLongPress";
 import CachedImage from "@/components/common/CachedImage.vue";
@@ -27,12 +28,15 @@ const props = withDefaults(
     emptyText?: string;
     /** 是否允许拖拽排序（自建歌单详情页开启） */
     reorderable?: boolean;
+    /** 是否显示播放次数列（历史页 / 常听页开启） */
+    showPlayCount?: boolean;
   }>(),
   {
     showSource: false,
     removable: false,
     emptyText: "暂无歌曲",
     reorderable: false,
+    showPlayCount: false,
   },
 );
 
@@ -46,6 +50,7 @@ const player = usePlayerStore();
 const library = useLibraryStore();
 const plugins = usePluginsStore();
 const downloads = useDownloadsStore();
+const history = useHistoryStore();
 const router = useRouter();
 /** 移动端判定：决定走卡片式两行布局、单击播放等交互 */
 const isMobile = useIsMobile();
@@ -92,6 +97,7 @@ const rows = computed(() =>
       : "",
     artists: artistCells(track),
     album: albumCell(track),
+    playCount: props.showPlayCount ? history.countOf(track) : 0,
   })),
 );
 
@@ -330,6 +336,7 @@ function onTouchDragUp(): void {
       <span class="col-artist">艺术家</span>
       <span class="col-album">专辑</span>
       <span v-if="showSource" class="col-source">来源</span>
+      <span v-if="showPlayCount" class="col-plays">播放</span>
       <span class="col-actions"></span>
       <span class="col-duration">时长</span>
     </div>
@@ -424,6 +431,8 @@ function onTouchDragUp(): void {
         <template v-else>{{ row.album?.name ?? "" }}</template>
       </span>
       <span v-if="showSource" class="col-source ellipsis">{{ row.sourceName }}</span>
+      <!-- 播放次数：只在历史类列表展示，未播过时留空避免整列都是 0 -->
+      <span v-if="showPlayCount" class="col-plays">{{ row.playCount || "" }}</span>
       <span class="col-actions">
         <button
           class="row-action like-action"
@@ -721,6 +730,16 @@ function onTouchDragUp(): void {
   font-variant-numeric: tabular-nums;
 }
 
+/* 播放次数列：与时长列同宽，右对齐等宽数字，便于纵向扫读 */
+.col-plays {
+  width: 44px;
+  flex: none;
+  text-align: right;
+  color: var(--wp-text-tertiary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 .ellipsis {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -765,6 +784,7 @@ function onTouchDragUp(): void {
 .song-table.is-mobile .col-index,
 .song-table.is-mobile .col-album,
 .song-table.is-mobile .col-source,
+.song-table.is-mobile .col-plays,
 .song-table.is-mobile .col-duration {
   display: none;
 }

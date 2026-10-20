@@ -77,6 +77,12 @@ function selectQuality(value: string): void {
   showQuality.value = false;
 }
 
+/** 打开最近播放页并逐层收起浮层 */
+function openHistory(): void {
+  showMore.value = false;
+  void router.push({ name: "history" });
+}
+
 /** 打开离线音乐页并逐层收起浮层 */
 function openOffline(): void {
   showMore.value = false;
@@ -858,6 +864,11 @@ onBeforeUnmount(() => {
                   <span class="wp-icon more-row-icon">&#xF2CE;</span>
                   <span class="more-row-label">播放音质</span>
                   <span class="more-row-value">{{ qualityLabel }}</span>
+                  <span class="wp-icon more-row-chevron">&#xF2B0;</span>
+                </button>
+                <button class="more-row" @click="openHistory">
+                  <span class="wp-icon more-row-icon">&#xF2A1;</span>
+                  <span class="more-row-label">最近播放</span>
                   <span class="wp-icon more-row-chevron">&#xF2B0;</span>
                 </button>
                 <button class="more-row" @click="openOffline">

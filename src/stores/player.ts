@@ -15,6 +15,7 @@ import { toast } from "@/services/toast";
 import { hapticTap } from "@/services/haptics";
 import { usePluginsStore } from "./plugins";
 import { useDownloadsStore } from "./downloads";
+import { useHistoryStore } from "./history";
 import { createQueueUid, type LyricLine, type PlayMode, type QueueItem } from "@/types/player";
 import type { UnifiedTrack } from "@/types/plugin";
 
@@ -24,6 +25,7 @@ export const usePlayerStore = defineStore("player", () => {
   const engine = getAudioEngine();
   const plugins = usePluginsStore();
   const downloads = useDownloadsStore();
+  const history = useHistoryStore();
 
   const queue = ref<QueueItem[]>([]);
   const currentIndex = ref(-1);
@@ -157,6 +159,7 @@ export const usePlayerStore = defineStore("player", () => {
     idleSince = 0;
     // 只有真正出过一次声才清零重试计数，避免"刚 load 就失败"把计数吃掉
     retryCount = 0;
+    recordPlayOnce();
   });
   engine.on("paused", () => {
     playing.value = false;
@@ -205,6 +208,26 @@ export const usePlayerStore = defineStore("player", () => {
 
   // 定时器由 services/sleepTimer 持有，这里只注册"到点后做什么"
   setSleepStopHandler(stopForSleepTimer);
+
+  /* ------------------------------ 播放历史 ------------------------------ */
+
+  /**
+   * 本次「加载」是否已经记过播放。
+   *
+   * `playing` 事件在一次加载里可能因为暂停/继续、缓冲恢复而多次触发，
+   * 而播放次数应该按"一首歌被播放一次"记，所以用这个标记按加载周期去重；
+   * 每次 playAt / playUrlAt / handleAdvanced / adoptIndex 重新置位。
+   */
+  let playRecorded = false;
+
+  /** 当前曲目记一次播放（同一加载周期内只记一次） */
+  function recordPlayOnce(): void {
+    if (playRecorded) return;
+    const track = currentTrack.value;
+    if (!track) return;
+    playRecorded = true;
+    void history.recordPlay(track);
+  }
 
   /* ------------------------------ 播放失败自动恢复 ------------------------------ */
 
@@ -296,6 +319,7 @@ export const usePlayerStore = defineStore("player", () => {
     console.log(`[player] 播放请求 #${index}: ${track.sourceId}:${track.id} 《${track.name}》`);
     loading.value = true;
     retryCount = 0; // 换曲即重置自动重试预算
+    playRecorded = false; // 新的一次加载：允许重新记一次播放
     try {
       const url = await resolvePlayUrl(track);
       if (currentIndex.value !== index) return; // 解析期间用户已切歌
@@ -599,6 +623,10 @@ export const usePlayerStore = defineStore("player", () => {
     duration.value = item.track.duration ? item.track.duration / 1000 : 0;
     playing.value = true;
     loading.value = false;
+    // 后台期间引擎已经把这首播起来了（advanced 事件在前端挂起时丢失）：
+    // 这里补记一次历史，并把本加载周期标记为已记录，避免后续 playing 事件重复计数
+    playRecorded = false;
+    recordPlayOnce();
     await fetchLyrics(item.track);
     persistQueue();
   }
@@ -690,6 +718,8 @@ export const usePlayerStore = defineStore("player", () => {
     if (!item) return;
     currentIndex.value = index;
     loadedTrackKey = trackUid(item.track);
+    // 引擎无缝衔接到了新曲：属于新的一次播放，重新记一次历史
+    playRecorded = false;
     currentTime.value = 0;
     enginePosition = 0;
     duration.value = item.track.duration ? item.track.duration / 1000 : 0;
@@ -721,6 +751,7 @@ export const usePlayerStore = defineStore("player", () => {
     currentIndex.value = index;
     const item = queue.value[index];
     loading.value = true;
+    playRecorded = false; // 新的一次加载：允许重新记一次播放
     loadedTrackKey = trackUid(item.track);
     duration.value = item.track.duration ? item.track.duration / 1000 : 0;
     currentTime.value = 0;

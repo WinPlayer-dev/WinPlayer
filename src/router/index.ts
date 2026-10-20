@@ -38,6 +38,12 @@ const router = createRouter({
       meta: { title: "离线音乐" },
     },
     {
+      path: "/history",
+      name: "history",
+      component: () => import("@/views/HistoryView.vue"),
+      meta: { title: "最近播放" },
+    },
+    {
       path: "/playlist/:id",
       name: "playlist",
       component: () => import("@/views/PlaylistView.vue"),
