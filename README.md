@@ -14,8 +14,7 @@
 
 预览图
 
-![首页](./docs/imgs/PixPin_2026-10-15_19-34-38.png)
-![歌单](./docs/imgs/PixPin_2026-10-15_19-35-17.png)
+![歌单](./docs/imgs/PixPin_2026-10-20_19-26-38.png)
 
 </div>
 
