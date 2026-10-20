@@ -15,6 +15,7 @@ import { pluginDisplayName, usePluginsStore, type AggregatedSourceResult, type A
 import { openContextMenuAt } from "@/services/contextMenu";
 import { openImportDialog } from "@/services/playlistIO";
 import { useRefreshable } from "@/composables/useRefreshable";
+import { useLongPress } from "@/composables/useLongPress";
 import type { UnifiedPlaylist } from "@/types/plugin";
 import CachedImage from "@/components/common/CachedImage.vue";
 
@@ -144,43 +145,18 @@ async function openCreateDialog() {
 
 /* ------------------------------ 长按菜单 ------------------------------ */
 
-let pressTimer: number | null = null;
-let pressPoint = { x: 0, y: 0 };
-let longPressFired = false;
+/**
+ * 歌单长按菜单。
+ *
+ * 这里以前自己写了一套 touchstart + 500ms 定时器 + 全局 longPressFired 抑制：
+ * 没有震动反馈，且抑制是「整个页面吞掉下一次 click」，长按后马上点别的歌单会被吃掉。
+ * 统一改用 useLongPress：非鼠标指针才生效、触发时震动，并且只抑制长按目标元素
+ * 内部补发的 click / contextmenu，其它位置的点击照常放行。
+ */
+const longPress = useLongPress();
 
-function cancelPress() {
-  if (pressTimer !== null) {
-    window.clearTimeout(pressTimer);
-    pressTimer = null;
-  }
-}
-
-function onItemTouchStart(event: TouchEvent, playlist: LocalPlaylist) {
-  const touch = event.touches[0];
-  if (!touch) return;
-  pressPoint = { x: touch.clientX, y: touch.clientY };
-  longPressFired = false;
-  cancelPress();
-  pressTimer = window.setTimeout(() => {
-    pressTimer = null;
-    longPressFired = true;
-    openPlaylistMenu(pressPoint.x, pressPoint.y, playlist);
-  }, 500);
-}
-
-function onItemTouchMove(event: TouchEvent) {
-  const touch = event.touches[0];
-  if (!touch || pressTimer === null) return;
-  if (
-    Math.abs(touch.clientX - pressPoint.x) > 10 ||
-    Math.abs(touch.clientY - pressPoint.y) > 10
-  ) {
-    cancelPress();
-  }
-}
-
-function onItemTouchEnd() {
-  cancelPress();
+function onItemPressDown(event: PointerEvent, playlist: LocalPlaylist) {
+  longPress.start(event, (point) => openPlaylistMenu(point.x, point.y, playlist));
 }
 
 async function playPlaylist(playlist: LocalPlaylist) {
@@ -231,11 +207,8 @@ async function openDeleteDialog(playlist: LocalPlaylist) {
 }
 
 function onPlaylistClick(playlist: LocalPlaylist) {
-  // 长按菜单触发后的合成 click 不导航
-  if (longPressFired) {
-    longPressFired = false;
-    return;
-  }
+  // 长按菜单触发后浏览器补发的 click 已由 useLongPress 在捕获阶段拦下，
+  // 这里不再需要 longPressFired 之类的页面级标志。
   void router.push({ name: "playlist", params: { id: playlist.id } });
 }
 </script>
@@ -299,10 +272,11 @@ function onPlaylistClick(playlist: LocalPlaylist) {
         <button
           class="playlist-item"
           @click="onPlaylistClick(playlist)"
-          @touchstart.passive="onItemTouchStart($event, playlist)"
-          @touchmove.passive="onItemTouchMove($event)"
-          @touchend="onItemTouchEnd"
-          @touchcancel="onItemTouchEnd"
+          @pointerdown="onItemPressDown($event, playlist)"
+          @pointermove="longPress.move"
+          @pointerup="longPress.end"
+          @pointercancel="longPress.end"
+          @pointerleave="longPress.end"
         >
           <span class="wp-icon playlist-icon">&#xF4EE;</span>
           <span class="playlist-name ellipsis">{{ playlist.name }}</span>
