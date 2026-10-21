@@ -69,6 +69,11 @@ my-plugin/
 `settings` 支持的 `type`：`text` / `password` / `number` / `switch` / `select`。
 用户填写的值会以 `ctx.settings` 传入插件。
 
+> **音质档位**：`quality` 下拉的选项即该来源支持的全部档位，宿主会按它们生成
+> 「高 → 低」的降级链（顺序参照 `hires` > `dolby` > `lossless` > `exhigh` >
+> `higher` > `standard`），取不到当前档位时自动往下试，不需要插件自己实现降级。
+> 插件只需在 `getSongUrl` 里把 `params.quality` 映射到自己的码率即可。
+
 ## 插件模块接口
 
 入口文件**默认导出**一个实现以下接口的对象（ESM `export default {...}`，兼容 `module.exports = {...}`）：
@@ -104,6 +109,9 @@ export default {
       url: "https://.../song.mp3",
       quality: "standard",
       headers: { Referer: "https://www.bilibili.com/" },
+      // 编码如实上报即可（aac / flac / ec-3 …）：宿主有自己的解码能力表，
+      // 解不了的档位会自动降级到下一档，插件不用自己判断能不能播
+      codec: "aac",
     };
     // 无法获取时返回 null
   },

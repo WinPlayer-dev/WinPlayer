@@ -10,7 +10,7 @@ import { cachedImgUrl } from "@/services/imageCache";
 import { httpFetchJson } from "@/services/proxy";
 import { toast } from "@/services/toast";
 import { applyGithubMirror, resolveAssetUrl } from "@/services/githubMirror";
-import { QUALITY_DESCENT, QUALITY_SETTING_KEY } from "@/services/quality";
+import { QUALITY_SETTING_KEY, qualityChainOf } from "@/services/quality";
 import { rememberMediaHeaders } from "@/services/audio";
 import { useSettingsStore } from "@/stores/settings";
 import type {
@@ -50,6 +50,16 @@ export interface AggregatedSourceResult<T> {
   result: T | null;
   error?: string;
 }
+
+/**
+ * 原生解码器（symphonia）能解的音频编码，与 `src-tauri/Cargo.toml` 里
+ * symphonia 的 features 对齐（mp3 / aac / flac / pcm / vorbis）。
+ *
+ * 音源可能给出编码更高级的直链（如杜比全景声的 `ec-3`），但下载得了不等于
+ * 播得出来。插件只负责如实上报 `codec`，能不能播由这里裁决：不在表里的档位
+ * 直接算作本档不可用，继续沿降级链往下走，而不是把解码失败抛给用户。
+ */
+const DECODABLE_CODECS = new Set(["aac", "flac", "mp3", "vorbis", "pcm"]);
 
 /** 插件提供的头像（能力：avatar，含来源，供界面展示提示） */
 export interface AppAvatar {
@@ -433,16 +443,25 @@ export const usePluginsStore = defineStore("plugins", () => {
     id: string,
   ): Promise<SongUrlResult> {
     const current = currentQualityOf(sourceId);
-    const known = QUALITY_DESCENT as readonly string[];
-    const start = known.indexOf(current);
+    const record = records.value.find((entry) => entry.entry.id === sourceId);
+    // 降级链来自插件自己声明的档位：插件加了新档位（杜比 / 无损等）宿主自动跟上
+    const chain = qualityChainOf(record, current);
     // 未识别的档位（自定义插件值）：只请求它本身，不猜降级链
-    const candidates: Array<string | undefined> =
-      start >= 0 ? known.slice(start) : current ? [current] : [undefined];
+    const candidates: Array<string | undefined> = chain.length ? chain : current ? [current] : [undefined];
     let lastError: unknown = null;
     for (const [index, quality] of candidates.entries()) {
       try {
         const result = await host.invoke<SongUrlResult>("getSongUrl", { id, quality });
         if (result?.url) {
+          const codec = String(result.codec ?? "").trim().toLowerCase();
+          if (codec && !DECODABLE_CODECS.has(codec)) {
+            // 音源拿到了这一档，但原生解码器解不了：当作本档不可用，继续降级
+            lastError = new Error(`当前解码器不支持 ${codec} 编码`);
+            console.warn(
+              `[plugins] ${sourceId} 音质 ${quality ?? "默认"} 的编码 ${codec} 原生解码器不支持，自动降级`,
+            );
+            continue;
+          }
           // 防盗链直链：把插件声明的请求头记到 URL 上，播放/预载/播放链自动带上
           rememberMediaHeaders(result.url, result.headers);
           if (index > 0) {

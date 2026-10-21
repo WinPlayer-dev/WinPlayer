@@ -23,10 +23,11 @@ export const QUALITY_SETTING_KEY = "quality";
 /**
  * 从高到低的降级顺序。
  *
- * 与其他音源协议的常见命名保持一致：lossless（无损）→ exhigh（极高/320K）→
- * higher（较高/192K）→ standard（标准/128K）。插件选项里没有的档位会被跳过。
+ * 与其他音源协议的常见命名保持一致：hires（Hi-Res 无损）→ dolby（杜比全景声）→
+ * lossless（无损）→ exhigh（极高）→ higher（较高）→ standard（标准）。
+ * 插件选项里没有的档位会被跳过，实际降级链见 [`qualityChainOf`]。
  */
-export const QUALITY_DESCENT = ["lossless", "exhigh", "higher", "standard"] as const;
+export const QUALITY_DESCENT = ["hires", "dolby", "lossless", "exhigh", "higher", "standard"] as const;
 
 /** 一档可选音质 */
 export interface QualityOption {
@@ -63,6 +64,30 @@ export function qualitySupportOf(record: PluginRecord | undefined): QualitySuppo
     options: item.options.map((option) => ({ value: option.value, label: option.label })),
     current: current || item.options[0].value,
   };
+}
+
+/**
+ * 某来源从当前档位起的降级候选链（含自身，按高→低）。
+ *
+ * 候选来自**该插件自己声明的 quality 选项**（顺序按 [`QUALITY_DESCENT`] 归一），
+ * 因此新增档位（杜比 / 无损等）只需改插件 manifest，宿主无需跟着改；插件没声明
+ * quality 或当前值不在声明里时返回空数组，由调用方决定「只请求它自己」。
+ */
+export function qualityChainOf(record: PluginRecord | undefined, current: string): string[] {
+  const declared = (record?.entry.manifest.settings ?? [])
+    .find((entry) => entry.key === QUALITY_SETTING_KEY && entry.type === "select")
+    ?.options?.map((option) => option.value);
+  const pool = declared?.length ? declared : [...QUALITY_DESCENT];
+  const rank = (value: string) => {
+    const index = (QUALITY_DESCENT as readonly string[]).indexOf(value);
+    return index >= 0 ? index : QUALITY_DESCENT.length; // 未登记档位排在最后，保持声明顺序
+  };
+  const ordered = pool
+    .map((value, index) => ({ value, index }))
+    .sort((a, b) => rank(a.value) - rank(b.value) || a.index - b.index)
+    .map((item) => item.value);
+  const start = ordered.indexOf(current);
+  return start >= 0 ? ordered.slice(start) : [];
 }
 
 /**
