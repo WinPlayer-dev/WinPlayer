@@ -74,6 +74,10 @@ function onHistoryToggle(event: { IsOn: boolean }): void {
   void settings.setHistoryEnabled(Boolean(event?.IsOn));
 }
 
+function onAggregateSearchToggle(event: { IsOn: boolean }): void {
+  void settings.setAggregateSearch(Boolean(event?.IsOn));
+}
+
 function onRememberWindowToggle(event: { IsOn: boolean }): void {
   void settings.setRememberWindowState(Boolean(event?.IsOn));
 }
@@ -163,6 +167,22 @@ async function resetWindow(): Promise<void> {
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.smtcEnabled" @Toggled="onSmtcToggle" />
+      </WpCard>
+    </section>
+
+    <!-- 搜索 -->
+    <section class="settings-section">
+      <h2 class="settings-section-title">搜索</h2>
+
+      <WpCard variant="row">
+        <div class="card-content">
+          <div class="card-header">聚合搜索</div>
+          <div class="card-description">
+            开启后搜索页在插件 Tab 前多出一个「全部」Tab，把所有插件的搜索结果交错融合展示；
+            关闭后搜索页只有插件 Tab，切到哪个 Tab 才搜索哪个插件
+          </div>
+        </div>
+        <ToggleSwitch :IsOn="settings.aggregateSearch" @Toggled="onAggregateSearchToggle" />
       </WpCard>
     </section>
 

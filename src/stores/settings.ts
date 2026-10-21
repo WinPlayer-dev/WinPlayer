@@ -54,6 +54,11 @@ export const useSettingsStore = defineStore("settings", () => {
   const githubMirror = ref("");
   /** 是否启用系统媒体传输控件（SMTC，仅 Windows） */
   const smtcEnabled = ref(true);
+  /**
+   * 聚合搜索：开启后搜索页在插件 Tab 之外多出一个「全部」Tab，
+   * 把各插件结果交错融合展示；关闭后每个 Tab 只搜自己那一个插件。
+   */
+  const aggregateSearch = ref(true);
   /** 歌曲信息源（插件 ID，空串为默认）：搜索结果聚合时置顶 */
   const trackSourceId = ref<SourcePreference>("");
   /** 播放源（插件 ID，空串为默认）：播放时按搜索格式在该插件重新搜曲并取其直链 */
@@ -170,6 +175,7 @@ export const useSettingsStore = defineStore("settings", () => {
     marketSources.value = await getSetting<MarketSource[]>("settings.marketSources", []);
     githubMirror.value = await getSetting<string>("settings.githubMirror", "");
     smtcEnabled.value = await getSetting("settings.smtcEnabled", true);
+    aggregateSearch.value = await getSetting<boolean>("settings.aggregateSearch", true);
     trackSourceId.value = await getSetting<SourcePreference>("settings.trackSourceId", "");
     playSourceId.value = await getSetting<SourcePreference>("settings.playSourceId", "");
     lyricsSourceId.value = await getSetting<SourcePreference>("settings.lyricsSourceId", "");
@@ -314,6 +320,12 @@ export const useSettingsStore = defineStore("settings", () => {
   async function setSmtcEnabled(value: boolean): Promise<void> {
     smtcEnabled.value = value;
     await setSetting("settings.smtcEnabled", value);
+  }
+
+  /** 切换聚合搜索：只影响搜索页是否出现「全部」Tab，不改变任何插件状态 */
+  async function setAggregateSearch(value: boolean): Promise<void> {
+    aggregateSearch.value = value;
+    await setSetting("settings.aggregateSearch", value);
   }
 
   /** 切换缓存项策略：立即清除新被关闭类型的已有缓存 */
@@ -473,6 +485,7 @@ export const useSettingsStore = defineStore("settings", () => {
     marketSources,
     githubMirror,
     smtcEnabled,
+    aggregateSearch,
     cachePolicy,
     downloadDir,
     downloadNameTemplate,
@@ -508,6 +521,7 @@ export const useSettingsStore = defineStore("settings", () => {
     setMarketSources,
     setGithubMirror,
     setSmtcEnabled,
+    setAggregateSearch,
     setCachePolicy,
     setDownloadDir,
     setDownloadNameTemplate,

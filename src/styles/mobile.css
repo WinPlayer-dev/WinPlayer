@@ -109,6 +109,14 @@
   justify-content: center;
 }
 
+/* 搜索页一级 Tab（来源胶囊）：30 → 36。容器是横向滚动区，不能用伪元素外扩命中区，
+   因此直接加高胶囊本体。 */
+.wp-page.is-mobile .source-tab {
+  height: 36px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
 /* ------------------------------ 歌手页横幅 ------------------------------ */
 .wp-page.is-mobile .banner-content {
   flex-direction: column;

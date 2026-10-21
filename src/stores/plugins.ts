@@ -261,39 +261,32 @@ export const usePluginsStore = defineStore("plugins", () => {
 
   /* ------------------------------ 聚合调用 ------------------------------ */
 
-  /** 聚合搜索：并发调用所有启用且支持搜索的插件；配置了歌曲信息源时其结果置顶 */
-  async function searchAll(keyword: string): Promise<AggregatedSourceResult<SearchResult>[]> {
-    const targets = enabledRecords.value.filter((r) => hasCapability(r, "search"));
-    const results = await Promise.all(
-      targets.map(async (record): Promise<AggregatedSourceResult<SearchResult>> => {
-        try {
-          const host = await getHost(record.entry.id);
-          const result = await host.invoke<SearchResult>("search", { keyword, page: 1 });
-          return { record, result: normalizeSearchResult(result, record.entry.id) };
-        } catch (error) {
-          return { record, result: null, error: error instanceof Error ? error.message : String(error) };
-        }
-      }),
-    );
-    return sortByPreferredSource(results, settingsStore.trackSourceId);
-  }
-
   /**
-   * 按类型聚合搜索（专辑 / 歌手 Tab 用）。
+   * 按来源搜索：只调用传入的插件（顺序即 Tab 顺序），失败的来源以 error 返回而不抛错。
    *
-   * 与 searchAll 不同：searchAll 固定拉单曲+歌单（搜索页默认 Tab），而搜索页只有在用户
-   * 首次点开「专辑」「歌手」Tab 时才调用本方法，避免每次搜索都多发两个请求。
+   * - `type` 省略：插件返回单曲 + 歌单（一次请求覆盖两个 Tab，省一次往返）
+   * - `type` = album / artist：单独请求该类型
+   *
+   * 搜索页每个插件 Tab 只把自己的 id 传进来（切到哪个 Tab 才搜哪个插件）；
+   * 「全部」Tab 才把所有权重一起传入做聚合。
    */
-  async function searchByType(
+  async function searchSources(
+    pluginIds: string[],
     keyword: string,
-    type: "album" | "artist",
+    type?: "song" | "playlist" | "album" | "artist",
   ): Promise<AggregatedSourceResult<SearchResult>[]> {
-    const targets = enabledRecords.value.filter((r) => hasCapability(r, "search"));
+    const targets = pluginIds
+      .map((id) => enabledRecords.value.find((r) => r.entry.id === id))
+      .filter(
+        (record): record is PluginRecord =>
+          record !== undefined && hasCapability(record, "search"),
+      );
     const results = await Promise.all(
       targets.map(async (record): Promise<AggregatedSourceResult<SearchResult>> => {
         try {
           const host = await getHost(record.entry.id);
-          const result = await host.invoke<SearchResult>("search", { keyword, type, page: 1 });
+          const params = type ? { keyword, type, page: 1 } : { keyword, page: 1 };
+          const result = await host.invoke<SearchResult>("search", params);
           return { record, result: normalizeSearchResult(result, record.entry.id) };
         } catch (error) {
           return { record, result: null, error: error instanceof Error ? error.message : String(error) };
@@ -835,8 +828,7 @@ export const usePluginsStore = defineStore("plugins", () => {
     installFromUrl,
     uninstall,
     disposeAll,
-    searchAll,
-    searchByType,
+    searchSources,
     recommendAll,
     getSongUrl,
     getLyrics,
