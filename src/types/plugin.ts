@@ -121,6 +121,7 @@ export interface UnifiedPlaylist {
   description?: string;
   trackCount?: number;
   creator?: string;
+  pinned?: boolean;
   sourceId?: string;
 }
 

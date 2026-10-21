@@ -63,3 +63,6 @@ mobile_todolist.md
 .playwright/*.png
 
 src/themes/
+
+.workbuddy/
+.vscode/

@@ -65,6 +65,7 @@ interface PlatformNavItem {
   playlistId: string;
   name: string;
   sourceName: string;
+  pinned: boolean;
 }
 
 const platformGroups = ref<AggregatedSourceResult<UnifiedPlaylist[]>[]>([]);
@@ -80,10 +81,12 @@ const platformItems = computed<PlatformNavItem[]>(() => {
         playlistId: p.id,
         name: p.name,
         sourceName: group.record.entry.manifest.name,
+        pinned: Boolean(p.pinned),
       });
     }
   }
-  return items;
+  // 与侧边栏一致：pinned 的系统歌单（如网易云「每日日推」）排在最前面
+  return items.sort((a, b) => Number(b.pinned) - Number(a.pinned));
 });
 
 const platformErrors = computed(() =>

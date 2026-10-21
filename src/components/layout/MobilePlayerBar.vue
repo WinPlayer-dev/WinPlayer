@@ -185,6 +185,24 @@ const lyricRows = computed(() =>
   }),
 );
 
+/** 上一次「已确定」的纯封面判定，仅在歌词加载空窗期复用 */
+const lastCoverOnly = ref(false);
+
+/**
+ * 纯封面版式：歌词已加载结束且确实没有歌词时，把封面与标题放大填满中区，
+ * 避免只留一句「暂无歌词」导致大面积空白。
+ * 「歌词加载中」不算在内——加载期间保持原版式，歌词到达后要么正常上滚、要么平滑放大。
+ */
+const coverOnlyMode = computed(() => {
+  // 切歌空窗期沿用上一次的判定：上一首没歌词就别先缩回去再放大（避免来回抖）
+  if (player.lyricsLoading) return lastCoverOnly.value;
+  return lyricRows.value.length === 0;
+});
+
+watch(coverOnlyMode, (value) => {
+  lastCoverOnly.value = value;
+});
+
 /** 模糊/渐隐的作用范围（行数）：约等于歌词视口能显示的行数 */
 const FOCUS_SPAN = 9;
 
@@ -724,7 +742,7 @@ onBeforeUnmount(() => {
       <div
         v-if="showFull"
         class="full-player"
-        :class="{ 'is-gesturing': armed || animating }"
+        :class="{ 'is-gesturing': armed || animating, 'is-cover-only': coverOnlyMode }"
         :style="sheetStyle"
         @touchstart.passive="onSheetStart"
         @touchmove="onSheetMove"
@@ -1295,6 +1313,13 @@ onBeforeUnmount(() => {
 
 .full-top {
   flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* 无歌词时这一块会撑满中区，与歌词区的收起同步过渡 */
+  transition:
+    flex-grow var(--duration-slow) var(--ease-standard),
+    flex-basis var(--duration-slow) var(--ease-standard);
 }
 
 .full-header {
@@ -1352,6 +1377,9 @@ onBeforeUnmount(() => {
   align-items: stretch;
   gap: var(--space-lg);
   padding: var(--space-xs) var(--space-xl) var(--space-md);
+  transition:
+    padding var(--duration-slow) var(--ease-standard),
+    gap var(--duration-slow) var(--ease-standard);
 }
 
 .full-cover {
@@ -1365,6 +1393,11 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  transition:
+    width var(--duration-slow) var(--ease-standard),
+    height var(--duration-slow) var(--ease-standard),
+    border-radius var(--duration-slow) var(--ease-standard),
+    box-shadow var(--duration-slow) var(--ease-standard);
 }
 
 .full-cover-img {
@@ -1376,6 +1409,7 @@ onBeforeUnmount(() => {
 .full-cover-placeholder {
   font-size: 20px;
   color: rgba(255, 255, 255, 0.3);
+  transition: font-size var(--duration-slow) var(--ease-standard);
 }
 
 .full-meta {
@@ -1384,6 +1418,11 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: flex-start;
+  text-align: left;
+  transition:
+    margin-top var(--duration-slow) var(--ease-standard),
+    max-width var(--duration-slow) var(--ease-standard);
 }
 
 .full-title {
@@ -1391,6 +1430,8 @@ onBeforeUnmount(() => {
   line-height: 1.3;
   font-weight: 600;
   color: #fff;
+  max-width: 100%;
+  transition: font-size var(--duration-slow) var(--ease-standard);
 }
 
 .full-artist {
@@ -1398,6 +1439,10 @@ onBeforeUnmount(() => {
   line-height: 1.3;
   color: rgba(255, 255, 255, 0.6);
   margin-top: 5px;
+  max-width: 100%;
+  transition:
+    font-size var(--duration-slow) var(--ease-standard),
+    margin-top var(--duration-slow) var(--ease-standard);
 }
 
 .full-lyrics {
@@ -1408,6 +1453,11 @@ onBeforeUnmount(() => {
   -webkit-overflow-scrolling: touch;
   padding: 0 var(--space-lg);
   scrollbar-width: none;
+  /* 无歌词时收起为 0：与封面放大同步过渡 */
+  transition:
+    flex-grow var(--duration-slow) var(--ease-standard),
+    flex-basis var(--duration-slow) var(--ease-standard),
+    opacity var(--duration-normal) var(--ease-standard);
   /* 上下边缘渐隐：歌词从视野边缘淡入淡出 */
   mask-image: linear-gradient(to bottom, transparent 0%, #000 20%, #000 80%, transparent 100%);
   -webkit-mask-image: linear-gradient(
@@ -1436,6 +1486,108 @@ onBeforeUnmount(() => {
   text-align: center;
   color: rgba(255, 255, 255, 0.45);
   font-size: 13px;
+}
+
+/* ---------------- 纯封面版式（无歌词） ----------------
+ * 歌词区收起为 0 高度，封面与标题改为竖排居中并占满中区。
+ * 尺寸取「宽度」与「扣除头部/进度/控制条后的剩余高度」的较小值：
+ * 竖屏吃宽度，矮屏/横屏自动收缩，不会把标题顶出视口。
+ */
+.full-player.is-cover-only {
+  --cover-only-size: clamp(132px, min(80vw, 100vh - 320px), 340px);
+}
+
+.full-player.is-cover-only .full-top {
+  flex: 1 1 auto;
+}
+
+.full-player.is-cover-only .full-hero {
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  min-height: 0;
+  padding: var(--space-sm) var(--space-2xl) var(--space-lg);
+}
+
+.full-player.is-cover-only .full-cover {
+  width: var(--cover-only-size);
+  height: var(--cover-only-size);
+  border-radius: 20px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+}
+
+.full-player.is-cover-only .full-cover-placeholder {
+  font-size: 44px;
+}
+
+.full-player.is-cover-only .full-meta {
+  flex: none;
+  width: 100%;
+  align-items: center;
+  text-align: center;
+  margin-top: var(--space-xs);
+}
+
+/* 标题放到封面下方后允许折行（最多两行），避免长标题被截断 */
+.full-player.is-cover-only .full-title {
+  font-size: 21px;
+  line-height: 1.28;
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: clip;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  word-break: break-word;
+}
+
+.full-player.is-cover-only .full-artist {
+  font-size: 13.5px;
+  margin-top: 7px;
+}
+
+.full-player.is-cover-only .full-lyrics {
+  flex: 0 0 0;
+  opacity: 0;
+  overflow: hidden;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* 横屏：可视高度太矮，竖排会把标题压进头部/进度条，
+ * 这里改为「封面在左、标题在右」，与详情页头部的横屏处理保持一致 */
+@media (orientation: landscape) and (min-width: 600px) {
+  .full-player.is-cover-only {
+    --cover-only-size: clamp(88px, min(30vw, 100vh - 240px), 180px);
+  }
+
+  .full-player.is-cover-only .full-hero {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2xl);
+    padding: var(--space-sm) var(--space-2xl);
+  }
+
+  .full-player.is-cover-only .full-meta {
+    flex: 0 1 auto;
+    width: auto;
+    align-items: flex-start;
+    text-align: left;
+    margin-top: 0;
+  }
+
+  .full-player.is-cover-only .full-title {
+    font-size: 19px;
+    text-align: left;
+  }
+
+  .full-player.is-cover-only .full-artist {
+    font-size: 13px;
+  }
 }
 
 .full-lrc-line {

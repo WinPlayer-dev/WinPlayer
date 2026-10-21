@@ -55,6 +55,8 @@ const isMine = computed(() => {
 
 const playlistId = ref(0);
 const remote = ref<PlaylistDetail | null>(null);
+/** 平台个人歌单且非系统歌单（pinned，如每日日推）时才允许移除曲目 */
+const canEditRemote = computed(() => isMine.value && !remote.value?.pinned);
 const tracks = ref<UnifiedTrack[]>([]);
 const loading = ref(false);
 const loadError = ref("");
@@ -206,6 +208,11 @@ function downloadAll() {
 }
 
 async function onRemove(track: UnifiedTrack) {
+  // 系统歌单（如每日日推）由平台每天自动生成，不允许手动移除
+  if (remote.value?.pinned) {
+    toast("这是平台自动生成的歌单，不支持手动增删歌曲", "info");
+    return;
+  }
   // 平台个人歌单：调用插件把歌曲从平台歌单移除，成功后重新拉取
   if (isMine.value && sourceId.value) {
     try {
@@ -361,7 +368,7 @@ async function openDelete() {
           v-if="visibleTracks.length"
           :tracks="visibleTracks"
           :show-source="!isRemote"
-          :removable="!isRemote || isMine"
+          :removable="!isRemote || canEditRemote"
           :reorderable="canReorder"
           @remove="onRemove"
           @reorder="onReorder"

@@ -62,6 +62,8 @@ watch(
       const remoteOptions: PlaylistOption[] = [];
       for (const group of groups) {
         for (const p of group.result ?? []) {
+          // 系统歌单（pinned，如网易云「每日日推」）不接受手动添加，不列进选择器
+          if (p.pinned) continue;
           remoteOptions.push({
             key: `${group.record.entry.id}:${p.id}`,
             name: p.name,

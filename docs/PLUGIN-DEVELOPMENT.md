@@ -235,6 +235,9 @@ export default {
 - 未登录时 `getUserPlaylists()` 抛出错误即可，主程序会把错误显示在对应插件的分组内，不影响其它插件
 - 增删失败时抛出带可读信息的 `Error`（如「歌曲已在歌单里」），主程序会原样 toast 给用户
 - 歌单 ID 必须与 `getUserPlaylists()` 返回的 `UnifiedPlaylist.id` 一致，主程序按它回传 `playlistId`
+- 条目可带 `pinned: true`：会排到「平台歌单」最上方，并作为系统歌单处理（详情页不提供移除、选择器里不列出）。
+  适合「每日推荐」这类没有真实歌单 ID 的虚拟歌单：`getUserPlaylists()` 里返回固定假 ID，
+  `getPlaylist({ id })` 认出该 ID 后返回内容即可
 
 ### 统一数据格式
 
@@ -264,6 +267,7 @@ export default {
   description?: string;
   trackCount?: number;
   creator?: string;
+  pinned?: boolean;       // 置顶到「平台歌单」最上方，并视为系统歌单（不可手动增删）
 }
 
 // UnifiedAlbum（能力：album）

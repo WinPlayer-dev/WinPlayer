@@ -98,6 +98,7 @@ interface PlatformNavItem {
   playlistId: string;
   name: string;
   sourceName: string;
+  pinned: boolean;
 }
 
 const platformGroups = ref<AggregatedSourceResult<UnifiedPlaylist[]>[]>([]);
@@ -114,10 +115,13 @@ const platformItems = computed<PlatformNavItem[]>(() => {
         playlistId: p.id,
         name: p.name,
         sourceName: group.record.entry.manifest.name,
+        pinned: Boolean(p.pinned),
       });
     }
   }
-  return items;
+  // 插件可用 pinned 把系统歌单（如网易云「每日日推」）固定到整组最上方；
+  // sort 是稳定排序，未置顶的条目仍保持「插件顺序 + 平台顺序」
+  return items.sort((a, b) => Number(b.pinned) - Number(a.pinned));
 });
 
 /** 同步失败（多为未登录/登录过期）的插件，供分组内提示 */
