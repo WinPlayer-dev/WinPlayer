@@ -210,4 +210,57 @@ async function pickPlaylist(option: PlaylistOption) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---------------------------------- 移动端 ---------------------------------- */
+/* 对话框 teleport 到 body，命中不到 .app-shell 下的触摸尺寸规则，用 html.is-mobile
+   兜住（main.ts 挂在 <html> 上）。桌面 36px 的行高在拇指下太难点，这里放到 48px，
+   字号一起提上去，列表最大高度也放宽——底部面板本身有 86vh 可用。 */
+html.is-mobile .picker {
+  gap: var(--space-md);
+}
+
+html.is-mobile .picker-track {
+  font-size: 13px;
+}
+
+html.is-mobile .picker-hint {
+  padding: var(--space-xl) 0;
+  font-size: 14px;
+}
+
+html.is-mobile .picker-list {
+  /* 扣掉标题 / 曲目行 / 按钮区之后能留给列表的空间 */
+  max-height: min(56vh, 520px);
+  gap: var(--space-xs);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+html.is-mobile .picker-item {
+  height: 48px;
+  gap: var(--space-lg);
+  border-radius: var(--radius-md);
+}
+
+/* 触摸端不用粘滞 hover，改用 :active 反馈 */
+html.is-mobile .picker-item:hover:not(:disabled) {
+  background: transparent;
+}
+
+html.is-mobile .picker-item:active:not(:disabled) {
+  background: var(--wp-card-hover);
+}
+
+html.is-mobile .picker-icon {
+  font-size: 18px;
+}
+
+html.is-mobile .picker-name {
+  font-size: 15px;
+}
+
+html.is-mobile .picker-meta {
+  font-size: 13px;
+  max-width: 40%;
+}
 </style>

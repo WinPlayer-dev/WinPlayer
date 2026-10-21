@@ -24,6 +24,7 @@ import DownloadPanel from "./DownloadPanel.vue";
 import WpIconButton from "@/components/theme/WpIconButton.vue";
 import { useSleepTimer } from "@/services/sleepTimer";
 import { useQualityControl } from "@/services/quality";
+import { openPlaylistPicker, useCanAddToPlaylist } from "@/services/playlistPicker";
 import SleepTimerPicker from "@/components/common/SleepTimerPicker.vue";
 
 const player = usePlayerStore();
@@ -185,6 +186,17 @@ function toggleDownloads(): void {
 /** 「更多」二级菜单：一级列出不常用入口，二级展开倍速档位 / 输出设备 / 音质 / 睡眠定时器 */
 const moreView = ref<"root" | "rate" | "device" | "quality" | "sleep" | "ab" | null>(null);
 const morePicker = ref<HTMLElement | null>(null);
+
+/** 「添加到歌单」入口：没有任何可写歌单时整项隐藏（与歌曲行菜单同一判定） */
+const canAddToPlaylist = useCanAddToPlaylist();
+
+/** 把当前曲目交给全局歌单选择器；选择器自己负责列出本地 / 平台歌单 */
+function addCurrentToPlaylist(): void {
+  const track = player.currentTrack;
+  if (!track) return;
+  moreView.value = null;
+  openPlaylistPicker(track);
+}
 
 /** 睡眠定时器：按钮高亮与二级菜单摘要都依赖它的状态 */
 const sleepTimer = useSleepTimer();
@@ -443,6 +455,14 @@ onUnmounted(() => {
           <div v-if="moreView" ref="moreMenuEl" class="more-menu">
             <transition name="more-page" mode="out-in" @enter="onPageEnter" @leave="onPageLeave">
               <div v-if="moreView === 'root'" key="root" class="more-page">
+                <button
+                  v-if="canAddToPlaylist"
+                  class="more-item"
+                  :disabled="!player.currentTrack"
+                  @click="addCurrentToPlaylist"
+                >
+                  <span class="more-item-label">添加到歌单</span>
+                </button>
                 <button class="more-item" @click="moreView = 'rate'">
                   <span class="more-item-label">播放速度</span>
                   <span class="more-item-tail">

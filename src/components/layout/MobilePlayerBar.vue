@@ -18,6 +18,7 @@ import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
 import { useSleepTimer } from "@/services/sleepTimer";
 import { useQualityControl } from "@/services/quality";
+import { openPlaylistPicker, useCanAddToPlaylist } from "@/services/playlistPicker";
 import WpIconButton from "@/components/theme/WpIconButton.vue";
 import SleepTimerPicker from "@/components/common/SleepTimerPicker.vue";
 import {
@@ -119,6 +120,17 @@ function openHistory(): void {
 function openOffline(): void {
   showMore.value = false;
   void router.push({ name: "offline" });
+}
+
+/** 「添加到歌单」入口：没有任何可写歌单时整项隐藏（与歌曲行菜单同一判定） */
+const canAddToPlaylist = useCanAddToPlaylist();
+
+/** 把当前曲目交给全局歌单选择器（先收起「更多」面板，避免浮层叠着对话框） */
+function addCurrentToPlaylist(): void {
+  const track = player.currentTrack;
+  if (!track) return;
+  showMore.value = false;
+  openPlaylistPicker(track);
 }
 
 const liked = computed(() => (player.currentTrack ? library.isLiked(player.currentTrack) : false));
@@ -902,6 +914,14 @@ onBeforeUnmount(() => {
                 </WpIconButton>
               </div>
               <div class="more-list">
+                <button
+                  v-if="canAddToPlaylist"
+                  class="more-row"
+                  @click="addCurrentToPlaylist"
+                >
+                  <span class="wp-icon more-row-icon">&#xF4EE;</span>
+                  <span class="more-row-label">添加到歌单</span>
+                </button>
                 <button class="more-row" @click="showMore = false; showOffset = true">
                   <span class="wp-icon more-row-icon">&#xF588;</span>
                   <span class="more-row-label">歌词偏移</span>

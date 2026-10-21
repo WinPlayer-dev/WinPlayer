@@ -13,7 +13,7 @@ import { useHistoryStore } from "@/stores/history";
 import { openContextMenu, openContextMenuAt, type ContextMenuItem } from "@/services/contextMenu";
 import { useLongPress } from "@/composables/useLongPress";
 import CachedImage from "@/components/common/CachedImage.vue";
-import { openPlaylistPicker } from "@/services/playlistPicker";
+import { openPlaylistPicker, useCanAddToPlaylist } from "@/services/playlistPicker";
 import { startTrackDrag, endTrackDrag } from "@/services/trackDrag";
 import { copyText } from "@/services/clipboard";
 import { formatDuration, trackTitle } from "@/types/player";
@@ -135,11 +135,8 @@ function addSingle(track: UnifiedTrack) {
 
 /* ------------------------------ 右键菜单 ------------------------------ */
 
-const canAddToPlaylist = computed(
-  () =>
-    library.playlists.length > 0 ||
-    plugins.records.some((r) => r.enabled && plugins.hasCapability(r, "myPlaylists")),
-);
+/** 「添加到歌单」入口是否可用：与播放条「更多」菜单共用同一判定 */
+const canAddToPlaylist = useCanAddToPlaylist();
 
 /** 行菜单项：添加到歌单 / 添加到我喜欢 / 移除 / 添加到播放队列 / 复制歌曲名 / 复制歌曲别名 */
 function rowMenuItems(track: UnifiedTrack): ContextMenuItem[] {
