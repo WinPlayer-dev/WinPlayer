@@ -176,6 +176,17 @@ button {
   color: var(--wp-danger);
 }
 
+/* 详情页头部的「缓存全部」：只有图标，固定成方形。
+   下载不是高频操作，不该和「播放全部 / 随机播放」抢同样的宽度，
+   否则移动端三个按钮会被挤成 2 + 1（缓存独占一整行）。 */
+.cache-all-button {
+  flex: none;
+  width: var(--control-height);
+  padding: 0;
+  gap: 0;
+  justify-content: center;
+}
+
 /* 图标按钮（无边框） */
 .wp-icon-button {
   display: inline-flex;

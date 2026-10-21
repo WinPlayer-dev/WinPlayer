@@ -187,8 +187,15 @@ function downloadAll() {
             <WpButton :disabled="!hotTracks.length" @click="shufflePlay" variant="standard">
               <span class="wp-icon">&#xEF37;</span>随机播放
             </WpButton>
-            <WpButton :disabled="!hotTracks.length" @click="downloadAll" variant="standard">
-              <span class="wp-icon">&#xF151;</span>缓存热门
+            <WpButton
+              class="cache-all-button"
+              :disabled="!hotTracks.length"
+              title="缓存热门歌曲到本地"
+              aria-label="缓存热门歌曲到本地"
+              @click="downloadAll"
+              variant="standard"
+            >
+              <span class="wp-icon">&#xF151;</span>
             </WpButton>
           </div>
         </div>
@@ -329,6 +336,11 @@ function downloadAll() {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+}
+
+/* 缓存是次要操作：小方形图标，桌面端纵向排列时靠右贴边，不跟主按钮抢宽度 */
+.banner-actions .cache-all-button {
+  align-self: flex-end;
 }
 
 .content-section {

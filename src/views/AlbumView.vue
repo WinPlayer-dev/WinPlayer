@@ -168,14 +168,21 @@ function downloadAll() {
             <span class="source-badge">来自 {{ sourceName }} · {{ tracks.length }} 首</span>
           </div>
         </div>
-        <div class="header-actions">
+        <div class="header-actions with-cache">
           <WpButton :disabled="!tracks.length" @click="playAll" variant="accent">
             <span class="wp-icon filled">&#xF610;</span>播放全部
           </WpButton>
           <WpButton :disabled="!tracks.length" @click="shufflePlay" variant="standard">
             <span class="wp-icon">&#xEF37;</span>随机播放
           </WpButton>
-          <WpButton :disabled="!tracks.length" @click="downloadAll" variant="standard">
+          <WpButton
+            class="cache-all-button"
+            :disabled="!tracks.length"
+            title="缓存全部到本地"
+            aria-label="缓存全部到本地"
+            @click="downloadAll"
+            variant="standard"
+          >
             <span class="wp-icon">&#xF151;</span>
           </WpButton>
         </div>

@@ -60,7 +60,7 @@
   text-align: center;
 }
 
-/* 播放全部 / 随机播放 / 缓存全部：等宽平分整行，按钮较多时自动换行（2 + 1） */
+/* 播放全部 / 随机播放：等宽平分整行，按钮较多时自动换行（例如历史页 2 + 2） */
 .wp-page.is-mobile .header-actions {
   width: 100%;
   margin-top: var(--space-sm);
@@ -72,6 +72,20 @@
   flex: 1 1 40%;
   min-width: 0;
   justify-content: center;
+}
+
+/* 带「缓存全部」的页面：缓存是一个小方形图标（见下方），
+   前两个主按钮均分剩余宽度，三个按钮一行放下，缓存不再独占一行 */
+.wp-page.is-mobile .header-actions.with-cache {
+  flex-wrap: nowrap;
+}
+
+.wp-page.is-mobile .header-actions.with-cache .wp-accent-button,
+.wp-page.is-mobile .header-actions.with-cache .wp-standard-button {
+  flex: 1 1 0;
+  /* 让出缓存按钮的宽度后，文本按钮左右内边距收一点，窄屏也放得下 */
+  padding: 0 var(--space-md);
+  white-space: nowrap;
 }
 
 /* 简介：默认折叠两行 + 展开按钮 */
@@ -154,6 +168,20 @@
 .wp-page.is-mobile .banner-actions .wp-standard-button {
   flex: 1 1 0;
   min-width: 0;
+  justify-content: center;
+}
+
+/* ------------------------------ 缓存全部（次要操作） ------------------------------ */
+/* 下载不是高频需求：移动端始终保持小方形图标（与旁边按钮同高），
+   不参与「等宽平分」，否则三个按钮会被挤成 2 + 1，缓存独占一整行。 */
+.wp-page.is-mobile .header-actions .cache-all-button,
+.wp-page.is-mobile .header-actions.with-cache .cache-all-button,
+.wp-page.is-mobile .banner-actions .cache-all-button {
+  flex: 0 0 auto;
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+  gap: 0;
   justify-content: center;
 }
 
@@ -394,6 +422,12 @@ html.keyboard-open .wp-content-dialog-body {
 
   .wp-page.is-mobile .header-actions .wp-accent-button,
   .wp-page.is-mobile .header-actions .wp-standard-button {
+    flex: 0 0 auto;
+  }
+
+  /* 横屏空间充足：主按钮按内容宽度排布，不再均分（缓存仍是固定小方形） */
+  .wp-page.is-mobile .header-actions.with-cache .wp-accent-button,
+  .wp-page.is-mobile .header-actions.with-cache .wp-standard-button {
     flex: 0 0 auto;
   }
 
