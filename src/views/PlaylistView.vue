@@ -178,6 +178,31 @@ async function loadRoute() {
 
 watch(() => route.fullPath, () => void loadRoute(), { immediate: true });
 
+/**
+ * 当前本地歌单被外部改动（侧边栏拖拽加歌等）时静默刷新曲目。
+ *
+ * `library.playlists` 里的 trackCount / updatedAt 是侧边栏和选择器共用的
+ * 变更信号：只要它们变了，说明库里的曲目有增删。这里不切 loading 态，
+ * 避免整页闪一下骨架，拖进来的歌直接出现在列表里。
+ */
+watch(
+  () => {
+    if (isRemote.value) return "";
+    const item = library.playlists.find((p) => p.id === playlistId.value);
+    return item ? `${item.trackCount ?? 0}:${item.updatedAt}` : "";
+  },
+  async (next, prev) => {
+    if (!next || !prev || next === prev) return;
+    const id = playlistId.value;
+    if (id <= 0) return;
+    try {
+      tracks.value = await library.getPlaylistTracks(id);
+    } catch {
+      /* 读库失败时保留当前内容，用户可下拉刷新 */
+    }
+  },
+);
+
 // 下拉刷新：重新拉取歌单详情
 useRefreshable(loadRoute);
 

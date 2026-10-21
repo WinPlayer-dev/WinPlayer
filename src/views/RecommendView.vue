@@ -9,6 +9,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { openContextMenu, openContextMenuAt, type ContextMenuItem } from "@/services/contextMenu";
 import { useLongPress } from "@/composables/useLongPress";
 import { openPlaylistPicker } from "@/services/playlistPicker";
+import { endTrackDrag, startTrackDrag } from "@/services/trackDrag";
 import { copyText } from "@/services/clipboard";
 import { trackArtist, trackTitle } from "@/types/player";
 import type { RecommendResult, UnifiedTrack } from "@/types/plugin";
@@ -159,6 +160,25 @@ function onSongPointerDown(event: PointerEvent, song: UnifiedTrack) {
   longPress.start(event, (point) => openContextMenuAt(point.x, point.y, songMenuItems(song)));
 }
 
+/* ------------------------------ 拖拽到侧边栏歌单 ------------------------------ */
+
+/** 正在被拖走的卡片（淡出反馈）；移动端不支持拖拽 */
+const draggingSongId = ref("");
+
+function onSongDragStart(event: DragEvent, song: UnifiedTrack): void {
+  if (isMobile) {
+    event.preventDefault();
+    return;
+  }
+  draggingSongId.value = `${song.sourceId ?? ""}:${song.id}`;
+  startTrackDrag(event, [song]);
+}
+
+function onSongDragEnd(): void {
+  draggingSongId.value = "";
+  endTrackDrag();
+}
+
 onMounted(loadWithCache);
 </script>
 
@@ -223,9 +243,13 @@ onMounted(loadWithCache);
             v-for="(song, index) in section.result.songs.slice(0, 12)"
             :key="song.id"
             class="song-card"
+            :class="{ 'drag-source': draggingSongId === `${song.sourceId ?? ''}:${song.id}` }"
+            :draggable="!isMobile"
             @click="onSongClick(section, index)"
             @dblclick="playFromSource(section, index)"
             @contextmenu="openSongMenu(song, $event)"
+            @dragstart="onSongDragStart($event, song)"
+            @dragend="onSongDragEnd"
             @pointerdown="onSongPointerDown($event, song)"
             @pointermove="longPress.move"
             @pointerup="longPress.end"
@@ -352,6 +376,11 @@ onMounted(loadWithCache);
 /* 触摸端没有 hover，用 :active 给按下反馈（否则点下去毫无响应） */
 .song-card:active {
   background: var(--wp-card-active);
+}
+
+/* 拖动中的卡片：淡出，提示"正在搬走这一首" */
+.song-card.drag-source {
+  opacity: 0.45;
 }
 
 .song-cover {

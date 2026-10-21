@@ -14,6 +14,7 @@ import { openContextMenu, openContextMenuAt, type ContextMenuItem } from "@/serv
 import { useLongPress } from "@/composables/useLongPress";
 import CachedImage from "@/components/common/CachedImage.vue";
 import { openPlaylistPicker } from "@/services/playlistPicker";
+import { startTrackDrag, endTrackDrag } from "@/services/trackDrag";
 import { copyText } from "@/services/clipboard";
 import { formatDuration, trackTitle } from "@/types/player";
 import type { UnifiedTrack } from "@/types/plugin";
@@ -236,20 +237,30 @@ function onRowPointerDown(event: PointerEvent, track: UnifiedTrack) {
 const dragFrom = ref(-1);
 const dragTo = ref(-1);
 const dragging = ref(false);
+/** 桌面端正在被拖走的行（key）：不依赖 reorderable，拖到侧边栏加歌单时也淡出 */
+const dragKey = ref("");
 /** 刚刚完成一次拖拽：吞掉随之而来的补发 click（否则移动端拖完会顺带播放） */
 let suppressClick = false;
 
 /** 桌面 HTML5 拖拽：记录起始下标 */
 function onNativeDragStart(event: DragEvent, index: number): void {
-  if (!props.reorderable) return;
-  dragFrom.value = index;
-  dragTo.value = index;
-  dragging.value = true;
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = "move";
-    // Firefox 需要 setData 才会真正开始拖拽
-    event.dataTransfer.setData("text/plain", String(index));
+  if (isMobile) return;
+  const track = props.tracks[index];
+  if (!track) return;
+  // 任何列表的歌曲行都可以拖到侧边栏歌单（桌面端）
+  dragKey.value = `${track.sourceId ?? ""}:${track.id}`;
+  if (props.reorderable) {
+    dragFrom.value = index;
+    dragTo.value = index;
+    dragging.value = true;
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "copyMove";
+      // Firefox 需要 setData 才会真正开始拖拽
+      event.dataTransfer.setData("text/plain", `${index}`);
+    }
   }
+  // 放在最后：自定义 MIME + 纯文本落到 trackDrag 里统一写入
+  startTrackDrag(event, [track]);
 }
 
 function onNativeDragOver(event: DragEvent, index: number): void {
@@ -268,6 +279,8 @@ function onNativeDrop(event: DragEvent, index: number): void {
 function onNativeDragEnd(): void {
   // 拖到列表外松手：直接复位，不写库
   resetDrag();
+  dragKey.value = "";
+  endTrackDrag();
 }
 
 function resetDrag(): void {
@@ -350,10 +363,10 @@ function onTouchDragUp(): void {
       :class="{
         playing: row.playing,
         reorderable: reorderable,
-        'drag-source': dragging && dragFrom === index,
+        'drag-source': (dragging && dragFrom === index) || dragKey === row.key,
         'drag-target': dragging && dragTo === index && dragTo !== dragFrom,
       }"
-      :draggable="reorderable && !isMobile"
+      :draggable="!isMobile"
       @click="onRowClick(index)"
       @dblclick="playRow(index)"
       @contextmenu="openRowMenu(row.track, $event)"

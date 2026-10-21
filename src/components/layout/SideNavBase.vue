@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ContentDialog, TextBox } from "@/components/winui";
 import { useLibraryStore, type LocalPlaylist } from "@/stores/library";
@@ -7,6 +7,8 @@ import { usePluginsStore, type AggregatedSourceResult } from "@/stores/plugins";
 import { useDownloadsStore } from "@/stores/downloads";
 import { openContextMenu, type ContextMenuItem } from "@/services/contextMenu";
 import { openImportDialog } from "@/services/playlistIO";
+import { toast } from "@/services/toast";
+import { isTrackDrag, readDraggedTracks, trackDragState } from "@/services/trackDrag";
 import type { UnifiedPlaylist } from "@/types/plugin";
 
 const router = useRouter();
@@ -158,6 +160,184 @@ watch(
   () => void loadPlatformPlaylists(),
   { deep: true },
 );
+/* ------------------------------ 拖拽歌曲到歌单 ------------------------------ */
+/*
+ * 曲目列表把歌曲拖到侧边栏即可加入歌单：
+ * - 我喜欢的音乐：未收藏的曲目直接喜欢（已在里面的不会因此被取消）；
+ * - 本地歌单：写 SQLite（内部按曲目键去重）；
+ * - 平台歌单：调用插件 addToUserPlaylist，仅接受同来源曲目，系统歌单（pinned）不可写。
+ *
+ * 拖拽期间整组列表微亮，悬停条目高亮并显示落点提示；拖到侧栏上下边缘自动滚动。
+ */
+
+const scrollEl = ref<HTMLElement | null>(null);
+/** 当前悬停的可投放条目 key（`liked` / `local:<id>` / `<sourceId>:<playlistId>`） */
+const dropKey = ref("");
+/** 投放处理中：避免同一次松手被重复处理 */
+const dropBusy = ref(false);
+
+let autoScrollRaf = 0;
+let autoScrollSpeed = 0;
+
+function autoScrollStep(): void {
+  autoScrollRaf = 0;
+  const el = scrollEl.value;
+  if (!el || !autoScrollSpeed) return;
+  const before = el.scrollTop;
+  el.scrollTop = before + autoScrollSpeed;
+  // 已经到顶/到底就不再空转（保持 speed，指针离开边缘后会被重新计算）
+  if (el.scrollTop !== before) autoScrollRaf = requestAnimationFrame(autoScrollStep);
+}
+
+/** 按指针位置换算滚动速度：越靠边越快，中间区域为 0 */
+function updateAutoScroll(clientY: number): void {
+  const el = scrollEl.value;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const EDGE = 56;
+  let speed = 0;
+  if (clientY < rect.top + EDGE) {
+    speed = -Math.min(16, Math.max(3, Math.round((rect.top + EDGE - clientY) / 3)));
+  } else if (clientY > rect.bottom - EDGE) {
+    speed = Math.min(16, Math.max(3, Math.round((clientY - (rect.bottom - EDGE)) / 3)));
+  }
+  autoScrollSpeed = speed;
+  if (speed && !autoScrollRaf) autoScrollRaf = requestAnimationFrame(autoScrollStep);
+}
+
+function stopAutoScroll(): void {
+  autoScrollSpeed = 0;
+  if (autoScrollRaf) {
+    cancelAnimationFrame(autoScrollRaf);
+    autoScrollRaf = 0;
+  }
+}
+
+function resetDropState(): void {
+  dropKey.value = "";
+  stopAutoScroll();
+}
+
+/** 条目 dragover：接受投放并高亮 */
+function onItemDragOver(key: string, event: DragEvent): void {
+  if (!isTrackDrag(event)) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  if (!dropBusy.value) dropKey.value = key;
+  updateAutoScroll(event.clientY);
+}
+
+/** 条目 dragleave：只有真正离开条目（而不是在子元素间移动）才撤销高亮 */
+function onItemDragLeave(key: string, event: DragEvent): void {
+  const current = event.currentTarget as HTMLElement | null;
+  const next = event.relatedTarget as Node | null;
+  if (current && next && current.contains(next)) return;
+  if (dropKey.value === key) dropKey.value = "";
+}
+
+/** 列表容器 dragover：条目之间的空白也算可投放区（并驱动自动滚动） */
+function onContainerDragOver(event: DragEvent): void {
+  if (!isTrackDrag(event)) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  // 指针落在条目之间的空白（或不可投放的导航项）时撤掉残留高亮；
+  // 可投放条目带 data-drop-key，它们自己的 dragover 会先把 dropKey 设好
+  const target = event.target as Element | null;
+  if (!target?.closest?.("[data-drop-key]")) dropKey.value = "";
+  updateAutoScroll(event.clientY);
+}
+
+/** 丢在条目之间：吞掉默认行为，避免 WebView 把拖拽内容当链接/文本打开 */
+function onContainerDrop(event: DragEvent): void {
+  if (!isTrackDrag(event)) return;
+  event.preventDefault();
+  resetDropState();
+}
+
+/** 拖到「我喜欢的音乐」：只补写没收藏过的，避免误取消 */
+async function dropOnLiked(event: DragEvent): Promise<void> {
+  const tracks = readDraggedTracks(event);
+  resetDropState();
+  if (!tracks.length || dropBusy.value) return;
+  dropBusy.value = true;
+  try {
+    const fresh = tracks.filter((track) => !library.isLiked(track));
+    if (!fresh.length) {
+      toast("这些歌曲已经在「我喜欢的音乐」中", "info");
+      return;
+    }
+    for (const track of fresh) await library.toggleLike(track);
+    if (fresh.length > 1) toast(`已喜欢 ${fresh.length} 首歌曲`, "success");
+  } finally {
+    dropBusy.value = false;
+  }
+}
+
+/** 拖到本地歌单 */
+async function dropOnLocal(playlist: LocalPlaylist, event: DragEvent): Promise<void> {
+  const tracks = readDraggedTracks(event);
+  resetDropState();
+  if (!tracks.length || dropBusy.value) return;
+  dropBusy.value = true;
+  try {
+    const added = await library.addTracksToPlaylist(playlist.id, tracks);
+    if (added) toast(`已添加 ${added} 首到「${playlist.name}」`, "success");
+    else toast(`「${playlist.name}」中已有这些歌曲`, "info");
+  } finally {
+    dropBusy.value = false;
+  }
+}
+
+/** 拖到平台歌单：只有同来源曲目能加，系统歌单（pinned）只读 */
+async function dropOnPlatform(item: PlatformNavItem, event: DragEvent): Promise<void> {
+  const tracks = readDraggedTracks(event);
+  resetDropState();
+  if (!tracks.length || dropBusy.value) return;
+
+  if (item.pinned) {
+    toast(`「${item.name}」由平台自动生成，不支持手动添加歌曲`, "error");
+    return;
+  }
+  const record = plugins.records.find((r) => r.entry.id === item.sourceId);
+  if (!record?.enabled || !plugins.hasCapability(record, "myPlaylists")) {
+    toast("该平台歌单不支持添加歌曲", "error");
+    return;
+  }
+  const sameSource = tracks.filter((track) => track.sourceId === item.sourceId);
+  if (!sameSource.length) {
+    toast(`只能把「${item.sourceName}」的歌曲添加到该平台的歌单`, "error");
+    return;
+  }
+
+  dropBusy.value = true;
+  let added = 0;
+  let lastError = "";
+  try {
+    for (const track of sameSource) {
+      try {
+        await plugins.addToUserPlaylist(item.sourceId, item.playlistId, track.id);
+        added += 1;
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
+      }
+    }
+  } finally {
+    dropBusy.value = false;
+  }
+  if (added) toast(`已添加 ${added} 首到「${item.name}」`, "success");
+  else toast(lastError || `添加到「${item.name}」失败`, "error");
+}
+
+/** 拖拽结束后统一收尾（拖到窗口外松手时 dragover 不会再触发） */
+watch(
+  () => trackDragState.active,
+  (active) => {
+    if (!active) resetDropState();
+  },
+);
+
+onUnmounted(stopAutoScroll);
+
 const scrollPill = ref({ top: 0, visible: false });
 const footerPill = ref({ top: 0, visible: false });
 const pillsReady = ref(false);
@@ -217,7 +397,12 @@ function isActive(name: string): boolean {
 
 <template>
   <nav class="sidenav">
-    <div class="sidenav-scroll">
+    <div
+      ref="scrollEl"
+      class="sidenav-scroll"
+      @dragover="onContainerDragOver"
+      @drop="onContainerDrop"
+    >
       <span class="nav-pill" :style="pillStyle(scrollPill)" aria-hidden="true" />
       <span class="nav-accent" :style="pillStyle(scrollPill, 10)" aria-hidden="true" />
       <ul class="nav-list">
@@ -228,10 +413,19 @@ function isActive(name: string): boolean {
           </router-link>
         </li>
         <li>
-          <router-link :to="{ name: 'liked' }" class="nav-item" :class="{ active: isActive('liked') }">
+          <router-link
+            :to="{ name: 'liked' }"
+            class="nav-item"
+            :class="{ active: isActive('liked'), 'drop-target': dropKey === 'liked' }"
+            data-drop-key="liked"
+            @dragover="onItemDragOver('liked', $event)"
+            @dragleave="onItemDragLeave('liked', $event)"
+            @drop.prevent.stop="dropOnLiked($event)"
+          >
             <span class="wp-icon nav-icon">&#xF47A;</span>
             <span class="nav-label">我喜欢的音乐</span>
-            <span v-if="library.liked.length" class="nav-badge">{{ library.liked.length }}</span>
+            <span v-if="dropKey === 'liked'" class="drop-hint">松手收藏</span>
+            <span v-else-if="library.liked.length" class="nav-badge">{{ library.liked.length }}</span>
           </router-link>
         </li>
         <li>
@@ -261,21 +455,31 @@ function isActive(name: string): boolean {
         </span>
       </div>
 
-      <ul class="nav-list">
+      <ul class="nav-list" :class="{ 'drop-zone': trackDragState.active && library.playlists.length }">
         <li v-for="playlist in library.playlists" :key="playlist.id">
           <router-link
             :to="{ name: 'playlist', params: { id: playlist.id } }"
             class="nav-item"
-            :class="{ active: route.name === 'playlist' && route.params.id === String(playlist.id) }"
+            :class="{
+              active: route.name === 'playlist' && route.params.id === String(playlist.id),
+              'drop-target': dropKey === `local:${playlist.id}`,
+            }"
             :title="playlist.name"
+            :data-drop-key="`local:${playlist.id}`"
             @contextmenu="openPlaylistMenu(playlist, $event)"
+            @dragover="onItemDragOver(`local:${playlist.id}`, $event)"
+            @dragleave="onItemDragLeave(`local:${playlist.id}`, $event)"
+            @drop.prevent.stop="dropOnLocal(playlist, $event)"
           >
             <span class="wp-icon nav-icon">&#xF4EE;</span>
             <span class="nav-label ellipsis">{{ playlist.name }}</span>
-            <span v-if="playlist.trackCount" class="nav-badge">{{ playlist.trackCount }}</span>
+            <span v-if="dropKey === `local:${playlist.id}`" class="drop-hint">松手添加</span>
+            <span v-else-if="playlist.trackCount" class="nav-badge">{{ playlist.trackCount }}</span>
           </router-link>
         </li>
-        <li v-if="!library.playlists.length" class="nav-empty">还没有歌单，点击 + 创建</li>
+        <li v-if="!library.playlists.length" class="nav-empty">
+          {{ trackDragState.active ? "还没有歌单，点 + 新建后就能拖进来" : "还没有歌单，点击 + 创建" }}
+        </li>
       </ul>
 
       <template v-if="hasMyPlaylistsPlugin">
@@ -291,7 +495,7 @@ function isActive(name: string): boolean {
           </button>
         </div>
 
-        <ul class="nav-list">
+        <ul class="nav-list" :class="{ 'drop-zone': trackDragState.active && platformItems.length }">
           <li v-for="item in platformItems" :key="item.key">
             <router-link
               :to="{
@@ -300,11 +504,16 @@ function isActive(name: string): boolean {
                 query: { mine: '1' },
               }"
               class="nav-item"
-              :class="{ active: isPlatformActive(item) }"
+              :class="{ active: isPlatformActive(item), 'drop-target': dropKey === item.key }"
               :title="item.name"
+              :data-drop-key="item.key"
+              @dragover="onItemDragOver(item.key, $event)"
+              @dragleave="onItemDragLeave(item.key, $event)"
+              @drop.prevent.stop="dropOnPlatform(item, $event)"
             >
               <span class="wp-icon nav-icon">&#xF4EE;</span>
               <span class="nav-label ellipsis">{{ item.name }}</span>
+              <span v-if="dropKey === item.key" class="drop-hint">松手添加</span>
             </router-link>
           </li>
           <li v-for="group in platformErrors" :key="`err:${group.record.entry.id}`" class="nav-empty">
@@ -490,6 +699,38 @@ function isActive(name: string): boolean {
   font-size: 12px;
   color: var(--wp-text-tertiary);
   flex: none;
+}
+
+/* ------------------------------ 拖拽投放态 ------------------------------ */
+
+/* 拖动曲目时，可投放的歌单分组整体微亮（提示"这里可以放"） */
+.nav-list.drop-zone {
+  background: var(--wp-accent-light);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--wp-accent-light);
+}
+
+/* 悬停中的目标条目：强调色描边 + 高亮，明确"松手就落在这" */
+.nav-item.drop-target {
+  background: var(--wp-accent-light);
+  box-shadow: inset 0 0 0 1px var(--wp-accent);
+  color: var(--wp-accent);
+}
+
+.nav-item.drop-target .nav-icon {
+  color: var(--wp-accent);
+}
+
+/* 落点提示胶囊：临时替换右侧的计数徽标 */
+.drop-hint {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--wp-accent);
+  color: var(--wp-accent-text);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
 }
 
 .nav-section-header {
