@@ -5,6 +5,7 @@ import { usePluginsStore, type AggregatedSourceResult, type PluginRecord } from 
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
 import { useDownloadsStore } from "@/stores/downloads";
+import { useSettingsStore } from "@/stores/settings";
 import { openContextMenu, openContextMenuAt, type ContextMenuItem } from "@/services/contextMenu";
 import { useLongPress } from "@/composables/useLongPress";
 import { openPlaylistPicker } from "@/services/playlistPicker";
@@ -25,6 +26,7 @@ const plugins = usePluginsStore();
 const player = usePlayerStore();
 const library = useLibraryStore();
 const downloads = useDownloadsStore();
+const settings = useSettingsStore();
 const isMobile = useIsMobile();
 
 const loading = ref(false);
@@ -231,6 +233,13 @@ onMounted(loadWithCache);
             @pointerleave="longPress.end"
           >
             <div class="song-cover">
+              <!-- 原始比例模式：图片 contain 居中，留白由同一张封面的模糊放大层填充 -->
+              <CachedImage
+                v-if="settings.coverNaturalRatio && song.cover"
+                :src="song.cover"
+                class="cover-blur"
+                aria-hidden="true"
+              />
               <CachedImage v-if="song.cover" :src="song.cover" class="cover-img" />
               <span v-else class="wp-icon cover-placeholder">&#xE852;</span>
               <button class="song-play" title="播放" @click.stop="playFromSource(section, index)">
@@ -373,6 +382,8 @@ onMounted(loadWithCache);
   position: absolute;
   right: var(--space-md);
   bottom: var(--space-md);
+  /* 封面在「按原始比例」模式下会被提升到 z-index:1，播放按钮必须压在其上 */
+  z-index: 2;
   width: 36px;
   height: 36px;
   border: none;

@@ -154,6 +154,10 @@ function onCoverAccentToggle(event: { IsOn: boolean }): void {
   void settings.setCoverAccent(Boolean(event?.IsOn));
 }
 
+function onCoverNaturalToggle(event: { IsOn: boolean }): void {
+  void settings.setCoverNaturalRatio(Boolean(event?.IsOn));
+}
+
 /* ------------------------------ 全局字体 ------------------------------ */
 
 const FONT_PLACEHOLDER = '如 Microsoft YaHei 或 "HarmonyOS Sans SC", sans-serif';
@@ -229,6 +233,26 @@ onBeforeUnmount(() => window.clearTimeout(fontDebounce));
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.coverAccent" @Toggled="onCoverAccentToggle" />
+      </WpCard>
+      <WpCard variant="row">
+        <div class="card-content">
+          <div class="card-header">按封面原始比例</div>
+          <div class="card-description">
+            不再把封面统一裁成正方形，而是按插件返回的原图比例显示（如视频类音源的 16:9 封面）。
+            卡片外框保持正方、图片居中留白并用模糊封面填充；播放条、歌词页等处宽度不变，
+            高度随比例伸缩，超出可用高度时自动缩窄
+          </div>
+          <div class="cover-preview" :class="{ natural: settings.coverNaturalRatio }" aria-hidden="true">
+            <div class="preview-frame">
+              <div class="preview-blur" />
+              <div class="preview-art" />
+            </div>
+            <span class="preview-caption">
+              {{ settings.coverNaturalRatio ? "16:9 封面完整显示" : "裁切为 1:1 正方形" }}
+            </span>
+          </div>
+        </div>
+        <ToggleSwitch :IsOn="settings.coverNaturalRatio" @Toggled="onCoverNaturalToggle" />
       </WpCard>
     </section>
 
@@ -341,6 +365,65 @@ onBeforeUnmount(() => window.clearTimeout(fontDebounce));
 </template>
 
 <style scoped>
+/* ------------------------------ 封面比例预览 ------------------------------ */
+/* 用纯 CSS 渐变模拟一张 16:9 封面：关闭时裁切填满，开启后完整居中显示 */
+
+.cover-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+}
+
+.preview-frame {
+  position: relative;
+  flex: none;
+  width: 84px;
+  height: 84px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--wp-control-fill-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-blur {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #7c9cff 0%, #b06bff 46%, #ff7ab6 100%);
+  filter: blur(10px) saturate(1.3);
+  transform: scale(1.15);
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--ease-standard);
+}
+
+.preview-art {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  background: linear-gradient(135deg, #7c9cff 0%, #b06bff 46%, #ff7ab6 100%);
+  transition:
+    height var(--duration-normal) var(--ease-standard),
+    border-radius var(--duration-normal) var(--ease-standard);
+}
+
+.cover-preview.natural .preview-art {
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border-radius: 3px;
+}
+
+.cover-preview.natural .preview-blur {
+  opacity: 1;
+}
+
+.preview-caption {
+  font-size: 12px;
+  color: var(--wp-text-tertiary);
+}
+
 .font-input {
   flex: none;
   width: 260px;

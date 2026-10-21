@@ -18,6 +18,7 @@ import { toast } from "@/services/toast";
 import { openContextMenu, openContextMenuAt, type ContextMenuItem } from "@/services/contextMenu";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { useLongPress } from "@/composables/useLongPress";
+import { useSettingsStore } from "@/stores/settings";
 import { copyText } from "@/services/clipboard";
 import CachedImage from "@/components/common/CachedImage.vue";
 import type { UnifiedAlbum, UnifiedArtist, UnifiedPlaylist } from "@/types/plugin";
@@ -32,6 +33,7 @@ const props = defineProps<{
 const router = useRouter();
 const plugins = usePluginsStore();
 const library = useLibraryStore();
+const settings = useSettingsStore();
 const isMobile = useIsMobile();
 
 const playlist = computed(() => (props.kind === "playlist" ? props.playlist : undefined));
@@ -164,6 +166,13 @@ function onPointerDown(event: PointerEvent) {
     @pointerleave="longPress.end"
   >
     <div class="card-cover" :class="{ round: kind === 'artist' }">
+      <!-- 原始比例模式：图片 contain 居中，四周留白由同一张封面的模糊放大层填充 -->
+      <CachedImage
+        v-if="settings.coverNaturalRatio && cover"
+        :src="cover"
+        class="cover-blur"
+        aria-hidden="true"
+      />
       <CachedImage v-if="cover" :src="cover" class="cover-img" />
       <span v-else class="wp-icon cover-placeholder">{{ placeholderIcon }}</span>
     </div>

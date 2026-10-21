@@ -88,6 +88,8 @@ export const useSettingsStore = defineStore("settings", () => {
   const hapticsEnabled = ref(true);
   /** 是否跟随当前播放封面提取主色作为应用强调色 */
   const coverAccent = ref(false);
+  /** 是否按封面原始宽高比显示（关闭则所有封面统一裁切为正方形） */
+  const coverNaturalRatio = ref(false);
   /** 是否记录播放历史（关闭后不再写库，已有数据保留） */
   const historyEnabled = ref(true);
   /** 缓存项策略：歌单（页面数据）/ 图片缓存开关组合 */
@@ -152,10 +154,16 @@ export const useSettingsStore = defineStore("settings", () => {
     setHapticsEnabled(hapticsEnabled.value);
   }
 
+  /** 把「按封面原始比例」开关同步到 <html>：各封面位的尺寸由 cover-natural.css 统一接管 */
+  function applyCoverNaturalRatio(): void {
+    document.documentElement.classList.toggle("cover-natural", coverNaturalRatio.value);
+  }
+
   // 首次创建即应用（设置尚未从数据库加载时的默认值）
   applyTheme();
   applyFont();
   applyHaptics();
+  applyCoverNaturalRatio();
 
   async function load(): Promise<void> {
     theme.value = await getSetting<ThemePreference>("settings.theme", "system");
@@ -189,6 +197,7 @@ export const useSettingsStore = defineStore("settings", () => {
     await import("@/services/tray").then(({ setCloseBehavior }) => setCloseBehavior(closeBehavior.value));
     hapticsEnabled.value = await getSetting<boolean>("settings.hapticsEnabled", true);
     coverAccent.value = await getSetting<boolean>("settings.coverAccent", false);
+    coverNaturalRatio.value = await getSetting<boolean>("settings.coverNaturalRatio", false);
     historyEnabled.value = await getSetting<boolean>("settings.historyEnabled", true);
     applyHistoryEnabled();
     cachePolicy.value = await getSetting<CachePolicy>("settings.cachePolicy", "both");
@@ -213,6 +222,7 @@ export const useSettingsStore = defineStore("settings", () => {
     applyTheme();
     applyFont();
     applyHaptics();
+    applyCoverNaturalRatio();
     // 窗口材质按持久化偏好应用（仅 Windows 桌面实际生效）
     void applyWindowMaterial(windowMaterial.value);
     // 启动时把均衡器配置应用到原生引擎
@@ -268,6 +278,12 @@ export const useSettingsStore = defineStore("settings", () => {
   async function setCoverAccent(value: boolean): Promise<void> {
     coverAccent.value = value;
     await setSetting("settings.coverAccent", value);
+  }
+
+  async function setCoverNaturalRatio(value: boolean): Promise<void> {
+    coverNaturalRatio.value = value;
+    applyCoverNaturalRatio();
+    await setSetting("settings.coverNaturalRatio", value);
   }
 
   /* ------------------------------ 播放历史 ------------------------------ */
@@ -452,6 +468,7 @@ export const useSettingsStore = defineStore("settings", () => {
     backgroundOptimize,
     hapticsEnabled,
     coverAccent,
+    coverNaturalRatio,
     historyEnabled,
     marketSources,
     githubMirror,
@@ -486,6 +503,7 @@ export const useSettingsStore = defineStore("settings", () => {
     setBackgroundOptimize,
     setHaptics,
     setCoverAccent,
+    setCoverNaturalRatio,
     setHistoryEnabled,
     setMarketSources,
     setGithubMirror,

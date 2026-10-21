@@ -1,0 +1,156 @@
+/**
+ * 「按封面原始比例显示」（设置 > 样式）
+ *
+ * 开关打开时 <html> 会挂上 .cover-natural，本文件集中接管所有封面位的尺寸，
+ * 各页面自己 scoped 样式里的硬编码宽高不再直接决定最终形状：
+ *
+ * - 详情页头图 / 播放条 / 迷你条 / 歌词页封面：宽度保持各自原值不变，
+ *   高度交给图片自身的宽高比撑开。容器可用高度受限的位置用 --cn-max-h 兜底，
+ *   图片超出上限时自动等比缩窄（不会撑破行高、播放条或视口）。
+ * - 卡片网格：外框仍固定为正方形（保证网格整齐），图片改为 contain 居中，
+ *   空出来的部分由封面自身的模糊放大层填充。
+ * - 歌曲行内小封面：宽度不变，高度随比例，超出原高度时等比收缩。
+ *
+ * 关闭时本文件所有规则都不生效，行为与旧版完全一致（统一裁切为正方形）。
+ */
+
+/* ============================ 1. 详情页头图（歌单 / 专辑） ============================ */
+
+html.cover-natural .wp-page-header .header-cover:has(.cover-img) {
+  --cn-max-h: 208px;
+  /* 只锁宽度，高度由图片按比例决定 */
+  height: auto;
+}
+
+html.cover-natural .wp-page-header .header-cover > .cover-img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: var(--cn-max-h, 208px);
+  object-fit: contain;
+  flex: none;
+}
+
+/* 手机端头部封面 140px：竖向空间宽裕，上限放宽但不超过半屏 */
+html.cover-natural .wp-page.is-mobile .wp-page-header .header-cover:has(.cover-img) {
+  --cn-max-h: min(56vh, 340px);
+}
+
+/* ============================ 2. 桌面正在播放栏 ============================ */
+
+html.cover-natural .playerbar .now-playing .cover:has(.cover-img) {
+  /* 播放条整体 92px 高，留出上下呼吸空间 */
+  --cn-max-h: 72px;
+  height: auto;
+}
+
+html.cover-natural .playerbar .now-playing .cover > .cover-img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: var(--cn-max-h, 72px);
+  object-fit: contain;
+  flex: none;
+}
+
+/* ============================ 3. 手机迷你播放条 ============================ */
+
+html.cover-natural .mini-bar .mini-cover:has(.mini-cover-img) {
+  /* 迷你条 56px 高，封面原本 40px */
+  --cn-max-h: 44px;
+  height: auto;
+}
+
+html.cover-natural .mini-bar .mini-cover > .mini-cover-img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: var(--cn-max-h, 44px);
+  object-fit: contain;
+  flex: none;
+}
+
+/* ============================ 4. 全屏歌词页 ============================ */
+
+/* 原本靠 stretch 与封面等高，封面高度改为自适应后改为垂直居中 */
+html.cover-natural .full-player .full-hero {
+  align-items: center;
+}
+
+/* 有歌词时的小封面（56px）：限高与原来的行高一致 */
+html.cover-natural .full-player .full-cover:has(.full-cover-img) {
+  --cn-max-h: 56px;
+  height: auto;
+}
+
+html.cover-natural .full-player .full-cover > .full-cover-img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: var(--cn-max-h, 56px);
+  object-fit: contain;
+  flex: none;
+}
+
+/* 无歌词的纯封面版式：宽度仍取 --cover-only-size，高度不得超出同一上限 */
+html.cover-natural .full-player.is-cover-only .full-cover:has(.full-cover-img) {
+  --cn-max-h: var(--cover-only-size);
+}
+
+/* ============================ 5. 歌曲行内小封面 ============================ */
+/* 这里的 .row-cover 直接落在 <img> 上（SongTable / OfflineView），没有外层容器 */
+
+html.cover-natural img.row-cover {
+  width: 32px;
+  height: auto;
+  max-height: 32px;
+  object-fit: contain;
+}
+
+html.cover-natural .is-mobile img.row-cover {
+  width: 44px;
+  max-height: 44px;
+}
+
+/* ============================ 6. 卡片网格 ============================ */
+/* 外框仍是正方（网格不会高低错落），图片 contain 居中，
+   四周留白用封面自身模糊放大层填充，避免出现割裂的色块。 */
+
+html.cover-natural .card-cover,
+html.cover-natural .song-cover {
+  position: relative;
+}
+
+html.cover-natural .card-cover > .cover-blur,
+html.cover-natural .song-cover > .cover-blur {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(18px) saturate(1.4);
+  transform: scale(1.12);
+  pointer-events: none;
+}
+
+html.cover-natural .card-cover > .cover-img,
+html.cover-natural .song-cover > .cover-img {
+  position: relative;
+  z-index: 1;
+  object-fit: contain;
+}
+
+/* 推荐页卡片的播放按钮是绝对定位且没有 z-index，会被上面提到 z-index:1 的封面盖住 */
+html.cover-natural .song-cover > .song-play {
+  z-index: 2;
+}
+
+/* 歌手卡片的圆形头像保持圆形裁切：横图 contain 在圆里会显得空，直接铺满更自然 */
+html.cover-natural .card-cover.round > .cover-img {
+  object-fit: cover;
+}
+
+html.cover-natural .card-cover.round > .cover-blur {
+  display: none;
+}
