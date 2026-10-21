@@ -19,7 +19,7 @@ WinPlayer 的音乐完全来自插件。插件负责把任意音乐来源（HTTP
 - 插件代码运行在 **Web Worker 沙箱**中：无 DOM、无 `window`、无法访问主程序状态
 - 插件的**所有网络请求**必须通过 `ctx.request()`，由 Rust 后端代理转发（无 CORS 限制，也无法绕过）
 - 插件只能访问自己的**私有存储** `ctx.storage`
-- 可调用的方法有白名单限制（`search` / `getSongUrl` / `getPlaylist` / `getAlbum` / `getArtist` / `getArtistAlbums` / `getRecommendations` / `getLyrics` / `getHotKeywords` / `getLoginQr` / `pollLogin` / `getLoginState` / `logout` / `getAvatar` / `getUserPlaylists` / `addToUserPlaylist` / `removeFromUserPlaylist`）
+- 可调用的方法有白名单限制（`search` / `getSongUrl` / `getPlaylist` / `getAlbum` / `getArtist` / `getArtistAlbums` / `getRecommendations` / `getLyrics` / `getHotKeywords` / `getLoginQr` / `pollLogin` / `getLoginState` / `logout` / `getAvatar` / `getUserPlaylists` / `addToUserPlaylist` / `removeFromUserPlaylist` / `reportPlay`）
 
 ## 插件包格式
 
@@ -51,7 +51,7 @@ my-plugin/
   "homepage": "https://...",      // 可选
   "main": "main.js",              // 可选，入口文件（默认 main.js，仅限插件目录内相对路径）
   "apiVersion": 1,                // 必填，插件协议版本（当前为 1）
-  "capabilities": ["search", "songUrl", "recommend", "lyrics", "hotKeywords", "playlist", "album", "artist", "login", "avatar", "myPlaylists"],
+  "capabilities": ["search", "songUrl", "recommend", "lyrics", "hotKeywords", "playlist", "album", "artist", "login", "avatar", "myPlaylists", "playRecord"],
   "login": {                     // 可选，capabilities 含 "login" 时生效
     "credentialKey": "token",    // 凭证写入的设置项 key，默认 "credential"
     "pollInterval": 2000,        // 主程序轮询扫码状态的间隔（毫秒），默认 2000，最小 500
@@ -97,7 +97,14 @@ export default {
 
   /** 获取播放直链（能力：songUrl）。参数 id 即 UnifiedTrack.id */
   async getSongUrl({ id, quality }) {
-    return { url: "https://.../song.mp3", quality: "standard" };
+    // 防盗链直链（如哔哩哔哩 upos 节点）可附带必需请求头：宿主会把 headers
+    // 原样交给原生解码器（播放 / 预载 / 锁屏连播 / 下载都带），缺 Referer 的
+    // 直链会被 CDN 拒成 403；插件自身的可播性探测也应使用同一套头
+    return {
+      url: "https://.../song.mp3",
+      quality: "standard",
+      headers: { Referer: "https://www.bilibili.com/" },
+    };
     // 无法获取时返回 null
   },
 
@@ -191,6 +198,13 @@ export default {
   /** 把歌曲从平台歌单移除（能力：myPlaylists）。失败时抛出错误 */
   async removeFromUserPlaylist({ playlistId, trackId }) {},
 
+  /**
+   * 播放回传（能力：playRecord）。
+   * phase=start：开始播放；phase=end：这首被换下，seconds 为实际收听秒数。
+   * 失败静默即可，宿主会忽略这里的异常，绝不影响播放。
+   */
+  async reportPlay({ track, phase, seconds }) {},
+
   /** 卸载/重载前清理（可选） */
   async dispose() {},
 };
@@ -235,6 +249,24 @@ export default {
 - 未登录时 `getUserPlaylists()` 抛出错误即可，主程序会把错误显示在对应插件的分组内，不影响其它插件
 - 增删失败时抛出带可读信息的 `Error`（如「歌曲已在歌单里」），主程序会原样 toast 给用户
 - 歌单 ID 必须与 `getUserPlaylists()` 返回的 `UnifiedPlaylist.id` 一致，主程序按它回传 `playlistId`
+
+### 播放记录回传（能力：playRecord）
+
+声明 `"playRecord"` 能力后，主程序会在**本地记一次播放历史的同时**把这次播放回传给平台，
+让平台官方客户端里的「最近播放 / 听歌排行」等数据与在本播放器听歌保持一致：
+
+1. 真正开始播放时调用 `reportPlay({ track, phase: "start" })`（暂停后续播、seek、缓冲都不算新的一次）
+2. 这首被换下时调用 `reportPlay({ track, phase: "end", seconds })`，`seconds` 是本次实际收听秒数；
+   换歌、播完、队列播完、睡眠定时停止都会触发结算
+3. 只回传给**曲目自身所属的插件**（跨源换播时曲目 ID 只在原来源有效），其它插件收不到这个调用
+
+要点：
+
+- 这是**纯旁路能力**：未登录、平台不支持、请求被风控拦截都请安静返回，宿主会忽略异常；
+  不要因为回传失败影响播放，也不要抛错到界面
+- 建议在 `settings` 里提供一个开关（如 `syncPlayRecord`）让用户关闭回传，默认开启
+- 网易云音源的实际实现见 `plugins/netease-source/main.js` 的 `reportPlay`（`/weapi/feedback/weblog`，
+  成对上报 `startplay` 与 `play`）
 - 条目可带 `pinned: true`：会排到「平台歌单」最上方，并作为系统歌单处理（详情页不提供移除、选择器里不列出）。
   适合「每日推荐」这类没有真实歌单 ID 的虚拟歌单：`getUserPlaylists()` 里返回固定假 ID，
   `getPlaylist({ id })` 认出该 ID 后返回内容即可

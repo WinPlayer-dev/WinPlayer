@@ -52,6 +52,8 @@ export function downloadSong(args: {
   template: string;
   vars: DownloadVars;
   lyrics?: string | null;
+  /** 直链必需请求头（防盗链），与播放一致 */
+  headers?: Record<string, string> | null;
 }): Promise<DownloadResult> {
   return invoke<DownloadResult>("download_song", {
     taskId: args.taskId,
@@ -60,6 +62,7 @@ export function downloadSong(args: {
     template: args.template,
     vars: args.vars,
     lyrics: args.lyrics ?? null,
+    headers: args.headers ?? null,
   });
 }
 

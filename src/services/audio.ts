@@ -166,7 +166,7 @@ export class AudioEngine {
       console.warn("[audio] 非 Tauri 环境，原生播放引擎不可用");
       return;
     }
-    void invoke("player_load", { url: src }).catch((error) => {
+    void invoke("player_load", { url: src, headers: headersFor(src) }).catch((error) => {
       this.emit("error", `加载音频失败: ${error}`);
     });
   }
@@ -254,7 +254,7 @@ export class AudioEngine {
   /** 预加载下一首（后端并行解码，衔接时机由引擎决定） */
   preload(src: string): void {
     if (!this.inTauri) return;
-    void invoke("player_preload", { url: src }).catch(() => {});
+    void invoke("player_preload", { url: src, headers: headersFor(src) }).catch(() => {});
   }
 
   /** 丢弃预加载（队列/模式变更导致预载目标失效时） */
@@ -273,7 +273,9 @@ export class AudioEngine {
    */
   setPlayChain(entries: Array<{ index: number; url: string }>, current: number | null): void {
     if (!this.inTauri) return;
-    void invoke("player_set_play_chain", { entries, current }).catch(() => {});
+    // 链上每条也带上各自的请求头：锁屏后引擎自行换曲时前端无法再补
+    const payload = entries.map((entry) => ({ ...entry, headers: headersFor(entry.url) }));
+    void invoke("player_set_play_chain", { entries: payload, current }).catch(() => {});
   }
 
   /** 横向淡入淡出配置（关闭后自动切歌仍走 Gapless 无缝衔接） */
@@ -304,6 +306,42 @@ export class AudioEngine {
 }
 
 let engine: AudioEngine | null = null;
+
+/**
+ * 直链 → 必须携带的请求头。
+ *
+ * 防盗链音源（哔哩哔哩等）的直链缺 Referer 就是 403，而原生解码器的 HTTP 客户端
+ * 只发自己的 UA。插件在 `getSongUrl` 结果里给出 `headers`，这里按 URL 记下来，
+ * `load` / `preload` / 播放链下发时一并交给后端——对外接口仍是纯 URL 字符串，
+ * 调用方（player store、预载、锁屏播放链）无需感知。
+ */
+const mediaHeaders = new Map<string, Record<string, string>>();
+/** 上限：直链本身约 2 小时过期，留一小段历史即可，避免长期占内存 */
+const MEDIA_HEADERS_MAX = 200;
+
+/** 记录某条直链需要的请求头（空对象 / 无头时忽略） */
+export function rememberMediaHeaders(url: string, headers?: Record<string, string>): void {
+  if (!url || !headers) return;
+  const entries = Object.entries(headers).filter(([name, value]) => name && value);
+  if (!entries.length) return;
+  mediaHeaders.delete(url); // 重新插入到末尾，保持大致 LRU 顺序
+  mediaHeaders.set(url, Object.fromEntries(entries));
+  while (mediaHeaders.size > MEDIA_HEADERS_MAX) {
+    const oldest = mediaHeaders.keys().next().value;
+    if (oldest === undefined) break;
+    mediaHeaders.delete(oldest);
+  }
+}
+
+/** 取某条直链的请求头（无则 null，后端按默认处理） */
+function headersFor(url: string): Record<string, string> | null {
+  return mediaHeaders.get(url) ?? null;
+}
+
+/** 供下载等其它取流链路复用：某条直链需要的请求头 */
+export function mediaHeadersFor(url: string): Record<string, string> | null {
+  return headersFor(url);
+}
 
 export function getAudioEngine(): AudioEngine {
   if (!engine) engine = new AudioEngine();

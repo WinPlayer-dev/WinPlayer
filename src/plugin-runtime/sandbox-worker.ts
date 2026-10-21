@@ -140,6 +140,8 @@ const INVOKEABLE_METHODS = new Set([
   "getUserPlaylists",
   "addToUserPlaylist",
   "removeFromUserPlaylist",
+  // 播放回传（能力：playRecord）
+  "reportPlay",
 ]);
 
 async function handleMessage(message: HostMessage): Promise<void> {

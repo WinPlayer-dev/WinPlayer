@@ -11,6 +11,7 @@ import { httpFetchJson } from "@/services/proxy";
 import { toast } from "@/services/toast";
 import { applyGithubMirror, resolveAssetUrl } from "@/services/githubMirror";
 import { QUALITY_DESCENT, QUALITY_SETTING_KEY } from "@/services/quality";
+import { rememberMediaHeaders } from "@/services/audio";
 import { useSettingsStore } from "@/stores/settings";
 import type {
   AlbumDetail,
@@ -25,6 +26,7 @@ import type {
   MarketIndex,
   MarketSource,
   PlaylistDetail,
+  PlayRecordPhase,
   PluginCapability,
   PluginEntry,
   PluginManifest,
@@ -441,6 +443,8 @@ export const usePluginsStore = defineStore("plugins", () => {
       try {
         const result = await host.invoke<SongUrlResult>("getSongUrl", { id, quality });
         if (result?.url) {
+          // 防盗链直链：把插件声明的请求头记到 URL 上，播放/预载/播放链自动带上
+          rememberMediaHeaders(result.url, result.headers);
           if (index > 0) {
             console.warn(
               `[plugins] ${sourceId} 音质 ${current} 不可用，已降级到 ${quality ?? "插件默认"}`,
@@ -686,6 +690,30 @@ export const usePluginsStore = defineStore("plugins", () => {
     await host.invoke("removeFromUserPlaylist", { playlistId, trackId });
   }
 
+  /* ------------------------------ 播放回传（能力：playRecord） ------------------------------ */
+
+  /**
+   * 把一次播放回传给平台（能力：playRecord）。
+   *
+   * 只回传给**曲目自身所属的插件**：曲目 ID 只在这个来源里有效（跨源换播时
+   * 网易云 ID 在别的平台毫无意义）。未声明能力、插件未登录、请求失败都只写
+   * 一条 warn——这是纯旁路能力，绝不能影响播放。
+   */
+  function reportPlay(track: UnifiedTrack, phase: PlayRecordPhase, seconds = 0): void {
+    const sourceId = track.sourceId;
+    if (!sourceId) return;
+    const record = records.value.find((entry) => entry.entry.id === sourceId);
+    if (!record || !record.enabled || !hasCapability(record, "playRecord")) return;
+    void (async () => {
+      try {
+        const host = await getHost(sourceId);
+        await host.invoke("reportPlay", { track, phase, seconds });
+      } catch (error) {
+        console.warn(`[plugins] ${sourceId} 播放回传（${phase}）失败：${describeError(error)}`);
+      }
+    })();
+  }
+
   /** 按 id 找到插件记录，找不到时抛出可读错误 */
   function getRecordOrThrow(sourceId: string): PluginRecord {
     const record = records.value.find((r) => r.entry.id === sourceId);
@@ -808,6 +836,7 @@ export const usePluginsStore = defineStore("plugins", () => {
     searchTrack,
     addToUserPlaylist,
     removeFromUserPlaylist,
+    reportPlay,
     fetchMarketEntries,
   };
 });

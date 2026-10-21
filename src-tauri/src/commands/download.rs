@@ -245,6 +245,7 @@ fn default_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
 
 /// 下载单曲到本地。`template` 为文件名模板，`vars` 为模板变量；
 /// `lyrics` 非空时写同名 `.lrc` 边车文件。可通过 `download_cancel` 取消。
+/// `headers` 为直链必需请求头（防盗链的 Referer 等），与播放走同一套。
 #[tauri::command]
 pub async fn download_song(
     app: AppHandle,
@@ -254,6 +255,7 @@ pub async fn download_song(
     template: String,
     vars: DownloadVars,
     lyrics: Option<String>,
+    headers: Option<std::collections::HashMap<String, String>>,
 ) -> Result<DownloadResult, String> {
     if url.trim().is_empty() {
         return Err("播放地址为空".into());
@@ -262,13 +264,30 @@ pub async fn download_song(
         return Err("下载目录为空".into());
     }
 
+    let headers: Vec<(String, String)> = headers
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|(name, value)| !name.trim().is_empty() && !value.is_empty())
+        .collect();
+
     let cancel = Arc::new(AtomicBool::new(false));
     cancel_flags()
         .lock()
         .expect("cancel flags lock poisoned")
         .insert(task_id.clone(), cancel.clone());
 
-    let result = download_inner(&app, &task_id, &cancel, &url, &dir, &template, &vars, lyrics.as_deref()).await;
+    let result = download_inner(
+        &app,
+        &task_id,
+        &cancel,
+        &url,
+        &headers,
+        &dir,
+        &template,
+        &vars,
+        lyrics.as_deref(),
+    )
+    .await;
 
     cancel_flags().lock().expect("cancel flags lock poisoned").remove(&task_id);
     result
@@ -368,6 +387,7 @@ async fn download_inner(
     task_id: &str,
     cancel: &AtomicBool,
     url: &str,
+    headers: &[(String, String)],
     dir: &str,
     template: &str,
     vars: &DownloadVars,
@@ -394,6 +414,10 @@ async fn download_inner(
         .header("Accept", "*/*")
         // 要求原始内容，保证 progress 的字节数准确
         .header("Accept-Encoding", "identity");
+    // 防盗链直链（哔哩哔哩等）缺 Referer 会 403，这里补上插件声明的头
+    for (name, value) in headers {
+        request = request.header(name.as_str(), value.as_str());
+    }
     if existing > 0 {
         request = request.header("Range", format!("bytes={existing}-"));
     }

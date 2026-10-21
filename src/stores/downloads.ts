@@ -19,6 +19,7 @@ import { toast } from "@/services/toast";
 import { useSettingsStore, DEFAULT_DOWNLOAD_NAME_TEMPLATE } from "./settings";
 import { pluginDisplayName, usePluginsStore } from "./plugins";
 import { resolveImgUrl } from "@/services/imageCache";
+import { mediaHeadersFor } from "@/services/audio";
 import {
   cancelDownload,
   checkDownloads,
@@ -404,6 +405,7 @@ export const useDownloadsStore = defineStore("downloads", () => {
         template: settings.downloadNameTemplate.trim() || DEFAULT_DOWNLOAD_NAME_TEMPLATE,
         vars: buildVars(task.track),
         lyrics,
+        headers: mediaHeadersFor(result.url),
       });
 
       task.path = saved.path;

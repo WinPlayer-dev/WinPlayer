@@ -21,7 +21,8 @@ export type PluginCapability =
   | "hotKeywords"
   | "login"
   | "avatar"
-  | "myPlaylists";
+  | "myPlaylists"
+  | "playRecord";
 
 /**
  * 登录能力声明（manifest.login，能力为 login 时使用）
@@ -175,6 +176,14 @@ export interface SongUrlResult {
   quality?: string;
   /** 码率（bps），可选 */
   br?: number;
+  /**
+   * 播放该直链时必须携带的请求头（如防盗链的 `Referer`）。
+   *
+   * 部分音源（哔哩哔哩的 upos/bilivideo 节点等）按 Referer 防盗链，缺少即 403。
+   * 宿主会把这里的头原样交给原生解码器，随每一次 Range 请求发出；插件自身的
+   * 可播性探测也应使用同一套头，避免「探测被拦、实际可播」的误判。
+   */
+  headers?: Record<string, string>;
 }
 
 /** 歌单详情（含曲目） */
@@ -277,6 +286,15 @@ export interface LoginState {
   loggedIn: boolean;
   profile?: LoginProfile;
 }
+
+/* ------------------------------ 播放回传（能力：playRecord） ------------------------------ */
+
+/**
+ * 播放回传阶段：
+ * - `start`：开始播放（对齐平台的 startplay 打点）
+ * - `end`：本次播放结束（对齐平台的 play 打点，携带实际收听时长）
+ */
+export type PlayRecordPhase = "start" | "end";
 
 /* ------------------------------ 运行时接口 ------------------------------ */
 
@@ -385,6 +403,26 @@ export interface PluginModule {
 
   /** 减：把歌曲从平台歌单移除（能力：myPlaylists）。失败时抛出错误 */
   removeFromUserPlaylist?(params: { playlistId: string; trackId: string }): Promise<void | null>;
+
+  /**
+   * 播放回传（能力：playRecord）。
+   *
+   * 宿主在本地记一次播放（播放历史）的同时调用这里，把「听过了这首歌」告诉平台，
+   * 于是平台官方客户端里的「最近播放」「听歌排行」能同步显示。
+   *
+   * 分两次调用，对应网易云等平台的 startplay / play 两条日志：
+   * - `phase: "start"`：真正开始播放时（暂停后继续、seek 都不算新的一次），seconds 为 0；
+   * - `phase: "end"`：这首被换下（切歌 / 播完）时，seconds 是本次实际收听的秒数。
+   *
+   * 这是纯附带的旁路能力：插件未登录、平台不支持或请求失败都不应抛错打断播放，
+   * 宿主会忽略这里的异常。
+   */
+  reportPlay?(params: {
+    track: UnifiedTrack;
+    phase: PlayRecordPhase;
+    /** 本次实际收听秒数（phase 为 end 时有效） */
+    seconds?: number;
+  }): Promise<void | null>;
 
   /** 插件卸载/重载前清理（可选） */
   dispose?(): Promise<void> | void;

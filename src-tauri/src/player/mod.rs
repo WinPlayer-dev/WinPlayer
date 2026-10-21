@@ -96,17 +96,24 @@ struct AdvancedPayload {
     index: Option<usize>,
 }
 
+/// 直链必需请求头（名, 值）。防盗链音源（哔哩哔哩 upos/bilivideo 节点等）缺
+/// `Referer` 直接 403：由插件在 `getSongUrl` 结果里声明，前端原样透传到引擎。
+pub(crate) type MediaHeaders = Vec<(String, String)>;
+
 /// 预加载槽：下一首的解码会话信息，解码线程首帧后存入就绪的音源
 pub(crate) struct PendingSlot {
     pub id: u64,
     pub url: String,
+    /// 该直链必需请求头：衔接转正后成为「当前直链的头」，供设备切换 /
+    /// 空闲恢复重建会话时沿用
+    pub headers: MediaHeaders,
     /// 首帧解码后置 true，并持有待衔接的音源（含 ring 消费端）
     pub source: Option<output::RingSource>,
 }
 
 impl PendingSlot {
-    fn new(id: u64, url: String) -> Self {
-        PendingSlot { id, url, source: None }
+    fn new(id: u64, url: String, headers: MediaHeaders) -> Self {
+        PendingSlot { id, url, headers, source: None }
     }
 }
 
@@ -116,6 +123,8 @@ pub(crate) struct ChainEntry {
     /// 该曲目在播放队列中的下标（前端用来对齐元数据/歌词）
     pub index: usize,
     pub url: String,
+    /// 该直链必需请求头（锁屏后引擎自行起会话时仍然要带）
+    pub headers: MediaHeaders,
 }
 
 /// 锁屏自动连播的播放链：前端提前解析的后续曲目直链，按播放顺序排列。
@@ -204,6 +213,8 @@ pub struct PlayerEngine {
     buffering: AtomicBool,
     /// 当前加载的 URL（seek 会话重建时需要）
     current_url: Mutex<Option<String>>,
+    /// 当前直链必需请求头（设备切换 / 空闲恢复重建会话时沿用）
+    current_headers: Mutex<MediaHeaders>,
     /// 最近一次音频活动时刻（解码推进 / 加载）：用于判定输出流是否可能失效
     last_active: Mutex<Instant>,
     /// 最近一次上报的播放位置（秒）：长时间空闲后恢复会话时用于续播
@@ -247,6 +258,7 @@ impl PlayerEngine {
             is_playing: AtomicBool::new(false),
             buffering: AtomicBool::new(false),
             current_url: Mutex::new(None),
+            current_headers: Mutex::new(Vec::new()),
             last_active: Mutex::new(Instant::now()),
             last_position: Mutex::new(0.0),
             client,
@@ -368,7 +380,8 @@ impl PlayerEngine {
             return true;
         };
         let position = *self.last_position.lock().unwrap();
-        self.load(url);
+        let headers = self.current_headers.lock().unwrap().clone();
+        self.load(url, headers);
         // load 会重置位置与播放位，这里恢复续播状态
         *self.pending_seek.lock().unwrap() = Some(position);
         *self.last_position.lock().unwrap() = position;
@@ -402,7 +415,8 @@ impl PlayerEngine {
             })
             .unwrap_or(0.0);
         let was_playing = self.is_playing.load(Ordering::Acquire);
-        self.load(url);
+        let headers = self.current_headers.lock().unwrap().clone();
+        self.load(url, headers);
         *self.pending_seek.lock().unwrap() = Some(resume);
         *self.last_position.lock().unwrap() = resume;
         self.is_playing.store(was_playing, Ordering::Release);
@@ -444,7 +458,7 @@ impl PlayerEngine {
     }
 
     /// 硬切换：终止一切旧会话与预加载，开始全新会话
-    fn load(self: &Arc<Self>, url: String) {
+    fn load(self: &Arc<Self>, url: String, headers: MediaHeaders) {
         // 长时间空闲后的首次加载：先换掉可能已被系统回收的输出流，
         // 否则新 Sink 会挂在死流上一直不出声（进度冻结在 0）
         self.refresh_output_if_idle();
@@ -462,6 +476,7 @@ impl PlayerEngine {
         self.buffering.store(false, Ordering::Release);
         self.is_playing.store(false, Ordering::Release);
         *self.current_url.lock().unwrap() = Some(url.clone());
+        *self.current_headers.lock().unwrap() = headers.clone();
         // 新会话从 0 位置开始（恢复续播时由调用方重新写入目标位置）
         *self.last_position.lock().unwrap() = 0.0;
         self.cancel_fade();
@@ -470,7 +485,7 @@ impl PlayerEngine {
             old.stop();
         }
         self.emit_state("buffering");
-        decoder::spawn_live(self.clone(), id, generation, url);
+        decoder::spawn_live(self.clone(), id, generation, url, headers);
     }
 
     fn stop(&self) {
@@ -492,15 +507,15 @@ impl PlayerEngine {
 
     /// 预加载下一首：并行解码到独立 ring，不触碰当前 Sink。
     /// 当前无活跃会话时退化为直接加载。
-    fn preload(self: &Arc<Self>, url: String) {
+    fn preload(self: &Arc<Self>, url: String, headers: MediaHeaders) {
         if self.active_id() == 0 || self.sink.lock().unwrap().is_none() {
-            self.load(url);
+            self.load(url, headers);
             return;
         }
         let generation = self.generation();
         let id = self.bump_session();
-        *self.pending.lock().unwrap() = Some(PendingSlot::new(id, url.clone()));
-        decoder::spawn_preload(self.clone(), id, generation, url);
+        *self.pending.lock().unwrap() = Some(PendingSlot::new(id, url.clone(), headers.clone()));
+        decoder::spawn_preload(self.clone(), id, generation, url, headers);
     }
 
     /// 丢弃预加载（前端队列/模式变更导致预载目标失效时调用）
@@ -548,6 +563,8 @@ impl PlayerEngine {
         self.active.store(slot.id, Ordering::Release);
         // 正在播放的曲目已变：同步 current_url，供前端恢复时反查实际曲目
         *self.current_url.lock().unwrap() = Some(slot.url.clone());
+        // 衔接过来的曲目可能来自别的音源（防盗链头不同），随会话一起切换
+        *self.current_headers.lock().unwrap() = slot.headers.clone();
         *self.sink.lock().unwrap() = Some(new_sink.clone());
         self.buffering.store(false, Ordering::Release);
         // 已衔接到预载曲目：本次预载槽消费完毕，等待前端（或锁屏兜底）重新下发
@@ -628,6 +645,8 @@ impl PlayerEngine {
         self.active.store(slot.id, Ordering::Release);
         // 正在播放的曲目已变：同步 current_url，供前端恢复时反查实际曲目
         *self.current_url.lock().unwrap() = Some(slot.url.clone());
+        // 衔接过来的曲目可能来自别的音源（防盗链头不同），随会话一起切换
+        *self.current_headers.lock().unwrap() = slot.headers.clone();
         // 已衔接到链上曲目：链指针前进一格，连续切歌可继续用后续曲目
         self.chain_advance_to_url(&slot.url);
         let index = self.chain_index_of(&slot.url);
@@ -661,12 +680,12 @@ impl PlayerEngine {
     }
 
     /// 链上下一条（相对当前指针，到链尾回卷）
-    fn chain_next(&self) -> Option<(usize, String)> {
+    fn chain_next(&self) -> Option<(usize, String, MediaHeaders)> {
         self.play_chain
             .lock()
             .unwrap()
             .next_entry()
-            .map(|entry| (entry.index, entry.url.clone()))
+            .map(|entry| (entry.index, entry.url.clone(), entry.headers.clone()))
     }
 
     /// 锁屏自动连播：预载未就绪时（前端已被 WebView 暂停，无人响应 ended），
@@ -679,7 +698,7 @@ impl PlayerEngine {
         // 预载槽里若已是「当前正在播的这首」（前端旧逻辑只预载一首，切过来后
         // 槽仍停在这首上），直接等它就是空转：换成链上下一条。目标一致时则
         // 保留，免得丢掉已经解码好的音源。
-        let (_, want) = match self.chain_next() {
+        let (_, want, want_headers) = match self.chain_next() {
             Some(next) => next,
             None => return false,
         };
@@ -691,7 +710,7 @@ impl PlayerEngine {
             }
         };
         if stale {
-            self.preload(want);
+            self.preload(want, want_headers);
         }
         self.wait_gapless_ready(from_id)
     }
@@ -730,14 +749,34 @@ impl PlayerEngine {
 
 /* ------------------------------ Tauri commands ------------------------------ */
 
+/// 把前端传来的请求头对象规整为有序列表（排序只为日志/调试时可复现）
+fn to_media_headers(headers: Option<std::collections::HashMap<String, String>>) -> MediaHeaders {
+    let mut list: MediaHeaders = headers
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|(name, value)| !name.trim().is_empty() && !value.is_empty())
+        .collect();
+    list.sort_by(|a, b| a.0.cmp(&b.0));
+    list
+}
+
+/// `headers`：直链必需请求头（防盗链的 Referer 等），由插件 `getSongUrl` 声明
 #[tauri::command]
-pub fn player_load(engine: State<Arc<PlayerEngine>>, url: String) {
-    engine.load(url);
+pub fn player_load(
+    engine: State<Arc<PlayerEngine>>,
+    url: String,
+    headers: Option<std::collections::HashMap<String, String>>,
+) {
+    engine.load(url, to_media_headers(headers));
 }
 
 #[tauri::command]
-pub fn player_preload(engine: State<Arc<PlayerEngine>>, url: String) {
-    engine.preload(url);
+pub fn player_preload(
+    engine: State<Arc<PlayerEngine>>,
+    url: String,
+    headers: Option<std::collections::HashMap<String, String>>,
+) {
+    engine.preload(url, to_media_headers(headers));
 }
 
 /// 查询引擎当前正在播放的直链（前台恢复时用于反查实际曲目：锁屏期间引擎
@@ -770,7 +809,11 @@ pub fn player_set_play_chain(
     let entries: Vec<ChainEntry> = entries
         .into_iter()
         .filter(|entry| !entry.url.trim().is_empty())
-        .map(|entry| ChainEntry { index: entry.index, url: entry.url })
+        .map(|entry| ChainEntry {
+            index: entry.index,
+            url: entry.url,
+            headers: to_media_headers(entry.headers),
+        })
         .collect();
     let current = current.filter(|position| *position < entries.len());
     *engine.play_chain.lock().unwrap() = PlayChain { entries, current };
@@ -782,6 +825,9 @@ pub fn player_set_play_chain(
 pub struct ChainEntryArg {
     pub index: usize,
     pub url: String,
+    /// 该直链必需请求头（防盗链），可选
+    #[serde(default)]
+    pub headers: Option<std::collections::HashMap<String, String>>,
 }
 
 #[tauri::command]

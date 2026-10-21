@@ -28,6 +28,9 @@ const CHUNK: usize = 64 * 1024;
 struct Inner {
     client: reqwest::blocking::Client,
     url: String,
+    /// 直链必需请求头（防盗链的 Referer 等）：由插件在 `getSongUrl` 结果里给出，
+    /// 每一次 Range 请求（含 seek 重开的下载会话）都必须原样带上，否则 403。
+    headers: reqwest::header::HeaderMap,
     /// 缓冲临时文件（读/写各持一个独立句柄）
     read_file: Mutex<File>,
     write_file: Mutex<File>,
@@ -59,13 +62,20 @@ pub struct HttpMediaSource {
 
 impl HttpMediaSource {
     /// 创建源并同步等待首个数据块（保证 probe 有数据可读、总长已知）。
-    pub fn new(client: reqwest::blocking::Client, url: String, dir: &Path) -> io::Result<Self> {
+    /// `headers` 为直链必需请求头（防盗链，空表示不需要）。
+    pub fn new(
+        client: reqwest::blocking::Client,
+        url: String,
+        headers: &[(String, String)],
+        dir: &Path,
+    ) -> io::Result<Self> {
         let path = dir.join(format!("player-buffer-{:016x}.tmp", rand::random::<u64>()));
         let write_file = OpenOptions::new().create(true).write(true).truncate(true).open(&path)?;
         let read_file = File::open(&path)?;
         let inner = Arc::new(Inner {
             client,
             url,
+            headers: build_headers(headers),
             read_file: Mutex::new(read_file),
             write_file: Mutex::new(write_file),
             path,
@@ -133,11 +143,28 @@ fn start_download(inner: Arc<Inner>, offset: u64) {
         .ok();
 }
 
+/// 把 [名, 值] 请求头转成 HeaderMap（非法头名/头值直接跳过，不让一个坏头毁掉整次播放）
+fn build_headers(headers: &[(String, String)]) -> reqwest::header::HeaderMap {
+    use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+    let mut map = HeaderMap::new();
+    for (name, value) in headers {
+        let Ok(name) = HeaderName::from_bytes(name.trim().as_bytes()) else {
+            continue;
+        };
+        let Ok(value) = HeaderValue::from_str(value) else {
+            continue;
+        };
+        map.insert(name, value);
+    }
+    map
+}
+
 fn download_loop(inner: Arc<Inner>, offset: u64, session: u64) {
     let result = (|| -> Result<(), String> {
         let mut response = inner
             .client
             .get(&inner.url)
+            .headers(inner.headers.clone())
             .header("Range", format!("bytes={offset}-"))
             .send()
             .map_err(|e| format!("连接音频源失败: {e}"))?;

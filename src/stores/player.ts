@@ -262,6 +262,7 @@ export const usePlayerStore = defineStore("player", () => {
   function stopForSleepTimer(): void {
     if (engine.paused === false || playing.value) engine.pause();
     playing.value = false;
+    flushPlayReport(); // 定时停止也算这首播完，先把播放记录结算掉
     resetPreload(true);
     toast("睡眠定时器已停止播放", "info");
   }
@@ -287,6 +288,41 @@ export const usePlayerStore = defineStore("player", () => {
     if (!track) return;
     playRecorded = true;
     void history.recordPlay(track);
+    reportPlayStart(track);
+  }
+
+  /* ------------------------------ 平台播放记录回传 ------------------------------ */
+
+  /**
+   * 正在向平台回传的播放会话（startplay 已发出，等 play 结算）。
+   *
+   * 与本地播放历史同一时机：一次「加载」算一次播放，暂停/续播、seek、缓冲都不重复。
+   * 回传分两条：开始播时发 start，这首被换下（切歌 / 播完 / 停止）时发 end，
+   * 带上实际收听秒数——和平台官方客户端的打点方式一致，播放记录与听歌排行才不会
+   * 只记「听了」不记「听了多久」。
+   */
+  let reportingTrack: UnifiedTrack | null = null;
+
+  /** 本次会话的收听秒数：取引擎进度（后台场景 currentTime 会停更） */
+  function listenedSeconds(): number {
+    const position = Math.max(enginePosition, currentTime.value);
+    const capped = duration.value > 0 ? Math.min(position, duration.value) : position;
+    return Math.max(0, Math.round(capped));
+  }
+
+  /** 开始一次播放回传（若上一首还没结算，先补上，避免漏记） */
+  function reportPlayStart(track: UnifiedTrack): void {
+    flushPlayReport();
+    reportingTrack = track;
+    plugins.reportPlay(track, "start");
+  }
+
+  /** 结算当前播放会话，把实际收听时长回传给平台 */
+  function flushPlayReport(seconds?: number): void {
+    const track = reportingTrack;
+    if (!track) return;
+    reportingTrack = null;
+    plugins.reportPlay(track, "end", seconds ?? listenedSeconds());
   }
 
   /* ------------------------------ 播放失败自动恢复 ------------------------------ */
@@ -372,6 +408,7 @@ export const usePlayerStore = defineStore("player", () => {
   /** 播放队列中指定位置的曲目 */
   async function playAt(index: number): Promise<void> {
     if (index < 0 || index >= queue.value.length) return;
+    flushPlayReport(); // 换曲前结算上一首的平台播放记录
     // 只清预载槽：load 会在后端清预载槽与链，链随后由 republishChain 补回
     clearPreloadSlot();
     currentIndex.value = index;
@@ -680,6 +717,8 @@ export const usePlayerStore = defineStore("player", () => {
   async function adoptIndex(index: number): Promise<void> {
     const item = queue.value[index];
     if (!item) return;
+    // 后台期间引擎已沿链换曲：上一首按旧曲时长结算（时长随后会被新曲覆盖）
+    flushPlayReport(duration.value > 0 ? Math.round(duration.value) : undefined);
     currentIndex.value = index;
     clearAbLoop();
     loadedTrackKey = trackUid(item.track);
@@ -779,6 +818,8 @@ export const usePlayerStore = defineStore("player", () => {
     if (index == null) return;
     const item = queue.value[index];
     if (!item) return;
+    // 引擎已经把上一首播完并沿链衔接：按旧曲时长结算平台播放记录
+    flushPlayReport(duration.value > 0 ? Math.round(duration.value) : undefined);
     currentIndex.value = index;
     clearAbLoop();
     loadedTrackKey = trackUid(item.track);
@@ -812,6 +853,7 @@ export const usePlayerStore = defineStore("player", () => {
   async function playUrlAt(index: number, url: string): Promise<void> {
     // 换曲即清空 A-B 区间（与 playAt 保持一致）
     clearAbLoop();
+    flushPlayReport(); // 换曲前结算上一首的平台播放记录
     // 只清预载槽：链要留着（锁屏/后台切歌全靠它），起播后再补发给引擎
     clearPreloadSlot();
     currentIndex.value = index;
@@ -862,6 +904,7 @@ export const usePlayerStore = defineStore("player", () => {
     }
     if (mode.value === "sequential" && currentIndex.value >= queue.value.length - 1) {
       playing.value = false;
+      flushPlayReport(duration.value > 0 ? Math.round(duration.value) : undefined); // 队列播完：结算最后一首
       return;
     }
     void next(true);

@@ -58,20 +58,39 @@ fn local_path_from_url(url: &str) -> Option<PathBuf> {
 }
 
 /// 启动 Live 解码会话线程（engine.load 调用）
-pub(crate) fn spawn_live(engine: Arc<PlayerEngine>, id: u64, generation: u64, url: String) {
-    spawn(engine, id, generation, url, false);
+pub(crate) fn spawn_live(
+    engine: Arc<PlayerEngine>,
+    id: u64,
+    generation: u64,
+    url: String,
+    headers: Vec<(String, String)>,
+) {
+    spawn(engine, id, generation, url, headers, false);
 }
 
 /// 启动预加载解码会话线程（engine.preload 调用，不出声）
-pub(crate) fn spawn_preload(engine: Arc<PlayerEngine>, id: u64, generation: u64, url: String) {
-    spawn(engine, id, generation, url, true);
+pub(crate) fn spawn_preload(
+    engine: Arc<PlayerEngine>,
+    id: u64,
+    generation: u64,
+    url: String,
+    headers: Vec<(String, String)>,
+) {
+    spawn(engine, id, generation, url, headers, true);
 }
 
-fn spawn(engine: Arc<PlayerEngine>, id: u64, generation: u64, url: String, preload: bool) {
+fn spawn(
+    engine: Arc<PlayerEngine>,
+    id: u64,
+    generation: u64,
+    url: String,
+    headers: Vec<(String, String)>,
+    preload: bool,
+) {
     std::thread::Builder::new()
         .name("audio-decode".into())
         .spawn(move || {
-            let outcome = run_session(&engine, id, generation, &url, preload);
+            let outcome = run_session(&engine, id, generation, &url, &headers, preload);
             // 仅活跃会话才向外广播结果（预加载失败静默，前端走 ended 回退）
             if engine.is_active(id) {
                 match outcome {
@@ -99,6 +118,7 @@ fn run_session(
     id: u64,
     generation: u64,
     url: &str,
+    headers: &[(String, String)],
     preload: bool,
 ) -> Result<SessionOutcome, String> {
     // 创建音源：local:// 前缀走本地文件（离线播放），否则走 HTTP 流式缓冲
@@ -114,7 +134,7 @@ fn run_session(
                     .buffer_dir()
                     .ok_or_else(|| "无法定位音频缓冲目录".to_string())?;
                 // 同步等待首块数据，保证 probe 立即有数据可读
-                let http = HttpMediaSource::new(engine.client(), url.to_string(), &dir)
+                let http = HttpMediaSource::new(engine.client(), url.to_string(), headers, &dir)
                     .map_err(|e| format!("加载音频失败: {e}"))?;
                 let guard = TempFileGuard(http.temp_path());
                 (Box::new(http), Some(guard))
