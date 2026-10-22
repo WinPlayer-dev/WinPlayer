@@ -202,11 +202,13 @@ function openRowMenu(song: OfflineSong, event: MouseEvent): void {
   openContextMenu(event, menuItems(song));
 }
 
-/** 移动端长按菜单 */
+/** 移动端长按菜单（底部面板标题用歌曲名） */
 const longPress = useLongPress();
 
 function onRowPointerDown(event: PointerEvent, song: OfflineSong): void {
-  longPress.start(event, (point) => openContextMenuAt(point.x, point.y, menuItems(song)));
+  longPress.start(event, (point) =>
+    openContextMenuAt(point.x, point.y, menuItems(song), trackTitle(song.track)),
+  );
 }
 
 /* ------------------------------ 失效清理 ------------------------------ */

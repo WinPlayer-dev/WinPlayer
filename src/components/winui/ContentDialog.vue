@@ -9,6 +9,7 @@
 import { nextTick, onBeforeUnmount, ref, watch } from "vue";
 import WpButton from "@/components/theme/WpButton.vue";
 import { registerBackInterceptor } from "@/services/backButton";
+import { useIsMobile } from "@/composables/useIsMobile";
 
 const props = withDefaults(
   defineProps<{
@@ -42,6 +43,7 @@ const props = withDefaults(
 );
 
 const visible = ref(false);
+const isMobile = useIsMobile();
 const dialogRef = ref<HTMLElement | null>(null);
 const primaryRef = ref<HTMLButtonElement | null>(null);
 const secondaryRef = ref<HTMLButtonElement | null>(null);
@@ -86,6 +88,19 @@ function onKeydown(event: KeyboardEvent): void {
   }
 }
 
+/**
+ * 移动端点烟层（弹窗上方的空白区域）关闭。
+ * 只在移动端生效——底部面板是「贴着拇指的抽屉」，点上方灰底收起符合直觉；
+ * 桌面端保持居中卡片、必须显式点按钮。
+ * 判定条件与 Esc / 返回键一致：声明了关闭按钮才允许这样关，
+ * 避免把没有退出口的对话框（如安装进度）误关。
+ */
+function onOverlayClick(): void {
+  if (!isMobile) return;
+  if (!props.CloseButtonText.trim()) return;
+  close("None");
+}
+
 // Android 返回键：对话框开着时优先关闭它，而不是让返回键去关页面 / 退应用。
 // 只在可见期间注册，且只有声明了关闭按钮的对话框才消费（与 Esc 行为一致）。
 let unregisterBack: (() => void) | null = null;
@@ -116,7 +131,7 @@ defineExpose({ ShowAsync: showAsync, Hide: hide });
 <template>
   <Teleport to="body">
     <transition name="wp-dialog">
-      <div v-if="visible" class="wp-dialog-overlay">
+      <div v-if="visible" class="wp-dialog-overlay" @click.self="onOverlayClick">
         <div
           ref="dialogRef"
           class="wp-content-dialog"
@@ -288,6 +303,10 @@ html.is-mobile .wp-content-dialog {
 
 html.is-mobile .wp-content-dialog-title {
   font-size: 18px;
+  /* 标题常是歌曲名 / 歌单名，压成单行省略，避免把面板顶高 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 html.is-mobile .wp-content-dialog-body {

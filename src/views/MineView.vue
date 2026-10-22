@@ -168,28 +168,33 @@ async function playPlaylist(playlist: LocalPlaylist) {
 }
 
 function openPlaylistMenu(x: number, y: number, playlist: LocalPlaylist) {
-  openContextMenuAt(x, y, [
-    {
-      key: "play",
-      label: "播放全部",
-      icon: "&#xF610;",
-      filled: true,
-      action: () => playPlaylist(playlist),
-    },
-    {
-      key: "rename",
-      label: "重命名",
-      icon: "&#xF3DE;",
-      action: () => openRenameDialog(playlist),
-    },
-    {
-      key: "delete",
-      label: "删除歌单",
-      icon: "&#xF34D;",
-      danger: true,
-      action: () => openDeleteDialog(playlist),
-    },
-  ]);
+  openContextMenuAt(
+    x,
+    y,
+    [
+      {
+        key: "play",
+        label: "播放全部",
+        icon: "&#xF610;",
+        filled: true,
+        action: () => playPlaylist(playlist),
+      },
+      {
+        key: "rename",
+        label: "重命名",
+        icon: "&#xF3DE;",
+        action: () => openRenameDialog(playlist),
+      },
+      {
+        key: "delete",
+        label: "删除歌单",
+        icon: "&#xF34D;",
+        danger: true,
+        action: () => openDeleteDialog(playlist),
+      },
+    ],
+    playlist.name,
+  );
 }
 
 async function openRenameDialog(playlist: LocalPlaylist) {

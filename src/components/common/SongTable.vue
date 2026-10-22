@@ -213,11 +213,13 @@ function openRowMenu(track: UnifiedTrack, event: MouseEvent) {
   openContextMenu(event, rowMenuItems(track));
 }
 
-/** 移动端长按：在触摸点弹出同一套菜单 */
+/** 移动端长按：弹出同一套菜单（底部面板标题用歌曲名） */
 const longPress = useLongPress();
 
 function onRowPointerDown(event: PointerEvent, track: UnifiedTrack) {
-  longPress.start(event, (point) => openContextMenuAt(point.x, point.y, rowMenuItems(track)));
+  longPress.start(event, (point) =>
+    openContextMenuAt(point.x, point.y, rowMenuItems(track), trackTitle(track)),
+  );
 }
 
 /* ------------------------------ 拖拽排序 ------------------------------ */

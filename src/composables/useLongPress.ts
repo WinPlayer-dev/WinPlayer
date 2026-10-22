@@ -66,13 +66,14 @@ export function useLongPress(options: LongPressOptions = {}): LongPressControlle
 
   /**
    * 是否放行这次事件：
-   * - 菜单自身（.ctx-menu）内部必须放行，否则点不动菜单项
+   * - 菜单自身（桌面浮出菜单 .ctx-menu / 移动端底部面板 .wp-content-dialog）
+   *   内部必须放行，否则点不动菜单项
    * - 长按元素之外的位置也放行，避免误伤后续的其它点击
    */
   function shouldPass(event: Event): boolean {
     const node = event.target;
     if (!(node instanceof Element)) return true;
-    if (node.closest(".ctx-menu") !== null) return true;
+    if (node.closest(".ctx-menu, .wp-content-dialog") !== null) return true;
     if (pressed && !pressed.contains(node)) return true;
     return false;
   }

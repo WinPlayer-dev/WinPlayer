@@ -143,13 +143,15 @@ function openMenu(event: MouseEvent) {
   openContextMenu(event, menuItems(playlist.value));
 }
 
-/** 移动端长按：在触摸点弹出歌单菜单（仅歌单卡片有菜单） */
+/** 移动端长按：弹出歌单菜单（仅歌单卡片有菜单，底部面板标题用歌单名） */
 const longPress = useLongPress();
 
 function onPointerDown(event: PointerEvent) {
   if (props.kind !== "playlist" || !playlist.value) return;
   const p = playlist.value;
-  longPress.start(event, (point) => openContextMenuAt(point.x, point.y, menuItems(p)));
+  longPress.start(event, (point) =>
+    openContextMenuAt(point.x, point.y, menuItems(p), p.name),
+  );
 }
 </script>
 

@@ -153,11 +153,13 @@ function openSongMenu(song: UnifiedTrack, event: MouseEvent) {
   openContextMenu(event, songMenuItems(song));
 }
 
-/** 移动端长按：在触摸点弹出歌曲菜单 */
+/** 移动端长按：弹出歌曲菜单（底部面板标题用歌曲名） */
 const longPress = useLongPress();
 
 function onSongPointerDown(event: PointerEvent, song: UnifiedTrack) {
-  longPress.start(event, (point) => openContextMenuAt(point.x, point.y, songMenuItems(song)));
+  longPress.start(event, (point) =>
+    openContextMenuAt(point.x, point.y, songMenuItems(song), trackTitle(song)),
+  );
 }
 
 /* ------------------------------ 拖拽到侧边栏歌单 ------------------------------ */
