@@ -46,13 +46,51 @@ fn db_migrations() -> Vec<Migration> {
     ]
 }
 
+/// 第二个实例启动时，把已运行实例的主窗口恢复并拉到前台。
+///
+/// 三种「看不见」的状态都要覆盖：最小化（需 `unminimize`）、隐藏到托盘
+/// （需 `show`）、被别的窗口压住（需 `set_focus`）。不强制置顶——
+/// 走标准的 `SetForegroundWindow` 路径，避免打断用户当前操作。
+#[cfg(winplayer_desktop)]
+fn focus_main_window(app: &tauri::AppHandle) {
+    #[cfg(windows)]
+    {
+        // 复用托盘「显示主窗口」：unminimize + show + set_focus，
+        // 并广播 `app://visibility(true)`，让前端退出后台优化模式
+        // （否则窗口回到前台了，进度条动画还停在省电档）。
+        crate::tray::show_main_window(app);
+    }
+    #[cfg(not(windows))]
+    {
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }
+}
+
 // 移动端通过动态库入口启动，需要导出 tauri 的 mobile entry point 符号
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 单实例锁。必须在**所有其他插件之前**注册：第二个进程被判定为「重复启动」
+    // 后会在插件初始化阶段直接 `process::exit`，越早注册，重复启动前跑过的
+    // 初始化（数据库连接、播放引擎、窗口创建）越少，也越不会留下半截状态。
+    // 移动端没有多开概念（系统保证单任务），插件本身也只支持桌面端。
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default();
+    #[cfg(winplayer_desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            // 走到这里说明是「已运行的那个实例」被唤起：把主窗口拉回前台
+            focus_main_window(app);
+        }));
+    }
+
     // 主题资源协议（壁纸 / 字体 / 图片）与图片缓存协议同样是自定义异步协议
     // `mut` 只在桌面端用得上（按平台补注册插件），移动端会提示多余。
     #[allow(unused_mut)]
-    let mut builder = tauri::Builder::default()
+    let mut builder = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init());

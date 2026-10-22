@@ -49,6 +49,10 @@ rtrb = "0.3"
 # 写成「非 android 且非 ios」= 桌面端（Windows / macOS / Linux）。
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2.3.2"
+# 单实例锁：第二个进程启动时把窗口句柄转交给已运行的实例后自行退出。
+# 插件内部对桌面平台分别用 Windows 消息窗口 / D-Bus / NSApplication 实现，
+# 移动端没有对应实现（系统本身就是单任务），所以同样放进桌面段。
+tauri-plugin-single-instance = "2"
 
 # 仅 Windows 平台生效的原生依赖（SMTC / 系统托盘 / 窗口材质）
 [target.'cfg(windows)'.dependencies]
