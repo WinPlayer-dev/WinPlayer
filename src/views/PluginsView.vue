@@ -5,6 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import QRCode from "qrcode";
 import { usePluginsStore, type PluginRecord } from "@/stores/plugins";
+import { LOCAL_MUSIC_SOURCE_ID, useLocalMusicStore } from "@/stores/localMusic";
 import { toast } from "@/services/toast";
 import { isThrottled } from "@/services/backgroundMode";
 import EmptyState from "@/components/common/EmptyState.vue";
@@ -21,21 +22,26 @@ import type {
 } from "@/types/plugin";
 
 const plugins = usePluginsStore();
+const localMusic = useLocalMusicStore();
 const isMobile = useIsMobile();
 const route = useRoute();
 const router = useRouter();
 
-type PluginsTab = "installed" | "market" | "themes";
-const PLUGINS_TABS: PluginsTab[] = ["installed", "market", "themes"];
+/**
+ * 标签页：内置播放源（宿主自带，始终存在）→ 已安装的插件 → 插件市场 → 主题。
+ * 「插件管理」在本版本更名为「播放源管理」：插件只是播放源的一种（可安装的那种）。
+ */
+type PluginsTab = "builtin" | "installed" | "market" | "themes";
+const PLUGINS_TABS: PluginsTab[] = ["builtin", "installed", "market", "themes"];
 
 /**
  * 当前标签页：以路由 query ?tab= 为准（首次引导的「插件市场」等入口可深链到指定标签），
- * 非法值回退到「已安装」。
+ * 非法值回退到「内置播放源」。
  */
 const tab = ref<PluginsTab>(
   PLUGINS_TABS.includes(String(route.query.tab) as PluginsTab)
     ? (String(route.query.tab) as PluginsTab)
-    : "installed",
+    : "builtin",
 );
 
 // 切换标签同步写回地址栏，刷新 / 返回后仍停在同一标签（与设置页一致）
@@ -54,7 +60,51 @@ interface DialogRef {
 const urlDialogRef = ref<DialogRef | null>(null);
 const uninstallDialogRef = ref<DialogRef | null>(null);
 
-const installedCount = computed(() => plugins.records.length);
+const installedCount = computed(() => plugins.installedRecords.length);
+
+/* ------------------------------ 内置播放源 ------------------------------ */
+
+/** 内置「本地音乐」的启用状态（存 plugin_state，与插件共用一套启停逻辑） */
+const builtinEnabled = computed(
+  () => plugins.records.find((record) => record.entry.id === LOCAL_MUSIC_SOURCE_ID)?.enabled ?? true,
+);
+
+function onToggleBuiltin(event: { IsOn: boolean }): void {
+  void plugins.togglePlugin(LOCAL_MUSIC_SOURCE_ID, Boolean(event?.IsOn));
+}
+
+/** 添加音乐文件夹（选完立即扫描增量） */
+async function addLocalFolders(): Promise<void> {
+  const added = await localMusic.addFolders();
+  if (added) toast(`已添加 ${added} 个文件夹`, "success");
+}
+
+async function removeLocalFolder(folder: string): Promise<void> {
+  await localMusic.removeFolder(folder);
+  toast("已移除文件夹及其曲库记录", "success");
+}
+
+async function rescanLocal(): Promise<void> {
+  await localMusic.scan();
+  if (!localMusic.scanning) toast(`扫描完成，共 ${localMusic.trackCount} 首`, "success");
+}
+
+function openLocalLibrary(): void {
+  void router.push({ name: "local" });
+}
+
+/** 上次扫描时间的简短展示 */
+function scanTimeText(timestamp: number): string {
+  if (!timestamp) return "尚未扫描";
+  const date = new Date(timestamp);
+  const now = new Date();
+  const sameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  const time = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return sameDay ? `今天 ${time}` : `${date.getMonth() + 1}月${date.getDate()}日 ${time}`;
+}
 
 /** 插件设置的编辑草稿（避免每敲一个字就重建插件运行时） */
 const drafts = ref<Record<string, unknown>>({});
@@ -397,7 +447,7 @@ async function loadMarket() {
 /** 本地已安装版本（未安装返回空串） */
 function localVersionOf(entry: MarketEntry): string {
   return (
-    plugins.records.find((r) => r.entry.id === entry.id)?.entry.manifest.version ?? ""
+    plugins.installedRecords.find((r) => r.entry.id === entry.id)?.entry.manifest.version ?? ""
   );
 }
 
@@ -444,7 +494,7 @@ function openEntrySource(entry: MarketEntry): void {
 
 /** 市场卡片「卸载」：复用已安装列表的确认对话框 */
 async function uninstallFromMarket(entry: MarketEntry) {
-  const record = plugins.records.find((r) => r.entry.id === entry.id);
+  const record = plugins.installedRecords.find((r) => r.entry.id === entry.id);
   if (!record) return;
   uninstallTarget.value = record;
   const result = await uninstallDialogRef.value?.ShowAsync();
@@ -455,7 +505,7 @@ async function uninstallFromMarket(entry: MarketEntry) {
 // 插件列表可能异步加载/安装，按“具备登录能力的插件 id 集合”变化时补查一次登录态
 watch(
   () =>
-    plugins.records
+    plugins.installedRecords
       .filter(supportsLogin)
       .map((record) => record.entry.id)
       .join(","),
@@ -464,6 +514,8 @@ watch(
 );
 
 onMounted(async () => {
+  // 本地曲库（内置源）：索引与文件夹列表都从 SQLite 读，扫描由 App 启动时触发
+  if (!localMusic.loaded) await localMusic.load();
   if (!plugins.records.length && !plugins.loading) await plugins.loadInstalled();
   await loadMarket();
   await refreshAllLoginStates();
@@ -489,36 +541,98 @@ onUnmounted(() => {
 <template>
   <div class="wp-page plugins-page" :class="{ mobile: isMobile }">
     <div class="wp-page-header">
-      <h1 class="wp-page-title">插件管理</h1>
-      <span class="page-sub">已安装 {{ installedCount }} 个</span>
+      <h1 class="wp-page-title">播放源管理</h1>
+      <span class="page-sub">内置 {{ plugins.builtinRecords.length }} 个 · 已安装 {{ installedCount }} 个</span>
     </div>
 
     <!-- 标签页 -->
     <div class="tabs">
-      <button class="tab" :class="{ active: tab === 'installed' }" @click="tab = 'installed'">已安装</button>
+      <button class="tab" :class="{ active: tab === 'builtin' }" @click="tab = 'builtin'">
+        内置播放源
+      </button>
+      <button class="tab" :class="{ active: tab === 'installed' }" @click="tab = 'installed'">
+        已安装的插件
+      </button>
       <button class="tab" :class="{ active: tab === 'market' }" @click="tab = 'market'">
         插件市场
       </button>
       <button class="tab" :class="{ active: tab === 'themes' }" @click="tab = 'themes'">
         主题
       </button>
-      <div class="tab-actions">
-        <template v-if="tab !== 'themes'">
-          <WpButton class="small" @click="installFromFile" variant="standard">
-            <span class="wp-icon">&#xF42F;</span>从本地安装
-          </WpButton>
-          <WpButton class="small" @click="openUrlDialog" variant="standard">
-            <span class="wp-icon">&#xF4E5;</span>从 URL 安装
-          </WpButton>
-        </template>
+      <div v-if="tab === 'installed' || tab === 'market'" class="tab-actions">
+        <WpButton class="small" @click="installFromFile" variant="standard">
+          <span class="wp-icon">&#xF42F;</span>从本地安装
+        </WpButton>
+        <WpButton class="small" @click="openUrlDialog" variant="standard">
+          <span class="wp-icon">&#xF4E5;</span>从 URL 安装
+        </WpButton>
       </div>
     </div>
 
-    <!-- 已安装列表 -->
-    <template v-if="tab === 'installed'">
+    <!-- 内置播放源：宿主自带，无需安装 -->
+    <template v-if="tab === 'builtin'">
+      <div class="plugin-list">
+        <div class="plugin-card builtin-card">
+          <div class="plugin-main">
+            <div class="plugin-title-row">
+              <span class="plugin-name">本地音乐</span>
+              <span class="builtin-badge">内置</span>
+            </div>
+            <div class="plugin-desc">
+              播放本机文件夹里的音乐，读取标签、内嵌封面与同名 SRT / LRC 歌词；子文件夹会自动收录。
+            </div>
+            <div class="builtin-stats">
+              <span>{{ localMusic.trackCount }} 首</span>
+              <span class="dot">·</span>
+              <span>{{ localMusic.albumCount }} 张专辑</span>
+              <span class="dot">·</span>
+              <span>{{ localMusic.artistCount }} 位歌手</span>
+              <span class="dot">·</span>
+              <span>{{ scanTimeText(localMusic.lastScanAt) }}</span>
+            </div>
+
+            <!-- 已添加的音乐文件夹 -->
+            <div class="folder-block">
+              <div class="folder-head">音乐文件夹</div>
+              <div v-if="localMusic.folders.length" class="folder-list">
+                <div v-for="folder in localMusic.folders" :key="folder" class="folder-row">
+                  <span class="wp-icon folder-icon">&#xE8B7;</span>
+                  <span class="folder-path" :title="folder">{{ folder }}</span>
+                  <span class="folder-count">{{ localMusic.folderCounts.get(folder) ?? 0 }} 首</span>
+                  <button class="folder-remove" @click="removeLocalFolder(folder)">移除</button>
+                </div>
+              </div>
+              <div v-else class="folder-empty">
+                还没有添加文件夹。添加后会自动扫描其中的音频文件（含子文件夹）。
+              </div>
+            </div>
+          </div>
+
+          <div class="plugin-side">
+            <ToggleSwitch :IsOn="builtinEnabled" @Toggled="onToggleBuiltin($event)" />
+            <WpButton class="small" :disabled="localMusic.scanning" @click="rescanLocal" variant="standard">
+              {{ localMusic.scanning ? "扫描中…" : "重新扫描" }}
+            </WpButton>
+            <WpButton class="small" @click="addLocalFolders" variant="accent">添加文件夹</WpButton>
+          </div>
+
+          <div class="builtin-foot">
+            <WpButton class="small" @click="openLocalLibrary" variant="standard">
+              <span class="wp-icon">&#xE8F1;</span>打开曲库
+            </WpButton>
+            <span class="builtin-hint">
+              支持 mp3 / flac / m4a / aac / ogg / wav；可被选为「播放源」，搜索页也会出现「本地音乐」标签
+            </span>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- 已安装的插件 -->
+    <template v-else-if="tab === 'installed'">
       <div v-if="plugins.loading" class="hint">加载中…</div>
       <EmptyState
-        v-else-if="!plugins.records.length"
+        v-else-if="!plugins.installedRecords.length"
         icon="&#xF137;"
         title="尚未安装任何插件"
         description="插件决定音乐来自哪里。你可以从本地导入 .zip/.json 插件包、通过 URL 安装，或在插件市场中浏览。"
@@ -528,7 +642,7 @@ onUnmounted(() => {
       </EmptyState>
 
       <div v-else class="plugin-list">
-        <div v-for="record in plugins.records" :key="record.entry.id" class="plugin-card">
+        <div v-for="record in plugins.installedRecords" :key="record.entry.id" class="plugin-card">
           <div class="plugin-main">
             <div class="plugin-title-row">
               <span class="plugin-name">{{ record.entry.manifest.name }}</span>
@@ -1050,6 +1164,118 @@ onUnmounted(() => {
   flex: none;
 }
 
+/* ------------------------------ 内置播放源 ------------------------------ */
+
+.builtin-badge {
+  font-size: 11px;
+  color: var(--wp-accent);
+  background: var(--wp-accent-light);
+  border-radius: 8px;
+  padding: 1px 8px;
+}
+
+/* 曲库统计：首数 · 专辑数 · 歌手数 · 上次扫描 */
+.builtin-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-md);
+  font-size: 12px;
+  color: var(--wp-text-tertiary);
+}
+
+.builtin-stats .dot {
+  opacity: 0.5;
+}
+
+.folder-block {
+  margin-top: var(--space-lg);
+  border-top: 1px solid var(--wp-divider);
+  padding-top: var(--space-lg);
+}
+
+.folder-head {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wp-text-secondary);
+  margin-bottom: var(--space-sm);
+}
+
+.folder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.folder-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--wp-control-fill-secondary);
+  font-size: 12px;
+}
+
+.folder-icon {
+  font-size: 15px;
+  color: var(--wp-text-secondary);
+  flex: none;
+}
+
+/* 路径可能很长：占满剩余宽度并省略中间之外的部分（悬停看全路径） */
+.folder-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-count {
+  color: var(--wp-text-tertiary);
+  flex: none;
+}
+
+.folder-remove {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--wp-text-tertiary);
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.folder-remove:hover {
+  color: var(--wp-danger);
+  background: var(--wp-card-hover);
+}
+
+.folder-empty {
+  font-size: 12px;
+  color: var(--wp-text-tertiary);
+  line-height: 1.6;
+}
+
+/* 底部操作行：打开曲库 + 格式说明 */
+.builtin-foot {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  border-top: 1px solid var(--wp-divider);
+  padding-top: var(--space-lg);
+}
+
+.builtin-hint {
+  font-size: 11px;
+  color: var(--wp-text-tertiary);
+  line-height: 1.5;
+}
+
 .market-toolbar {
   margin-bottom: var(--space-lg);
 }
@@ -1223,6 +1449,25 @@ onUnmounted(() => {
 /* 市场卡片：单列（minmax(300px, 1fr) 在窄屏会撑出横向滚动） */
 .plugins-page.mobile .market-grid {
   grid-template-columns: 1fr;
+}
+
+/* 内置源：底部操作行纵排，文件夹路径独占一行（窄屏放不下「图标+路径+首数+移除」） */
+.plugins-page.mobile .builtin-foot {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-md);
+}
+
+.plugins-page.mobile .folder-row {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+.plugins-page.mobile .folder-path {
+  flex: 1 1 100%;
+  order: 3;
+  white-space: normal;
+  word-break: break-all;
 }
 
 .plugins-page.mobile .market-foot {

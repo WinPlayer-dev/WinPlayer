@@ -533,7 +533,7 @@ function isActive(name: string): boolean {
         <li>
           <router-link :to="{ name: 'plugins' }" class="nav-item" :class="{ active: isActive('plugins') }">
             <span class="wp-icon nav-icon">&#xF137;</span>
-            <span class="nav-label">插件管理</span>
+            <span class="nav-label">播放源管理</span>
           </router-link>
         </li>
         <li>

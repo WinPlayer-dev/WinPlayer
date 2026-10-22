@@ -40,7 +40,7 @@ export interface PluginLoginConfig {
   expiresIn?: number;
 }
 
-/** 插件设置项（由插件 manifest 声明，插件管理页据此渲染表单） */
+/** 插件设置项（由插件 manifest 声明，播放源管理页据此渲染表单） */
 export interface PluginSettingItem {
   key: string;
   label: string;
@@ -83,7 +83,11 @@ export interface SingleFilePlugin extends PluginManifest {
 export interface PluginEntry {
   id: string;
   manifest: PluginManifest;
-  kind: "dir" | "file";
+  /**
+   * 插件形态：目录型 / 单文件 JSON / 内置源（内置源不落盘，由宿主直接实现，
+   * 见 `services/builtinSources.ts`）
+   */
+  kind: "dir" | "file" | "builtin";
 }
 
 /* ------------------------------ 统一数据格式 ------------------------------ */

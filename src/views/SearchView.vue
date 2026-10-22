@@ -375,9 +375,9 @@ useRefreshable(() => {
       v-if="!searchSources.length"
       icon="&#xF137;"
       title="没有可用的搜索来源"
-      description="搜索页会为每个启用了搜索能力的插件生成一个 Tab，请先在插件管理中安装并启用插件。"
+      description="搜索页会为每个启用了搜索能力的播放源生成一个 Tab。可以在播放源管理里添加本地音乐文件夹，或安装在线插件。"
     >
-      <WpButton @click="router.push('/plugins')" variant="accent">前往插件管理</WpButton>
+      <WpButton @click="router.push('/plugins')" variant="accent">前往播放源管理</WpButton>
     </EmptyState>
 
     <template v-else>

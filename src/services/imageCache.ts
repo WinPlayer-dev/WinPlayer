@@ -17,9 +17,16 @@ export function isImageCacheEnabled(): boolean {
   return policy === "both" || policy === "images";
 }
 
+/**
+ * 应用内部自定义协议的虚拟域名：它们由 Rust 端本地提供内容，
+ * **不能**改写为 `cachedimg`（缓存代理只会去网络上抓，必然 404）。
+ */
+const INTERNAL_HOST_PATTERN = /^https?:\/\/(cachedimg|localcover|themeasset)\.localhost\//i;
+
 export function cachedImgUrl(url?: string | null): string | undefined {
   if (!url) return undefined;
   if (!/^https?:\/\//i.test(url)) return url;
+  if (INTERNAL_HOST_PATTERN.test(url)) return url;
   if (!isImageCacheEnabled()) return url;
   return `http://cachedimg.localhost/?src=${encodeURIComponent(url)}`;
 }

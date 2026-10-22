@@ -3,6 +3,8 @@ mod commands;
 // 因此整个模块只在桌面端参与编译。
 #[cfg(winplayer_desktop)]
 mod global_shortcuts;
+// 本地音乐（内置播放源）：文件夹扫描 + 标签/封面/歌词提取
+mod local_music;
 mod player;
 mod smtc;
 #[cfg(windows)]
@@ -41,6 +43,12 @@ fn db_migrations() -> Vec<Migration> {
             version: 3,
             description: "play history",
             sql: include_str!("../migrations/003_history.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 4,
+            description: "local music index",
+            sql: include_str!("../migrations/004_local_music.sql"),
             kind: MigrationKind::Up,
         },
     ]
@@ -102,8 +110,11 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
     }
 
-    let builder = commands::themes::register(commands::cache::register(
-        builder
+    // 主题资源协议 / 本地封面协议 / 图片缓存协议都是自定义 URI 协议，
+    // 逐个包一层注册（顺序无关，链式写太深不易读）
+    let builder = commands::themes::register(commands::localmusic::register(
+        commands::cache::register(
+            builder
             // 安卓媒体控件（媒体通知/锁屏/线控），桌面端自动 no-op
             .plugin(tauri_plugin_media_session::init())
             // 安卓 APK 安装（自动更新），桌面端自动 no-op
@@ -140,6 +151,8 @@ pub fn run() {
                 commands::plugins::plugin_remove,
                 commands::plugins::plugin_storage_get,
                 commands::plugins::plugin_storage_set,
+                commands::localmusic::local_music_scan,
+                commands::localmusic::local_music_lyrics,
                 commands::themes::theme_list,
                 commands::themes::theme_read_text,
                 commands::themes::theme_install_from_path,
@@ -226,6 +239,7 @@ pub fn run() {
                     }
                 }
             }),
+        ),
     ));
     builder
         .run(tauri::generate_context!())

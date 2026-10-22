@@ -38,6 +38,8 @@ base64 = "0.22"
 rand = "0.9"
 # 图片缓存：解码并压缩（最长边 512、JPEG）后落盘
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
+# 本地音乐标签解析：ID3v2 / FLAC / MP4 / Vorbis 注释 + 内嵌封面与内嵌歌词
+lofty = "0.22"
 
 # 原生音频播放：symphonia 解码（无 opus，symphonia 0.5 暂不支持）、rodio 输出（Windows WASAPI / Android AAudio）
 symphonia = { version = "0.5", features = ["mp3", "aac", "isomp4", "flac", "pcm", "vorbis", "ogg"] }

@@ -1,4 +1,4 @@
-/** 插件管理：安装/卸载/启停/配置，以及跨插件的聚合调用 */
+/** 播放源管理：插件的安装/卸载/启停/配置、内置源注入，以及跨来源的聚合调用 */
 
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
@@ -12,6 +12,12 @@ import { toast } from "@/services/toast";
 import { applyGithubMirror, resolveAssetUrl } from "@/services/githubMirror";
 import { QUALITY_SETTING_KEY, qualityChainOf } from "@/services/quality";
 import { rememberMediaHeaders } from "@/services/audio";
+import {
+  BUILTIN_LOCAL_ENTRY,
+  builtinSourceHost,
+  isBuiltinSource,
+  type BuiltinSourceHost,
+} from "@/services/builtinSources";
 import { useSettingsStore } from "@/stores/settings";
 import type {
   AlbumDetail,
@@ -41,7 +47,7 @@ export interface PluginRecord {
   entry: PluginEntry;
   enabled: boolean;
   settings: Record<string, unknown>;
-  /** 最近一次运行时错误（用于插件管理页展示） */
+  /** 最近一次运行时错误（用于播放源管理页展示） */
   error?: string;
 }
 
@@ -77,6 +83,22 @@ export function defaultSettingsFromManifest(manifest: PluginManifest): Record<st
   return values;
 }
 
+/** 由已安装条目 + 落库状态（plugin_state）构造插件记录 */
+function buildRecord(
+  entry: PluginEntry,
+  row?: { enabled: number; settings: string },
+): PluginRecord {
+  let settings: Record<string, unknown> = defaultSettingsFromManifest(entry.manifest);
+  if (row?.settings) {
+    try {
+      settings = { ...settings, ...(JSON.parse(row.settings) as Record<string, unknown>) };
+    } catch {
+      /* 配置损坏时回退默认值 */
+    }
+  }
+  return { entry, enabled: row ? row.enabled === 1 : true, settings };
+}
+
 /**
  * 登录凭证存放的设置项 key。
  *
@@ -98,10 +120,20 @@ export const usePluginsStore = defineStore("plugins", () => {
   const records = ref<PluginRecord[]>([]);
   const loading = ref(false);
 
-  /** 运行时宿主（非响应式） */
-  const hosts = new Map<string, PluginHost>();
+  /** 运行时宿主（非响应式）：插件走 Worker 沙箱，内置源走本地实现，接口同形 */
+  const hosts = new Map<string, PluginHost | BuiltinSourceHost>();
 
   const enabledRecords = computed(() => records.value.filter((r) => r.enabled));
+
+  /** 已安装的插件（不含内置播放源）：插件市场/统计/引导判定都用它 */
+  const installedRecords = computed(() =>
+    records.value.filter((record) => !isBuiltinSource(record.entry.id)),
+  );
+
+  /** 内置播放源（始终存在，不可卸载） */
+  const builtinRecords = computed(() =>
+    records.value.filter((record) => isBuiltinSource(record.entry.id)),
+  );
 
   function hasCapability(record: PluginRecord, capability: PluginCapability): boolean {
     return record.entry.manifest.capabilities?.includes(capability) ?? false;
@@ -127,22 +159,12 @@ export const usePluginsStore = defineStore("plugins", () => {
       );
       const stateMap = new Map(states.map((row) => [row.plugin_id, row]));
 
-      records.value = entries.map((entry) => {
-        const row = stateMap.get(entry.id);
-        let settings: Record<string, unknown> = defaultSettingsFromManifest(entry.manifest);
-        if (row?.settings) {
-          try {
-            settings = { ...settings, ...(JSON.parse(row.settings) as Record<string, unknown>) };
-          } catch {
-            /* 配置损坏时回退默认值 */
-          }
-        }
-        return {
-          entry,
-          enabled: row ? row.enabled === 1 : true,
-          settings,
-        };
-      });
+      records.value = [
+        // 内置播放源固定排在首位：它不属于「已安装的插件」，但同样参与
+        // 搜索页 Tab、播放源偏好等所有按 record 走的逻辑
+        buildRecord(BUILTIN_LOCAL_ENTRY, stateMap.get(BUILTIN_LOCAL_ENTRY.id)),
+        ...entries.map((entry) => buildRecord(entry, stateMap.get(entry.id))),
+      ];
 
       // 清理已卸载插件的运行时
       for (const [id, host] of hosts) {
@@ -159,14 +181,22 @@ export const usePluginsStore = defineStore("plugins", () => {
     }
   }
 
-  /** 获取插件运行时（懒加载，首次调用时启动沙箱） */
-  async function getHost(id: string): Promise<PluginHost> {
+  /** 获取来源运行时（懒加载）：插件启动 Worker 沙箱，内置源直接返回本地宿主 */
+  async function getHost(id: string): Promise<PluginHost | BuiltinSourceHost> {
     const record = records.value.find((r) => r.entry.id === id);
-    if (!record) throw new Error(`插件不存在: ${id}`);
-    if (!record.enabled) throw new Error(`插件已停用: ${record.entry.manifest.name}`);
+    if (!record) throw new Error(`播放源不存在: ${id}`);
+    if (!record.enabled) throw new Error(`播放源已停用: ${record.entry.manifest.name}`);
 
     const existing = hosts.get(id);
     if (existing) return existing;
+
+    // 内置源：不读磁盘、不起 Worker，直接取本地实现
+    const builtin = builtinSourceHost(id);
+    if (builtin) {
+      hosts.set(id, builtin);
+      record.error = undefined;
+      return builtin;
+    }
 
     const code = await invoke<string>("plugin_read_code", { id });
     const host = new PluginHost(record.entry, code, record.settings);
@@ -241,6 +271,11 @@ export const usePluginsStore = defineStore("plugins", () => {
   }
 
   async function uninstall(id: string): Promise<void> {
+    if (isBuiltinSource(id)) {
+      // 内置源由宿主提供，没有可删除的插件包
+      toast("内置播放源无法卸载，可直接停用", "info");
+      return;
+    }
     const record = records.value.find((r) => r.entry.id === id);
     hosts.get(id)?.dispose();
     hosts.delete(id);
@@ -404,12 +439,13 @@ export const usePluginsStore = defineStore("plugins", () => {
       failures.push("曲目缺少来源信息");
     }
 
-    // 3. 其它启用插件（跳过前面已经试过的来源）
+    // 3. 其它启用插件（跳过前面已经试过的来源；内置源的本地曲库不参与网络歌曲换源）
     const tried = new Set([track.sourceId ?? "", playSourceId].filter(Boolean));
     const keyword = formatTrackKeyword(track, settingsStore.sourceSearchFormat);
     if (keyword) {
       for (const record of enabledRecords.value) {
         if (tried.has(record.entry.id)) continue;
+        if (isBuiltinSource(record.entry.id)) continue;
         if (!hasCapability(record, "songUrl") || !hasCapability(record, "search")) continue;
         const sample = await relocateTrack(record.entry.id, track);
         if (!sample) continue;
@@ -431,7 +467,7 @@ export const usePluginsStore = defineStore("plugins", () => {
 
   /** 按「从高到低」候选链请求直链：高音质失败自动降级，全部失败抛最后一次错误 */
   async function invokeWithQualityFallback(
-    host: PluginHost,
+    host: PluginHost | BuiltinSourceHost,
     sourceId: string,
     id: string,
   ): Promise<SongUrlResult> {
@@ -817,6 +853,9 @@ export const usePluginsStore = defineStore("plugins", () => {
     records,
     loading,
     enabledRecords,
+    installedRecords,
+    builtinRecords,
+    isBuiltinSource,
     /** 「播放源」偏好（空串 = 跟随曲目自身来源）；音质入口据此判断实际生效的插件 */
     playSourcePreference: computed(() => settingsStore.playSourceId),
     hasCapability,

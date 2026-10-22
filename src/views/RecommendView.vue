@@ -204,9 +204,9 @@ onMounted(loadWithCache);
       v-if="!plugins.enabledRecords.length"
       icon="&#xF137;"
       title="还没有可用的播放源"
-      description="WinPlayer 的音乐完全来自插件。前往插件管理安装一个播放源插件，或从市场添加。"
+      description="WinPlayer 的音乐完全来自播放源。可以先去播放源管理添加本地音乐文件夹，或安装一个在线播放源插件。"
     >
-      <WpButton @click="router.push('/plugins')" variant="accent">前往插件管理</WpButton>
+      <WpButton @click="router.push('/plugins')" variant="accent">前往播放源管理</WpButton>
     </EmptyState>
 
     <div v-else-if="loading" class="loading-wrap">

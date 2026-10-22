@@ -1030,14 +1030,19 @@ impl PlayerEngine {
 
 #[cfg(test)]
 mod tests {
-    use super::{ChainEntry, PlayChain};
+    use super::{ChainEntry, MediaHeaders, PlayChain};
 
     fn chain_of(urls: &[&str], indexes: &[usize]) -> PlayChain {
         PlayChain {
             entries: urls
                 .iter()
                 .zip(indexes)
-                .map(|(url, index)| ChainEntry { index: *index, url: (*url).to_string() })
+                .map(|(url, index)| ChainEntry {
+                    index: *index,
+                    url: (*url).to_string(),
+                    // 测试只关心链指针的推进/回卷，直链不带防盗链头
+                    headers: MediaHeaders::default(),
+                })
                 .collect(),
             current: Some(0),
         }

@@ -1,6 +1,7 @@
 pub mod cache;
 pub mod download;
 pub mod http;
+pub mod localmusic;
 pub mod plugins;
 pub mod smtc;
 pub mod themes;

@@ -69,10 +69,17 @@ const router = createRouter({
       meta: { title: "歌手" },
     },
     {
+      // 本地音乐曲库（内置播放源「本地音乐」的浏览入口）
+      path: "/local",
+      name: "local",
+      component: () => import("@/views/LocalMusicView.vue"),
+      meta: { title: "本地音乐" },
+    },
+    {
       path: "/plugins",
       name: "plugins",
       component: () => import("@/views/PluginsView.vue"),
-      meta: { title: "插件管理" },
+      meta: { title: "播放源管理" },
     },
     {
       path: "/settings",

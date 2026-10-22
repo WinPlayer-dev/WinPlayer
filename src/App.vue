@@ -27,6 +27,7 @@ import { useLibraryStore } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useHistoryStore } from "@/stores/history";
+import { useLocalMusicStore } from "@/stores/localMusic";
 import { useShortcutsStore } from "@/stores/shortcuts";
 import { useUpdaterStore } from "@/stores/updater";
 import { disposeSmtc, initSmtc, setSmtcEnabled } from "@/services/smtc";
@@ -46,6 +47,7 @@ const plugins = usePluginsStore();
 const library = useLibraryStore();
 const player = usePlayerStore();
 const downloads = useDownloadsStore();
+const localMusic = useLocalMusicStore();
 const history = useHistoryStore();
 const shortcuts = useShortcutsStore();
 const updater = useUpdaterStore();
@@ -106,7 +108,9 @@ onMounted(async () => {
      * 老用户升级上来已经有插件，说明不是首次使用——静默补写完成标记，避免被引导页拦一次。
      */
     if (!settings.onboardingDone) {
-      if (plugins.records.length) await settings.setOnboardingDone(true);
+      // 内置播放源不算「已装好播放源」：本地音乐随应用自带，只有用户真正安装过
+      // 插件才视为老用户，否则仍然走首次引导
+      if (plugins.installedRecords.length) await settings.setOnboardingDone(true);
       else await router.replace({ name: "welcome" });
     }
     // 主题只依赖设置与本地文件，尽早恢复且不阻塞后续初始化（失败会静默回退默认外观）
@@ -116,6 +120,8 @@ onMounted(async () => {
     initTray(player);
     // 离线下载：订阅进度、解析默认目录、载入离线索引（不阻塞首屏）
     void downloads.init();
+    // 本地曲库（内置播放源）：读索引后后台增量扫描，不阻塞首屏
+    void localMusic.init();
     // 自动更新与播放无关：放在最后并静默执行，不阻塞首屏
     void updater.init().then(() => updater.maybeAutoCheck());
     // Android 返回键：全局只在这里接管一次，其余页面通过拦截器插入

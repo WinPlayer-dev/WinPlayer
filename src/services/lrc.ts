@@ -74,3 +74,48 @@ export function findLyricIndex(lines: LyricLine[], timeMs: number): number {
   }
   return result;
 }
+
+/* ------------------------------ SRT 转换 ------------------------------ */
+
+/** SRT 时间轴：`00:01:02,500 --> 00:01:05,000`（毫秒分隔符容忍 `,` 与 `.`） */
+const SRT_TIME =
+  /(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})\s*-->\s*(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})/;
+
+/**
+ * 把 SubRip（`.srt`）字幕转成 LRC 文本。
+ *
+ * 本地音乐的歌词常常是视频/字幕工具产出的 SRT：有序号、`hh:mm:ss,mmm` 时间轴与
+ * 可多行的正文。这里只取每条 cue 的**开始时间**与正文（多行合并为一行），
+ * 生成与 LRC 同构的文本，直接喂给 [`parseLrc`](./index) 即可滚动显示。
+ */
+export function srtToLrc(text: string): string {
+  const blocks = text.replace(/\r\n?/g, "\n").split(/\n{2,}/);
+  const lines: string[] = [];
+
+  for (const block of blocks) {
+    const rows = block
+      .split("\n")
+      .map((row) => row.trim())
+      .filter(Boolean);
+    if (!rows.length) continue;
+
+    const timeIndex = rows.findIndex((row) => row.includes("-->"));
+    if (timeIndex < 0) continue;
+    const match = SRT_TIME.exec(rows[timeIndex]);
+    if (!match) continue;
+
+    const content = rows.slice(timeIndex + 1).join(" ").trim();
+    if (!content) continue;
+
+    const totalMinutes = Number(match[1]) * 60 + Number(match[2]);
+    const seconds = Number(match[3]);
+    const millis = Number(match[4].padEnd(3, "0").slice(0, 3));
+    lines.push(
+      `[${String(totalMinutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(
+        millis,
+      ).padStart(3, "0")}]${content}`,
+    );
+  }
+
+  return lines.join("\n");
+}

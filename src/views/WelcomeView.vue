@@ -37,8 +37,10 @@ const installed = ref(false);
 /** 从设置页进入：结束引导后回到「设置 → 通用」而不是首页 */
 const fromSettings = computed(() => route.query.from === "settings");
 
-/** 本地已安装记录（用于把已装的条目显示为「已安装」） */
-const installedIds = computed(() => new Set(plugins.records.map((record) => record.entry.id)));
+/** 本地已安装记录（用于把已装的条目显示为「已安装」；内置源不在市场里，不计入） */
+const installedIds = computed(
+  () => new Set(plugins.installedRecords.map((record) => record.entry.id)),
+);
 
 function entryKey(entry: MarketEntry): string {
   return `${entry.id}::${entry.url}`;
