@@ -1,6 +1,6 @@
 {
   "name": "winplayer",
-  "version": "1.8.8",
+  "version": "1.9.0",
   "private": true,
   "type": "module",
   "description": "A plugin-driven music player with WinUI design, built with Tauri 2 and Vue 3",
