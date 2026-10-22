@@ -252,7 +252,7 @@ function retryMarket(): void {
           </div>
 
           <p class="panel-foot">
-            列表来自插件市场索引。需要从 URL 或本地文件安装？稍后可在「设置 → 插件」里完成。
+            列表来自插件市场索引。需要从 URL 或本地文件安装？稍后可在「播放源」里完成。
           </p>
         </div>
 
@@ -263,7 +263,7 @@ function retryMarket(): void {
           </WpButton>
         </div>
 
-        <p class="tiny-hint">也可以稍后在「设置 → 插件」里随时添加或更换播放源</p>
+        <p class="tiny-hint">也可以稍后在「播放源」里随时添加或更换播放源</p>
       </section>
     </div>
 
