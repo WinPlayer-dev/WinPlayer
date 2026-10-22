@@ -1062,14 +1062,201 @@ onUnmounted(() => {
   flex: none;
 }
 
-/* ------------------------------ 内置播放源 ------------------------------ */
+/* ------------------------------ 插件市场卡片 ------------------------------ */
+
+.market-toolbar {
+  margin-bottom: var(--space-lg);
+}
+
+/* minmax(300px, 1fr) 在窄屏会撑出横向滚动，移动端单独覆写为单列 */
+.market-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-lg);
+}
+
+.market-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--wp-card);
+  border: 1px solid var(--wp-control-stroke);
+  border-radius: var(--radius-lg);
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-normal) var(--ease-decelerate);
+}
+
+.market-card:hover {
+  border-color: var(--wp-accent);
+  transform: translateY(-2px);
+}
+
+.market-banner {
+  position: relative;
+  aspect-ratio: 2 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--wp-accent-light), var(--wp-control-fill-secondary));
+}
+
+.market-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.banner-fallback {
+  font-size: 40px;
+  color: var(--wp-text-tertiary);
+}
+
+.market-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+}
+
+.market-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-md);
+  min-width: 0;
+}
+
+.market-name {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-author {
+  font-size: 12px;
+  color: var(--wp-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-desc {
+  font-size: 12px;
+  color: var(--wp-text-secondary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.market-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding-top: var(--space-sm);
+}
+
+.market-version {
+  font-size: 12px;
+  color: var(--wp-text-tertiary);
+  white-space: nowrap;
+}
+
+.market-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex: none;
+}
+
+/* ---------------------------- 安装 / 卸载对话框 ---------------------------- */
+
+.dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+}
+
+.dialog-hint {
+  font-size: 12px;
+  color: var(--wp-text-tertiary);
+}
+
+/* ------------------------------ 移动端布局 ------------------------------ */
+
+/* 顶部标签与安装操作：窄屏放不下时换行，操作按钮独占一行置顶 */
+.plugins-page.mobile .tabs {
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+}
+
+.plugins-page.mobile .tab-actions {
+  order: -1;
+  width: 100%;
+  margin-left: 0;
+}
+
+.plugins-page.mobile .tab {
+  padding: var(--space-md) var(--space-lg);
+}
+
+/* 卡片由「主信息 + 操作」两列改为单列纵向堆叠 */
+.plugins-page.mobile .plugin-card {
+  grid-template-columns: 1fr;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+}
+
+.plugins-page.mobile .plugin-title-row,
+.plugins-page.mobile .plugin-meta {
+  flex-wrap: wrap;
+}
+
+/* 操作区（开关 + 卸载）铺满一行：开关靠左、卸载靠右 */
+.plugins-page.mobile .plugin-side {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 扫码登录区：空间不足时允许换行 */
+.plugins-page.mobile .plugin-login {
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+}
+
+/* 设置项：说明文字独占一行，输入控件另起一行铺满整行 */
+.plugins-page.mobile .setting-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-md);
+}
+
+/* 纵排后取消 flex:1（其 flex-basis:0 会让文字行在容器内塌陷） */
+.plugins-page.mobile .setting-label {
+  flex: none;
+}
+
+.plugins-page.mobile .setting-control {
+  width: 100%;
+  max-width: 100%;
+}
 
 /* 市场卡片：单列（minmax(300px, 1fr) 在窄屏会撑出横向滚动） */
 .plugins-page.mobile .market-grid {
   grid-template-columns: 1fr;
 }
 
-/* 内置源：底部操作行纵排，文件夹路径独占一行（窄屏放不下「图标+路径+首数+移除」） */
+/* 市场卡片底部：窄屏放不下「版本 + 两个按钮」时换行 */
 .plugins-page.mobile .market-foot {
   flex-wrap: wrap;
   row-gap: var(--space-sm);
