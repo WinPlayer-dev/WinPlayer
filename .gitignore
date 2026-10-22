@@ -44,8 +44,10 @@ coverage/
 debug.keystore
 debug.keystore.b64
 
-plugins/
-plugins/*.zip
+# 只忽略仓库根目录的插件产物目录；不要写成裸 `plugins/`，否则会连
+# `src/views/plugins/` 这类源码目录一起忽略（曾导致 BuiltinSourcesTab.vue 未入库、CI 构建失败）
+/plugins/
+/plugins/*.zip
 
 # --- 图标字体（prebuild 脚本自动下载，不入库）---
 src/assets/fonts/*.ttf
