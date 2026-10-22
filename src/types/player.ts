@@ -48,6 +48,8 @@ export interface LyricLine {
   /** 时间（毫秒） */
   time: number;
   text: string;
+  /** 对照翻译（缺失即该行没有翻译，界面不显示翻译副行） */
+  translation?: string;
 }
 
 let uidCounter = 0;

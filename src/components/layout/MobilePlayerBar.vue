@@ -189,12 +189,13 @@ const activeIndex = computed(() =>
   findLyricIndex(player.lyrics, player.currentTime * 1000 - lyricOffset.value),
 );
 
-/** 歌词行：首行为原文，其余行（翻译）作为副行小字展示 */
+/** 歌词行：原文 + 对照翻译（翻译只挂在该行自己的时间轴上，没有就是空） */
 const lyricRows = computed(() =>
-  player.lyrics.map((line) => {
-    const [text, ...rest] = line.text.split("\n");
-    return { time: line.time, text, translation: rest.join(" ") };
-  }),
+  player.lyrics.map((line) => ({
+    time: line.time,
+    text: line.text,
+    translation: line.translation ?? "",
+  })),
 );
 
 /** 上一次「已确定」的纯封面判定，仅在歌词加载空窗期复用 */

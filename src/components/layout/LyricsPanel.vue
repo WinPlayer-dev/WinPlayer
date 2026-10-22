@@ -37,6 +37,7 @@ useAutoCenter({
             @click="player.seek(line.time / 1000)"
           >
             <span class="lrc-text">{{ line.text }}</span>
+            <span v-if="line.translation" class="lrc-translation">{{ line.translation }}</span>
           </p>
         </div>
       </div>
@@ -115,6 +116,9 @@ useAutoCenter({
 
 .lrc-line {
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   font-size: 14px;
   line-height: 1.6;
   color: var(--wp-text-tertiary);
@@ -122,7 +126,14 @@ useAutoCenter({
   transition:
     color var(--duration-normal) var(--ease-standard),
     transform var(--duration-normal) var(--ease-standard);
-  white-space: pre-line;
+}
+
+/* 对照翻译：原文下方的小字副行，只有该行确实有翻译时才渲染 */
+.lrc-translation {
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 400;
+  opacity: 0.8;
 }
 
 .lrc-line:hover {

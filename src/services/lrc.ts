@@ -40,22 +40,78 @@ export function parseLrc(lrc: string): LyricLine[] {
   return lines;
 }
 
-/** 合并翻译歌词（按行序对齐到原文时间轴） */
-export function mergeTranslation(lines: LyricLine[], translation?: string): LyricLine[] {
-  if (!translation) return lines;
-  const translated = parseLrc(translation);
-  if (!translated.length) return lines;
+/** 翻译与原文的时间轴容差（毫秒）：不同来源的毫秒位常被截断或取整 */
+const TRANSLATION_TOLERANCE_MS = 500;
 
-  // 若翻译行带有自身时间轴且数量一致，按时间就近对齐；否则按行序对齐
-  return lines.map((line, index) => {
-    const target =
-      translated.length === lines.length
-        ? translated[index]
-        : translated.reduce((best, cur) =>
-            Math.abs(cur.time - line.time) < Math.abs(best.time - line.time) ? cur : best,
-          );
-    return target?.text ? { ...line, text: `${line.text}\n${target.text}` } : line;
-  });
+/**
+ * 合并翻译歌词：把翻译挂到**时间轴对得上**的那一行上。
+ *
+ * 平台返回的翻译歌词常常只包含「有翻译的行」（前奏、纯音乐段、人声重复段都可能缺失），
+ * 行数与原曲不一致。因此只有真正配对成功的行才带翻译，配不上的行保持无翻译——
+ * 不能按「时间最接近」硬塞，否则前几句会重复显示第一句翻译。
+ *
+ * 配对优先级：
+ * 1. 行数与原文完全一致 → 按行序一一对照（同源完整翻译，最可靠）
+ * 2. 时间戳完全一致 → 取该条翻译
+ * 3. 容差内就近配对（每条翻译最多用一次）
+ * 4. 翻译没有时间轴 → 行数一致时按行序对齐，否则无法可靠对照，直接忽略翻译
+ */
+export function mergeTranslation(lines: LyricLine[], translation?: string): LyricLine[] {
+  if (!translation || !lines.length) return lines;
+
+  // 只保留有实际文案的翻译行：空白翻译不应产生副行
+  const translated = parseLrc(translation).filter((row) => row.text.trim());
+
+  if (!translated.length) {
+    // 无时间轴的纯文本翻译
+    const plain = translation
+      .split(/\r?\n/)
+      .map((row) => row.trim())
+      .filter(Boolean);
+    if (plain.length !== lines.length) return lines;
+    return lines.map((line, index) => withTranslation(line, plain[index]));
+  }
+
+  if (translated.length === lines.length) {
+    return lines.map((line, index) => withTranslation(line, translated[index].text));
+  }
+
+  const used = new Array<boolean>(translated.length).fill(false);
+  const merged = lines.map((line) => ({ ...line }));
+
+  // 1) 时间戳完全一致
+  for (let i = 0; i < merged.length; i++) {
+    const hit = translated.findIndex((row, index) => !used[index] && row.time === merged[i].time);
+    if (hit < 0) continue;
+    used[hit] = true;
+    merged[i] = withTranslation(merged[i], translated[hit].text);
+  }
+
+  // 2) 容差内就近配对（毫秒位差异），配不上就不带翻译
+  for (let i = 0; i < merged.length; i++) {
+    if (merged[i].translation) continue;
+    let best = -1;
+    let bestDelta = TRANSLATION_TOLERANCE_MS;
+    for (let index = 0; index < translated.length; index++) {
+      if (used[index]) continue;
+      const delta = Math.abs(translated[index].time - merged[i].time);
+      if (delta <= bestDelta) {
+        bestDelta = delta;
+        best = index;
+      }
+    }
+    if (best < 0) continue;
+    used[best] = true;
+    merged[i] = withTranslation(merged[i], translated[best].text);
+  }
+
+  return merged;
+}
+
+/** 给歌词行附加翻译（文案为空则原样返回，不产生空的翻译副行） */
+function withTranslation(line: LyricLine, translation?: string): LyricLine {
+  const text = translation?.trim();
+  return text ? { ...line, translation: text } : line;
 }
 
 /** 二分查找当前时间对应的歌词行索引（-1 表示尚未开始） */
