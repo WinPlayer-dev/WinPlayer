@@ -49,6 +49,12 @@ export const DOWNLOAD_TEMPLATE_VARS = [
 
 export const useSettingsStore = defineStore("settings", () => {
   const theme = ref<ThemePreference>("system");
+  /**
+   * 首次引导是否已完成：false 时启动会进入欢迎页（且当前没有任何插件）。
+   * 老用户升级上来时由 App 初始化阶段自动置为 true，不会被打扰；
+   * 设置 → 通用 里可随时重新进入（不改写已安装的插件）。
+   */
+  const onboardingDone = ref(false);
   const marketSources = ref<MarketSource[]>([]);
   /** GitHub 镜像源前缀（URL 拼接型，如 https://ghproxy.net/），空串表示直连 */
   const githubMirror = ref("");
@@ -172,6 +178,7 @@ export const useSettingsStore = defineStore("settings", () => {
 
   async function load(): Promise<void> {
     theme.value = await getSetting<ThemePreference>("settings.theme", "system");
+    onboardingDone.value = await getSetting<boolean>("settings.onboardingDone", false);
     marketSources.value = await getSetting<MarketSource[]>("settings.marketSources", []);
     githubMirror.value = await getSetting<string>("settings.githubMirror", "");
     smtcEnabled.value = await getSetting("settings.smtcEnabled", true);
@@ -310,6 +317,12 @@ export const useSettingsStore = defineStore("settings", () => {
   async function setMarketSources(value: MarketSource[]): Promise<void> {
     marketSources.value = value;
     await setSetting("settings.marketSources", value);
+  }
+
+  /** 标记首次引导已完成（跳过或装好播放源都会写入；设置里的「重新查看」不重置它） */
+  async function setOnboardingDone(value: boolean): Promise<void> {
+    onboardingDone.value = value;
+    await setSetting("settings.onboardingDone", value);
   }
 
   async function setGithubMirror(value: string): Promise<void> {
@@ -482,6 +495,7 @@ export const useSettingsStore = defineStore("settings", () => {
     coverAccent,
     coverNaturalRatio,
     historyEnabled,
+    onboardingDone,
     marketSources,
     githubMirror,
     smtcEnabled,
@@ -519,6 +533,7 @@ export const useSettingsStore = defineStore("settings", () => {
     setCoverNaturalRatio,
     setHistoryEnabled,
     setMarketSources,
+    setOnboardingDone,
     setGithubMirror,
     setSmtcEnabled,
     setAggregateSearch,

@@ -81,6 +81,14 @@ const router = createRouter({
       meta: { title: "设置" },
     },
     {
+      // 首次引导 / 设置里「重新查看」：全屏裸页，不渲染侧边栏与播放条
+      // （meta.bare 由 App.vue 读取，决定是否套 PageShell 骨架）
+      path: "/welcome",
+      name: "welcome",
+      component: () => import("@/views/WelcomeView.vue"),
+      meta: { title: "欢迎", bare: true },
+    },
+    {
       path: "/:pathMatch(.*)*",
       redirect: "/",
     },

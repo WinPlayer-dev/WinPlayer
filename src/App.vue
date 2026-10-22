@@ -6,9 +6,10 @@
  * 全局浮层（Toast / 右键菜单 / 更新对话框…）也由骨架渲染，
  * 因此主题换骨架时这些宿主能力不会丢。
  */
-import { onMounted, onUnmounted, watch } from "vue";
-import { RouterView, useRouter } from "vue-router";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { RouterView, useRoute, useRouter } from "vue-router";
 import PageShell from "@/components/layout/PageShell.vue";
+import TitleBar from "@/components/layout/TitleBar.vue";
 import { themeSlot } from "@/components/theme/themeSlot";
 import { useIsMobile } from "@/composables/useIsMobile";
 import ToastHost from "@/components/common/ToastHost.vue";
@@ -37,6 +38,7 @@ import { uninstallKeyboardInset } from "@/services/keyboard";
 import { toast } from "@/services/toast";
 
 const router = useRouter();
+const route = useRoute();
 
 const settings = useSettingsStore();
 const themes = useThemesStore();
@@ -57,6 +59,18 @@ const ThemedPageShell = themeSlot("PageShell", PageShell);
  * 没有覆盖时渲染 ThemeBackgroundBase（默认什么都不画，保持原有 --wp-base 背景）。
  */
 const ThemedBackground = themeSlot("Background", ThemeBackgroundBase);
+
+/**
+ * 首屏就绪：初始化阶段先不渲染任何页面，等「是否进首次引导」判定完成后再画真正首屏，
+ * 否则新用户会先看到一帧推荐页再跳到欢迎页。
+ */
+const booting = ref(true);
+
+/**
+ * 裸页路由（meta.bare，如 /welcome）：不套 PageShell 骨架。
+ * 窗口是自绘标题栏（decorations: false），裸页仍保留 TitleBar，否则无法拖动 / 关闭窗口。
+ */
+const bareRoute = computed(() => Boolean(route.meta.bare));
 
 // 注册于 load() 之前：设置读出后立即把开关同步给系统媒体控件（SMTC）
 const stopSmtcWatch = watch(
@@ -79,28 +93,45 @@ const stopOptimizeWatch = watch(
 );
 
 onMounted(async () => {
-  await settings.load();
-  // 快捷键：先订阅全局热键事件再载入绑定（载入会立即把绑定推给 Rust 重建注册表）
-  await shortcuts.initGlobalEvents();
-  await Promise.all([library.loadAll(), player.restore(), shortcuts.load()]);
-  // 播放历史：只读一次库，供「最近播放」页与 SongTable 的播放次数列使用
-  void history.load();
-  await plugins.loadInstalled();
-  // 主题只依赖设置与本地文件，尽早恢复且不阻塞后续初始化（失败会静默回退默认外观）
-  void themes.init();
-  initSmtc(player);
-  // 系统托盘（仅 Windows）：可见性事件驱动后台模式，切歌刷新托盘提示
-  initTray(player);
-  // 离线下载：订阅进度、解析默认目录、载入离线索引（不阻塞首屏）
-  void downloads.init();
-  // 自动更新与播放无关：放在最后并静默执行，不阻塞首屏
-  void updater.init().then(() => updater.maybeAutoCheck());
-  // Android 返回键：全局只在这里接管一次，其余页面通过拦截器插入
-  if (isMobile) {
-    void installBackButton(router, () => toast("再按一次返回键退出应用", "info"));
+  try {
+    await settings.load();
+    // 快捷键：先订阅全局热键事件再载入绑定（载入会立即把绑定推给 Rust 重建注册表）
+    await shortcuts.initGlobalEvents();
+    await Promise.all([library.loadAll(), player.restore(), shortcuts.load()]);
+    // 播放历史：只读一次库，供「最近播放」页与 SongTable 的播放次数列使用
+    void history.load();
+    await plugins.loadInstalled();
+    /**
+     * 首次引导：只有「从未完成过」且「一个插件都没有」才进入欢迎页。
+     * 老用户升级上来已经有插件，说明不是首次使用——静默补写完成标记，避免被引导页拦一次。
+     */
+    if (!settings.onboardingDone) {
+      if (plugins.records.length) await settings.setOnboardingDone(true);
+      else await router.replace({ name: "welcome" });
+    }
+    // 主题只依赖设置与本地文件，尽早恢复且不阻塞后续初始化（失败会静默回退默认外观）
+    void themes.init();
+    initSmtc(player);
+    // 系统托盘（仅 Windows）：可见性事件驱动后台模式，切歌刷新托盘提示
+    initTray(player);
+    // 离线下载：订阅进度、解析默认目录、载入离线索引（不阻塞首屏）
+    void downloads.init();
+    // 自动更新与播放无关：放在最后并静默执行，不阻塞首屏
+    void updater.init().then(() => updater.maybeAutoCheck());
+    // Android 返回键：全局只在这里接管一次，其余页面通过拦截器插入
+    if (isMobile) {
+      void installBackButton(router, () => toast("再按一次返回键退出应用", "info"));
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    document.addEventListener("focus", onWindowFocus);
+  } catch (error) {
+    // 初始化（数据库 / 插件目录）出错也要放行首屏，不能把用户停在一片空白上
+    console.error("[app] 初始化失败：", error);
+    toast("初始化未完全成功，部分数据可能不可用", "error");
+  } finally {
+    // 首屏闸门：首次引导判定结束（或初始化失败）后才渲染真正的页面
+    booting.value = false;
   }
-  document.addEventListener("visibilitychange", onVisibilityChange);
-  document.addEventListener("focus", onWindowFocus);
 });
 
 /**
@@ -142,7 +173,18 @@ onUnmounted(() => {
   <div class="app-shell" :class="{ 'is-mobile': isMobile }">
     <ThemedBackground />
     <ThemeBackdrop />
-    <ThemedPageShell :mobile="isMobile">
+    <!-- 初始化中：只画背景，不画页面（避免先闪一帧推荐页再跳欢迎页） -->
+    <template v-if="booting" />
+    <!-- 裸页（首次引导）：不套骨架，但保留标题栏的拖动与窗口按钮 -->
+    <template v-else-if="bareRoute">
+      <TitleBar v-if="!isMobile" class="app-titlebar" />
+      <RouterView v-slot="{ Component }">
+        <transition name="wp-route" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </RouterView>
+    </template>
+    <ThemedPageShell v-else :mobile="isMobile">
       <template #content>
         <RouterView v-slot="{ Component }">
           <transition name="wp-route" mode="out-in">
@@ -175,5 +217,12 @@ onUnmounted(() => {
 /* 移动端：为顶部状态栏 / 刘海留出安全区（桌面端不生效） */
 .app-shell.is-mobile {
   padding-top: var(--safe-area-top);
+}
+
+/* 裸页（首次引导）自绘标题栏：高度与 PageShell 内保持一致 */
+.app-titlebar {
+  height: var(--titlebar-height);
+  flex: none;
+  z-index: 40;
 }
 </style>

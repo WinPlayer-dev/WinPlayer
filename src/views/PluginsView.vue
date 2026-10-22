@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import QRCode from "qrcode";
@@ -21,8 +22,26 @@ import type {
 
 const plugins = usePluginsStore();
 const isMobile = useIsMobile();
+const route = useRoute();
+const router = useRouter();
 
-const tab = ref<"installed" | "market" | "themes">("installed");
+type PluginsTab = "installed" | "market" | "themes";
+const PLUGINS_TABS: PluginsTab[] = ["installed", "market", "themes"];
+
+/**
+ * 当前标签页：以路由 query ?tab= 为准（首次引导的「插件市场」等入口可深链到指定标签），
+ * 非法值回退到「已安装」。
+ */
+const tab = ref<PluginsTab>(
+  PLUGINS_TABS.includes(String(route.query.tab) as PluginsTab)
+    ? (String(route.query.tab) as PluginsTab)
+    : "installed",
+);
+
+// 切换标签同步写回地址栏，刷新 / 返回后仍停在同一标签（与设置页一致）
+watch(tab, (value) => {
+  if (route.query.tab !== value) void router.replace({ query: { ...route.query, tab: value } });
+});
 const urlValue = ref("");
 const marketLoading = ref(false);
 const marketEntries = ref<MarketEntry[]>([]);

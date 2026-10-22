@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useRouter } from "vue-router";
 import { ComboBox, ToggleSwitch } from "@/components/winui";
 import { useSettingsStore, type CloseBehavior, type UpdateCheckFrequency } from "@/stores/settings";
 import { useIsMobile, useIsWindows } from "@/composables/useIsMobile";
@@ -9,6 +10,7 @@ import WpCard from "@/components/theme/WpCard.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 
 const settings = useSettingsStore();
+const router = useRouter();
 // SMTC 是 Windows 专属能力，其他平台隐藏该设置项
 const isWindows = useIsWindows();
 // 触感反馈仅移动端有意义
@@ -91,10 +93,33 @@ async function resetWindow(): Promise<void> {
     toast(`重置失败: ${error}`, "error");
   }
 }
+
+/**
+ * 重新进入首次引导（LOGO 欢迎页 + 添加播放源）。
+ * 带 from=settings，引导结束（装好源 / 跳过）后回到「设置 → 通用」；
+ * 不会重置已安装的插件，也不会清掉「已完成」标记。
+ */
+function replayOnboarding(): void {
+  void router.push({ name: "welcome", query: { from: "settings" } });
+}
 </script>
 
 <template>
   <div>
+    <!-- 新手引导：重新进入欢迎页（不改动已装插件） -->
+    <section class="settings-section">
+      <h2 class="settings-section-title">新手引导</h2>
+      <WpCard variant="row">
+        <div class="card-content">
+          <div class="card-header">欢迎引导</div>
+          <div class="card-description">
+            重新查看首次进入应用时的欢迎页与「添加你的第一个播放源」引导。已安装的插件和其余设置都不会受影响
+          </div>
+        </div>
+        <WpButton variant="standard" class="small" @click="replayOnboarding">重新查看</WpButton>
+      </WpCard>
+    </section>
+
     <!-- 触感反馈（仅移动端） -->
     <section v-if="isMobile" class="settings-section">
       <h2 class="settings-section-title">触感反馈</h2>
