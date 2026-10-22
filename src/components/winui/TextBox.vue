@@ -15,10 +15,12 @@ withDefaults(
     MaxLength?: number;
     IsReadOnly?: boolean;
     IsEnabled?: boolean;
+    /** 输入类型（密码框用 password） */
+    InputType?: "text" | "password";
   }>(),
   // 默认值必须与 TextBoxBase 保持一致：否则省略 IsEnabled 时，主题组件会收到
   // undefined 并被判为「禁用」，表现就是设置页的输入框全部点不动
-  { Text: "", PlaceholderText: "", MaxLength: 0, IsReadOnly: false, IsEnabled: true },
+  { Text: "", PlaceholderText: "", MaxLength: 0, IsReadOnly: false, IsEnabled: true, InputType: "text" },
 );
 
 defineEmits<{ "update:Text": [value: string] }>();
@@ -33,6 +35,7 @@ const ThemedTextBox = themeSlot("TextBox", TextBoxBase);
     :MaxLength="MaxLength"
     :IsReadOnly="IsReadOnly"
     :IsEnabled="IsEnabled"
+    :InputType="InputType"
     @update:Text="$emit('update:Text', $event)"
   >
     <slot />

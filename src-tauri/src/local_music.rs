@@ -143,7 +143,7 @@ const COVER_MAX_DIMENSION: u32 = 512;
 const COVER_JPEG_QUALITY: u8 = 85;
 
 /// 把内嵌封面压缩为 JPEG 缩略图（解码失败则原样返回原图，格式随原 mime）
-fn compact_cover(data: &[u8]) -> Option<Vec<u8>> {
+pub(crate) fn compact_cover(data: &[u8]) -> Option<Vec<u8>> {
     let img = image::load_from_memory(data).ok()?;
     let img = img.thumbnail(COVER_MAX_DIMENSION, COVER_MAX_DIMENSION);
     let mut buf = Vec::new();

@@ -6,4 +6,5 @@ pub mod plugins;
 pub mod smtc;
 pub mod themes;
 pub mod tray;
+pub mod webdav;
 pub mod window;

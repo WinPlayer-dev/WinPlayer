@@ -69,11 +69,18 @@ const router = createRouter({
       meta: { title: "歌手" },
     },
     {
-      // 本地音乐曲库（内置播放源「本地音乐」的浏览入口）
+      // 内置播放源的曲库浏览（`/library/builtin.local`、`/library/builtin.webdav`）。
+      // `/local` 是本地音乐的旧入口，保留以免旧链接失效。
       path: "/local",
       name: "local",
-      component: () => import("@/views/LocalMusicView.vue"),
+      component: () => import("@/views/LibraryView.vue"),
       meta: { title: "本地音乐" },
+    },
+    {
+      path: "/library/:source",
+      name: "library",
+      component: () => import("@/views/LibraryView.vue"),
+      meta: { title: "曲库" },
     },
     {
       path: "/plugins",

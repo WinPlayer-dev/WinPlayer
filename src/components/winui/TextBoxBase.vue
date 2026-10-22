@@ -18,8 +18,10 @@ const props = withDefaults(
     IsReadOnly?: boolean;
     /** 是否可用 */
     IsEnabled?: boolean;
+    /** 输入类型（密码框用 password） */
+    InputType?: "text" | "password";
   }>(),
-  { Text: "", PlaceholderText: "", MaxLength: 0, IsReadOnly: false, IsEnabled: true },
+  { Text: "", PlaceholderText: "", MaxLength: 0, IsReadOnly: false, IsEnabled: true, InputType: "text" },
 );
 
 const emit = defineEmits<{ "update:Text": [value: string] }>();
@@ -33,7 +35,7 @@ function onInput(event: Event): void {
   <div class="wp-text-box" :class="{ 'is-disabled': !props.IsEnabled }">
     <input
       class="wp-text-box-input"
-      type="text"
+      :type="props.InputType"
       :value="props.Text"
       :placeholder="props.PlaceholderText"
       :maxlength="props.MaxLength > 0 ? props.MaxLength : undefined"

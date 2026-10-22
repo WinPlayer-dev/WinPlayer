@@ -7,6 +7,8 @@
  *   删除消失的行，未变化文件沿用旧元数据（增量扫描）；
  * - 把本地行映射为统一曲目结构（`UnifiedTrack`），供内置源宿主、曲库页、
  *   专辑/歌手详情页复用同一份数据。
+ *
+ * 分组与格式转换的规则与 WebDAV 源共用 `services/libraryIndex`。
  */
 
 import { defineStore } from "pinia";
@@ -18,14 +20,19 @@ import {
   type KnownLocalFile,
   type ScannedAudioFile,
 } from "@/services/localMusic";
+import {
+  albumGroupToUnified,
+  albumIdOf,
+  artistGroupToUnified,
+  buildAlbumGroups,
+  buildArtistGroups,
+  libraryTrackToUnified,
+  type LibraryAlbumGroup,
+  type LibraryArtistGroup,
+  type LibraryTrack,
+} from "@/services/libraryIndex";
 import { toast } from "@/services/toast";
-import type {
-  AlbumDetail,
-  ArtistDetail,
-  UnifiedAlbum,
-  UnifiedArtist,
-  UnifiedTrack,
-} from "@/types/plugin";
+import type { AlbumDetail, ArtistDetail, UnifiedAlbum, UnifiedArtist } from "@/types/plugin";
 
 /** 内置本地音乐源的 ID（同时也是曲目的 sourceId） */
 export const LOCAL_MUSIC_SOURCE_ID = "builtin.local";
@@ -33,51 +40,10 @@ export const LOCAL_MUSIC_SOURCE_ID = "builtin.local";
 /** 文件夹列表的持久化 key */
 const FOLDERS_KEY = "settings.localMusicFolders";
 
-/** 专辑 ID 的分隔符：标签里不可能出现，避免「歌手 - 专辑」拼接歧义 */
-const ALBUM_ID_SEP = "\u0001";
-
-/** 未知歌手 / 未知专辑的展示名（也作为分组键） */
-const UNKNOWN_ARTIST = "未知艺术家";
-const UNKNOWN_ALBUM = "未知专辑";
-
-/** 曲库中的一行（`local_tracks` 表的映射） */
-export interface LocalTrack {
-  path: string;
-  folder: string;
-  fileName: string;
-  size: number;
-  mtime: number;
-  title: string;
-  artist: string;
-  album: string;
-  albumArtist: string;
-  genre: string;
-  year: string;
-  trackNo: number;
-  discNo: number;
-  /** 时长（毫秒） */
-  duration: number;
-  bitrate: number;
-  cover: string;
-  hasLyrics: boolean;
-}
-
-/** 专辑分组 */
-export interface LocalAlbumGroup {
-  id: string;
-  name: string;
-  artist: string;
-  cover: string;
-  tracks: LocalTrack[];
-}
-
-/** 歌手分组 */
-export interface LocalArtistGroup {
-  id: string;
-  name: string;
-  cover: string;
-  tracks: LocalTrack[];
-}
+/** 曲库行（与共用索引同一形状） */
+export type LocalTrack = LibraryTrack;
+export type LocalAlbumGroup = LibraryAlbumGroup;
+export type LocalArtistGroup = LibraryArtistGroup;
 
 const COLUMNS = [
   "path",
@@ -167,56 +133,9 @@ function mergeScanned(file: ScannedAudioFile, previous: LocalTrack | undefined):
   };
 }
 
-function stripExtension(name: string): string {
-  const dot = name.lastIndexOf(".");
-  return dot > 0 ? name.slice(0, dot) : name;
-}
-
-/** 专辑展示用艺术家：优先 album artist，其次曲目艺术家 */
-function albumArtistOf(track: LocalTrack): string {
-  return track.albumArtist || track.artist || UNKNOWN_ARTIST;
-}
-
-function artistOf(track: LocalTrack): string {
-  return track.artist || UNKNOWN_ARTIST;
-}
-
-function albumNameOf(track: LocalTrack): string {
-  return track.album || UNKNOWN_ALBUM;
-}
-
-export function albumIdOf(track: LocalTrack): string {
-  return `${encodeURIComponent(albumArtistOf(track))}${ALBUM_ID_SEP}${encodeURIComponent(albumNameOf(track))}`;
-}
-
-function parseAlbumId(id: string): { artist: string; album: string } {
-  const index = id.indexOf(ALBUM_ID_SEP);
-  if (index < 0) return { artist: "", album: id };
-  try {
-    return {
-      artist: decodeURIComponent(id.slice(0, index)),
-      album: decodeURIComponent(id.slice(index + ALBUM_ID_SEP.length)),
-    };
-  } catch {
-    return { artist: "", album: id };
-  }
-}
-
 /** 曲库行 → 统一曲目结构（内置源的所有上层接口都用它） */
-export function toUnifiedTrack(track: LocalTrack): UnifiedTrack {
-  const name = track.title || stripExtension(track.fileName);
-  const artist = artistOf(track);
-  return {
-    id: track.path,
-    name,
-    artists: [artist],
-    album: track.album || undefined,
-    cover: track.cover || undefined,
-    duration: track.duration || undefined,
-    albumId: albumIdOf(track),
-    artistIds: [artist],
-    sourceId: LOCAL_MUSIC_SOURCE_ID,
-  };
+export function toUnifiedTrack(track: LocalTrack) {
+  return libraryTrackToUnified(track, LOCAL_MUSIC_SOURCE_ID);
 }
 
 export const useLocalMusicStore = defineStore("localMusic", () => {
@@ -238,49 +157,10 @@ export const useLocalMusicStore = defineStore("localMusic", () => {
   });
 
   /** 按专辑分组（专辑视图 / 搜索的专辑结果 / getAlbum 都用同一份） */
-  const albumGroups = computed<LocalAlbumGroup[]>(() => {
-    const map = new Map<string, LocalAlbumGroup>();
-    for (const track of tracks.value) {
-      const id = albumIdOf(track);
-      let group = map.get(id);
-      if (!group) {
-        group = {
-          id,
-          name: albumNameOf(track),
-          artist: albumArtistOf(track),
-          cover: track.cover,
-          tracks: [],
-        };
-        map.set(id, group);
-      }
-      // 封面取第一张非空的（同专辑内嵌封面通常一致）
-      if (!group.cover && track.cover) group.cover = track.cover;
-      group.tracks.push(track);
-    }
-    for (const group of map.values()) {
-      group.tracks.sort((a, b) => a.discNo - b.discNo || a.trackNo - b.trackNo || a.fileName.localeCompare(b.fileName));
-    }
-    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
-  });
+  const albumGroups = computed<LocalAlbumGroup[]>(() => buildAlbumGroups(tracks.value));
 
   /** 按歌手分组 */
-  const artistGroups = computed<LocalArtistGroup[]>(() => {
-    const map = new Map<string, LocalArtistGroup>();
-    for (const track of tracks.value) {
-      const name = artistOf(track);
-      let group = map.get(name);
-      if (!group) {
-        group = { id: name, name, cover: track.cover, tracks: [] };
-        map.set(name, group);
-      }
-      if (!group.cover && track.cover) group.cover = track.cover;
-      group.tracks.push(track);
-    }
-    for (const group of map.values()) {
-      group.tracks.sort((a, b) => a.album.localeCompare(b.album) || a.discNo - b.discNo || a.trackNo - b.trackNo);
-    }
-    return [...map.values()].sort((a, b) => b.tracks.length - a.tracks.length);
-  });
+  const artistGroups = computed<LocalArtistGroup[]>(() => buildArtistGroups(tracks.value));
 
   const albumCount = computed(() => albumGroups.value.length);
   const artistCount = computed(() => artistGroups.value.length);
@@ -457,15 +337,7 @@ export const useLocalMusicStore = defineStore("localMusic", () => {
           group.name.toLowerCase().includes(lower) || group.artist.toLowerCase().includes(lower),
       )
       .slice(0, 50)
-      .map((group) => ({
-        id: group.id,
-        name: group.name,
-        cover: group.cover || undefined,
-        artistNames: [group.artist],
-        artistIds: [group.artist],
-        trackCount: group.tracks.length,
-        sourceId: LOCAL_MUSIC_SOURCE_ID,
-      }));
+      .map((group) => albumGroupToUnified(group, LOCAL_MUSIC_SOURCE_ID));
   }
 
   /** 搜索用的歌手结果 */
@@ -475,13 +347,7 @@ export const useLocalMusicStore = defineStore("localMusic", () => {
     return artistGroups.value
       .filter((group) => group.name.toLowerCase().includes(lower))
       .slice(0, 50)
-      .map((group) => ({
-        id: group.id,
-        name: group.name,
-        avatar: group.cover || undefined,
-        songCount: group.tracks.length,
-        sourceId: LOCAL_MUSIC_SOURCE_ID,
-      }));
+      .map((group) => artistGroupToUnified(group, LOCAL_MUSIC_SOURCE_ID));
   }
 
   /** 专辑详情（AlbumView 通过内置源的 getAlbum 拿到它） */
@@ -489,22 +355,13 @@ export const useLocalMusicStore = defineStore("localMusic", () => {
     const group = albumGroups.value.find((item) => item.id === id);
     if (!group) {
       // 兼容未编码的「歌手 + 专辑」直接传参
-      const parsed = parseAlbumId(id);
-      const fallback = albumGroups.value.find(
-        (item) => item.name === parsed.album || item.id === `${parsed.artist}${ALBUM_ID_SEP}${parsed.album}`,
-      );
-      if (!fallback) return null;
-      return albumDetail(fallback.id);
+      const direct = albumGroups.value.find((item) => item.name === id);
+      if (!direct) return null;
+      return albumDetail(direct.id);
     }
     return {
-      id: group.id,
-      name: group.name,
-      cover: group.cover || undefined,
-      artistNames: [group.artist],
-      artistIds: [group.artist],
-      trackCount: group.tracks.length,
+      ...albumGroupToUnified(group, LOCAL_MUSIC_SOURCE_ID),
       tracks: group.tracks.map(toUnifiedTrack),
-      sourceId: LOCAL_MUSIC_SOURCE_ID,
     };
   }
 
@@ -513,13 +370,9 @@ export const useLocalMusicStore = defineStore("localMusic", () => {
     const group = artistGroups.value.find((item) => item.id === id || item.name === id);
     if (!group) return null;
     return {
-      id: group.id,
-      name: group.name,
-      avatar: group.cover || undefined,
-      songCount: group.tracks.length,
+      ...artistGroupToUnified(group, LOCAL_MUSIC_SOURCE_ID),
       albumCount: new Set(group.tracks.map((track) => albumIdOf(track))).size,
       hotTracks: group.tracks.slice(0, 50).map(toUnifiedTrack),
-      sourceId: LOCAL_MUSIC_SOURCE_ID,
     };
   }
 
@@ -530,15 +383,7 @@ export const useLocalMusicStore = defineStore("localMusic", () => {
     const albumIds = new Set(group.tracks.map((track) => albumIdOf(track)));
     return albumGroups.value
       .filter((album) => albumIds.has(album.id))
-      .map((album) => ({
-        id: album.id,
-        name: album.name,
-        cover: album.cover || undefined,
-        artistNames: [album.artist],
-        artistIds: [album.artist],
-        trackCount: album.tracks.length,
-        sourceId: LOCAL_MUSIC_SOURCE_ID,
-      }));
+      .map((album) => albumGroupToUnified(album, LOCAL_MUSIC_SOURCE_ID));
   }
 
   return {

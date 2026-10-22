@@ -13,9 +13,10 @@ import { applyGithubMirror, resolveAssetUrl } from "@/services/githubMirror";
 import { QUALITY_SETTING_KEY, qualityChainOf } from "@/services/quality";
 import { rememberMediaHeaders } from "@/services/audio";
 import {
-  BUILTIN_LOCAL_ENTRY,
+  BUILTIN_ENTRIES,
   builtinSourceHost,
   isBuiltinSource,
+  isBuiltinSourceReady,
   type BuiltinSourceHost,
 } from "@/services/builtinSources";
 import { useSettingsStore } from "@/stores/settings";
@@ -123,7 +124,15 @@ export const usePluginsStore = defineStore("plugins", () => {
   /** 运行时宿主（非响应式）：插件走 Worker 沙箱，内置源走本地实现，接口同形 */
   const hosts = new Map<string, PluginHost | BuiltinSourceHost>();
 
-  const enabledRecords = computed(() => records.value.filter((r) => r.enabled));
+  /**
+   * 参与聚合调用的来源：启用中，且内置源已经配置好。
+   * 未配置的 WebDAV 若也算进来，搜索页会多出一个永远没结果的 Tab。
+   */
+  const enabledRecords = computed(() =>
+    records.value.filter(
+      (record) => record.enabled && (!isBuiltinSource(record.entry.id) || isBuiltinSourceReady(record.entry.id)),
+    ),
+  );
 
   /** 已安装的插件（不含内置播放源）：插件市场/统计/引导判定都用它 */
   const installedRecords = computed(() =>
@@ -160,9 +169,9 @@ export const usePluginsStore = defineStore("plugins", () => {
       const stateMap = new Map(states.map((row) => [row.plugin_id, row]));
 
       records.value = [
-        // 内置播放源固定排在首位：它不属于「已安装的插件」，但同样参与
+        // 内置播放源固定排在前面：它们不属于「已安装的插件」，但同样参与
         // 搜索页 Tab、播放源偏好等所有按 record 走的逻辑
-        buildRecord(BUILTIN_LOCAL_ENTRY, stateMap.get(BUILTIN_LOCAL_ENTRY.id)),
+        ...BUILTIN_ENTRIES.map((entry) => buildRecord(entry, stateMap.get(entry.id))),
         ...entries.map((entry) => buildRecord(entry, stateMap.get(entry.id))),
       ];
 

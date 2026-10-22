@@ -28,6 +28,7 @@ import { usePlayerStore } from "@/stores/player";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useHistoryStore } from "@/stores/history";
 import { useLocalMusicStore } from "@/stores/localMusic";
+import { useWebdavStore } from "@/stores/webdav";
 import { useShortcutsStore } from "@/stores/shortcuts";
 import { useUpdaterStore } from "@/stores/updater";
 import { disposeSmtc, initSmtc, setSmtcEnabled } from "@/services/smtc";
@@ -48,6 +49,7 @@ const library = useLibraryStore();
 const player = usePlayerStore();
 const downloads = useDownloadsStore();
 const localMusic = useLocalMusicStore();
+const webdav = useWebdavStore();
 const history = useHistoryStore();
 const shortcuts = useShortcutsStore();
 const updater = useUpdaterStore();
@@ -122,6 +124,8 @@ onMounted(async () => {
     void downloads.init();
     // 本地曲库（内置播放源）：读索引后后台增量扫描，不阻塞首屏
     void localMusic.init();
+    // WebDAV 曲库：只读上次的索引，不自动扫网络（等用户点「重新扫描」）
+    void webdav.init();
     // 自动更新与播放无关：放在最后并静默执行，不阻塞首屏
     void updater.init().then(() => updater.maybeAutoCheck());
     // Android 返回键：全局只在这里接管一次，其余页面通过拦截器插入
