@@ -3,11 +3,61 @@
 //! OutputStream 全局唯一并随引擎存活；每次加载/seek 创建新的 Sink
 //! （丢弃旧 Sink 前必须显式 `stop()`，否则混音器里会残留旧音源继续出声）。
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use rodio::cpal::traits::{DeviceTrait, HostTrait};
 use rodio::{cpal, OutputStream, OutputStreamHandle, Sink, Source};
+
+/// 录音分流点：把「即将送往设备」的伴奏样本复制一份给录音器。
+///
+/// 放在 `RingSource::next` 而不是解码线程，是因为解码比播放快约 1 秒，
+/// 在解码侧记时间戳会让伴奏整体提前；这里取到的才是真正出声的时序。
+///
+/// 回调线程约束：`try_lock` 拿不到就丢弃该样本——宁可录音缺一个样本，
+/// 也不能让音频回调等锁。
+pub struct SampleTap {
+    producer: Mutex<rtrb::Producer<f32>>,
+    /// 首帧到达时刻（毫秒墙钟，0 = 尚未收到）：录音器据此与人声对齐
+    first_at: Arc<AtomicU64>,
+    /// 装配音源的原始格式（采样率, 声道）：录音器写 WAV 头要用
+    format: Mutex<Option<(u32, u16)>>,
+}
+
+impl SampleTap {
+    pub fn new(producer: rtrb::Producer<f32>, first_at: Arc<AtomicU64>) -> Arc<Self> {
+        Arc::new(SampleTap {
+            producer: Mutex::new(producer),
+            first_at,
+            format: Mutex::new(None),
+        })
+    }
+
+    /// 由引擎在装配 Sink 时告知音源格式（一定早于第一个样本到达）
+    pub fn set_format(&self, sample_rate: u32, channels: u16) {
+        *self.format.lock().unwrap() = Some((sample_rate, channels));
+    }
+
+    pub fn format(&self) -> Option<(u32, u16)> {
+        *self.format.lock().unwrap()
+    }
+
+    fn push(&self, sample: f32) {
+        if self.first_at.load(Ordering::Acquire) == 0 {
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|value| value.as_millis() as u64)
+                .unwrap_or(0);
+            let _ = self
+                .first_at
+                .compare_exchange(0, now, Ordering::AcqRel, Ordering::Acquire);
+        }
+        if let Ok(mut producer) = self.producer.try_lock() {
+            let _ = producer.push(sample);
+        }
+    }
+}
 
 /// 枚举系统默认音频主机（Windows 为 WASAPI）下的所有输出设备名称。
 ///
@@ -66,6 +116,8 @@ pub struct RingSource {
     channels: u16,
     sample_rate: u32,
     ended: Arc<AtomicBool>,
+    /// 录音分流（None = 未在录音，零开销）
+    tap: Option<Arc<SampleTap>>,
 }
 
 impl RingSource {
@@ -75,7 +127,14 @@ impl RingSource {
             channels,
             sample_rate,
             ended: Arc::new(AtomicBool::new(false)),
+            tap: None,
         }
+    }
+
+    /// 挂上录音分流点（装配 Sink 时由引擎调用）
+    pub fn with_tap(mut self, tap: Option<Arc<SampleTap>>) -> Self {
+        self.tap = tap;
+        self
     }
 
     /// 结束标记句柄（解码端全部样本推送完毕后由引擎远程置位：
@@ -83,22 +142,36 @@ impl RingSource {
     pub fn ended_handle(&self) -> Arc<AtomicBool> {
         self.ended.clone()
     }
+
+    /// 音源的原始声道数（录音时用来写 WAV 头）
+    pub fn channels(&self) -> u16 {
+        self.channels
+    }
+
+    /// 音源的原始采样率（录音时用来写 WAV 头）
+    pub fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
 }
 
 impl Iterator for RingSource {
     type Item = f32;
 
     fn next(&mut self) -> Option<f32> {
-        match self.consumer.pop() {
-            Ok(sample) => Some(sample),
+        let sample = match self.consumer.pop() {
+            Ok(sample) => sample,
             Err(_) => {
                 if self.ended.load(Ordering::Acquire) {
-                    None
-                } else {
-                    Some(0.0)
+                    return None;
                 }
+                // 解码跟不上：补静音保持时间轴线性，录音时间轴才不会被压缩
+                0.0
             }
+        };
+        if let Some(tap) = &self.tap {
+            tap.push(sample);
         }
+        Some(sample)
     }
 }
 

@@ -18,6 +18,8 @@ import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
 import { useSleepTimer } from "@/services/sleepTimer";
 import { useQualityControl } from "@/services/quality";
+import { useRecorderStore } from "@/stores/recorder";
+import { useSettingsStore } from "@/stores/settings";
 import { openPlaylistPicker, useCanAddToPlaylist } from "@/services/playlistPicker";
 import WpIconButton from "@/components/theme/WpIconButton.vue";
 import SleepTimerPicker from "@/components/common/SleepTimerPicker.vue";
@@ -34,6 +36,8 @@ import {
 
 const player = usePlayerStore();
 const library = useLibraryStore();
+const recorder = useRecorderStore();
+const settings = useSettingsStore();
 const router = useRouter();
 
 const showFull = ref(false);
@@ -131,6 +135,12 @@ function addCurrentToPlaylist(): void {
   if (!track) return;
   showMore.value = false;
   openPlaylistPicker(track);
+}
+
+/** 录音棚：跳到录音棚页面（伴奏继续由主播放器提供） */
+function openStudio(): void {
+  showMore.value = false;
+  void router.push({ name: "studio" });
 }
 
 const liked = computed(() => (player.currentTrack ? library.isLiked(player.currentTrack) : false));
@@ -922,6 +932,12 @@ onBeforeUnmount(() => {
                 >
                   <span class="wp-icon more-row-icon">&#xF4EE;</span>
                   <span class="more-row-label">添加到歌单</span>
+                </button>
+                <button v-if="settings.studioEnabled" class="more-row" @click="openStudio">
+                  <span class="wp-icon more-row-icon">&#xE7FA;</span>
+                  <span class="more-row-label">录音棚</span>
+                  <span v-if="recorder.recording" class="more-row-value">录音中</span>
+                  <span class="wp-icon more-row-chevron">&#xF2B0;</span>
                 </button>
                 <button class="more-row" @click="showMore = false; showOffset = true">
                   <span class="wp-icon more-row-icon">&#xF588;</span>

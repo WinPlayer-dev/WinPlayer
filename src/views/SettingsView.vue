@@ -5,6 +5,7 @@ import { useIsMobile } from "@/composables/useIsMobile";
 import GeneralSettings from "@/views/settings/GeneralSettings.vue";
 import StyleSettings from "@/views/settings/StyleSettings.vue";
 import PlaybackSettings from "@/views/settings/PlaybackSettings.vue";
+import ExperimentalSettings from "@/views/settings/ExperimentalSettings.vue";
 import KeymapSettings from "@/views/settings/KeymapSettings.vue";
 import PluginSettings from "@/views/settings/PluginSettings.vue";
 import StorageSettings from "@/views/settings/StorageSettings.vue";
@@ -35,6 +36,8 @@ const CATEGORIES: SettingsCategory[] = [
   { key: "storage", label: "存储", icon: "&#xE467;", component: StorageSettings }, // ic_fluent_database_24_regular
   { key: "download", label: "下载与离线", icon: "&#xE38E;", component: DownloadSettings }, // ic_fluent_cloud_arrow_down_24_regular
   { key: "backup", label: "备份与还原", icon: "&#xF2CD;", component: BackupSettings }, // ic_fluent_arrow_sync_24_regular（迁移/同步）
+  // 实验性：主题皮肤、录音棚等还没"毕业"的功能都收在这里，放在「关于」之前
+  { key: "experimental", label: "实验性", icon: "&#xF1D8;", component: ExperimentalSettings }, // ic_fluent_beaker_24_regular（烧瓶）
   { key: "about", label: "关于", icon: "&#xF4A4;", component: AboutSettings }, // ic_fluent_info_24_regular
 ];
 

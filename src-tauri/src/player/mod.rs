@@ -228,6 +228,8 @@ pub struct PlayerEngine {
     crossfade: Mutex<(bool, f64)>,
     /// 播放倍速（0.5–2.0）：解码线程据此做保持音调的时间伸缩
     playback_rate: Mutex<f32>,
+    /// 录音分流点（录音棚录音期间挂载，None = 不录，零开销）
+    sample_tap: Mutex<Option<Arc<output::SampleTap>>>,
 }
 
 impl PlayerEngine {
@@ -265,6 +267,7 @@ impl PlayerEngine {
             eq_master: EqChain::new(),
             crossfade: Mutex::new((true, 6.0)),
             playback_rate: Mutex::new(1.0),
+            sample_tap: Mutex::new(None),
         });
         // 空闲状态广播一次，前端据此复位
         let _ = app.emit(EVENT_STATE, StatePayload { state: "idle" });
@@ -426,9 +429,60 @@ impl PlayerEngine {
         }
     }
 
+    /// 挂载 / 卸载录音分流点（录音棚 start / stop 调用）。
+    ///
+    /// tap 挂在 `RingSource` 实例上，已经装进 Sink 的音源不会自动带新 tap，
+    /// 因此开启/关闭录音时在当前位置重建一次会话（相当于一次无感的重新加载）。
+    pub(crate) fn set_sample_tap(self: &Arc<Self>, tap: Option<Arc<output::SampleTap>>) {
+        let enabling = tap.is_some();
+        let changed = {
+            let mut guard = self.sample_tap.lock().unwrap();
+            let changed = guard.is_some() != enabling;
+            *guard = tap;
+            changed
+        };
+        if !changed {
+            return;
+        }
+        // 卸载不重建会话：旧音源上的 tap 会继续把样本推进无人消费的 ring，
+        // 满后自然丢弃；录音结束后不需要为「停止分流」再抖一次音频。
+        if !enabling {
+            return;
+        }
+        let Some(url) = self.current_url.lock().unwrap().clone() else {
+            return;
+        };
+        let resume = *self.last_position.lock().unwrap();
+        let headers = self.current_headers.lock().unwrap().clone();
+        let was_playing = self.is_playing.load(Ordering::Acquire);
+        self.load(url, headers);
+        *self.pending_seek.lock().unwrap() = Some(resume.max(0.0));
+        *self.last_position.lock().unwrap() = resume;
+        self.is_playing.store(was_playing, Ordering::Release);
+        if !was_playing {
+            self.emit_state("paused");
+        }
+    }
+
+    /// 新建一个监听 Sink（与伴奏共用同一个输出流/混音器，时钟一致、延迟最低）。
+    ///
+    /// 返回的 Sink 默认是暂停态，由调用方决定何时 `play()`。
+    pub(crate) fn new_monitor_sink(&self, volume: f32) -> Result<rodio::Sink, String> {
+        self.ensure_output()?;
+        let guard = self.output.lock().unwrap();
+        let output = guard.as_ref().ok_or_else(|| "音频输出设备不可用".to_string())?;
+        output.new_sink(volume)
+    }
+
     /// 用新音源整体替换 Sink（旧 Sink 先 stop 再丢弃，防止混音器残留）
     fn install_sink(&self, source: output::RingSource) -> Result<(), String> {
         self.ensure_output()?;
+        // 录音期间装配的音源都要带上分流点（并告知格式，供写 WAV 头使用）
+        let tap = self.sample_tap.lock().unwrap().clone();
+        if let Some(tap) = &tap {
+            tap.set_format(source.sample_rate(), source.channels());
+        }
+        let source = source.with_tap(tap);
         let sink = {
             let guard = self.output.lock().unwrap();
             guard

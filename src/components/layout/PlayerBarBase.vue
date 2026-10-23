@@ -7,6 +7,7 @@ import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
 import { useSettingsStore } from "@/stores/settings";
 import { useDownloadsStore } from "@/stores/downloads";
+import { useRecorderStore } from "@/stores/recorder";
 import { getAudioEngine } from "@/services/audio";
 import {
   PLAYBACK_RATES,
@@ -31,6 +32,7 @@ const player = usePlayerStore();
 const library = useLibraryStore();
 const settings = useSettingsStore();
 const downloads = useDownloadsStore();
+const recorder = useRecorderStore();
 const router = useRouter();
 
 /** 拖动进度滑块时的本地预览值（拖动结束才 seek，期间屏蔽 timeupdate 覆盖） */
@@ -196,6 +198,12 @@ function addCurrentToPlaylist(): void {
   if (!track) return;
   moreView.value = null;
   openPlaylistPicker(track);
+}
+
+/** 录音棚：以当前曲目为伴奏，跳到录音棚页面（录音中按钮保持高亮） */
+function openStudio(): void {
+  moreView.value = null;
+  void router.push({ name: "studio" });
 }
 
 /** 睡眠定时器：按钮高亮与二级菜单摘要都依赖它的状态 */
@@ -462,6 +470,18 @@ onUnmounted(() => {
                   @click="addCurrentToPlaylist"
                 >
                   <span class="more-item-label">添加到歌单</span>
+                </button>
+                <button
+                  v-if="settings.studioEnabled"
+                  class="more-item"
+                  :class="{ 'is-on': recorder.recording }"
+                  @click="openStudio"
+                >
+                  <span class="more-item-label">录音棚</span>
+                  <span class="more-item-tail">
+                    <span v-if="recorder.recording" class="more-item-value">录音中</span>
+                    <span class="wp-icon more-item-chevron">&#xF2B0;</span>
+                  </span>
                 </button>
                 <button class="more-item" @click="moreView = 'rate'">
                   <span class="more-item-label">播放速度</span>

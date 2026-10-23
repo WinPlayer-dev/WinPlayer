@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 录音棚需要麦克风；由 Gradle 合并进 App 的清单 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- 没有麦克风的设备也允许安装（录音棚入口自然不可用） -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+</manifest>

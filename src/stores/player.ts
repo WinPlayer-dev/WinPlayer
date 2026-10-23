@@ -5,6 +5,7 @@ import { computed, ref, watch } from "vue";
 import { getAudioEngine } from "@/services/audio";
 import { isThrottled } from "@/services/backgroundMode";
 import { findLyricIndex, mergeTranslation, parseLrc } from "@/services/lrc";
+import { RECORDING_SOURCE_ID, recordingPlayPath } from "@/services/recorder";
 import { getSetting, setSetting } from "@/services/db";
 import {
   checkSleepDeadline,
@@ -397,8 +398,10 @@ export const usePlayerStore = defineStore("player", () => {
     return `${track.sourceId ?? ""}:${track.id}`;
   }
 
-  /** 解析播放地址：已下载曲目优先本地文件（离线可播），否则走插件直链 */
+  /** 解析播放地址：录音作品 → 本机协议；已下载曲目 → 本地文件；否则走插件直链 */
   async function resolvePlayUrl(track: UnifiedTrack): Promise<string> {
+    // 录音棚作品：主进程按 id 给出 local:// 绝对路径（原生解码器不认自定义协议）
+    if (track.sourceId === RECORDING_SOURCE_ID) return recordingPlayPath(track.id);
     const local = downloads.localUrl(track);
     if (local) return local;
     const result = await plugins.getSongUrl(track);
@@ -1072,6 +1075,12 @@ export const usePlayerStore = defineStore("player", () => {
   /* ------------------------------ 歌词 ------------------------------ */
 
   async function fetchLyrics(track: UnifiedTrack): Promise<void> {
+    // 录音作品没有歌词：别拿标题去别的播放源里瞎搜
+    if (track.sourceId === RECORDING_SOURCE_ID) {
+      lyrics.value = [];
+      lyricsLoading.value = false;
+      return;
+    }
     lyricsLoading.value = true;
     lyrics.value = [];
     try {

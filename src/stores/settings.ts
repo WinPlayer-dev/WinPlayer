@@ -55,6 +55,12 @@ export const useSettingsStore = defineStore("settings", () => {
    * 设置 → 通用 里可随时重新进入（不改写已安装的插件）。
    */
   const onboardingDone = ref(false);
+  /**
+   * 录音棚（实验性）入口开关：默认关闭，需在「设置 → 实验性」里主动打开。
+   * 关闭时侧边栏 / 播放器「更多」菜单都不显示入口，直接访问 `/studio` 也会被送回推荐页；
+   * 已有录音数据不会被删除。
+   */
+  const studioEnabled = ref(false);
   const marketSources = ref<MarketSource[]>([]);
   /** GitHub 镜像源前缀（URL 拼接型，如 https://ghproxy.net/），空串表示直连 */
   const githubMirror = ref("");
@@ -179,6 +185,7 @@ export const useSettingsStore = defineStore("settings", () => {
   async function load(): Promise<void> {
     theme.value = await getSetting<ThemePreference>("settings.theme", "system");
     onboardingDone.value = await getSetting<boolean>("settings.onboardingDone", false);
+    studioEnabled.value = await getSetting<boolean>("settings.studioEnabled", false);
     marketSources.value = await getSetting<MarketSource[]>("settings.marketSources", []);
     githubMirror.value = await getSetting<string>("settings.githubMirror", "");
     smtcEnabled.value = await getSetting("settings.smtcEnabled", true);
@@ -323,6 +330,12 @@ export const useSettingsStore = defineStore("settings", () => {
   async function setOnboardingDone(value: boolean): Promise<void> {
     onboardingDone.value = value;
     await setSetting("settings.onboardingDone", value);
+  }
+
+  /** 开关录音棚入口：只影响入口显示，已有录音作品保留在本地 */
+  async function setStudioEnabled(value: boolean): Promise<void> {
+    studioEnabled.value = value;
+    await setSetting("settings.studioEnabled", value);
   }
 
   async function setGithubMirror(value: string): Promise<void> {
@@ -496,6 +509,7 @@ export const useSettingsStore = defineStore("settings", () => {
     coverNaturalRatio,
     historyEnabled,
     onboardingDone,
+    studioEnabled,
     marketSources,
     githubMirror,
     smtcEnabled,
@@ -534,6 +548,7 @@ export const useSettingsStore = defineStore("settings", () => {
     setHistoryEnabled,
     setMarketSources,
     setOnboardingDone,
+    setStudioEnabled,
     setGithubMirror,
     setSmtcEnabled,
     setAggregateSearch,

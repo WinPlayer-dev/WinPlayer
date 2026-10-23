@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from "vue-router";
+import { useSettingsStore } from "@/stores/settings";
 
 /**
  * 使用 hash 路由：Tauri 自定义协议下避免刷新时路径 404
@@ -36,6 +37,19 @@ const router = createRouter({
       name: "offline",
       component: () => import("@/views/OfflineView.vue"),
       meta: { title: "离线音乐" },
+    },
+    {
+      // 录音棚（唱歌模式）：拿当前播放的歌曲当伴奏，录完直接混音
+      path: "/studio",
+      name: "studio",
+      component: () => import("@/views/StudioView.vue"),
+      meta: { title: "录音棚（实验性）" },
+      /**
+       * 实验性功能：设置里关掉入口后，历史记录里的旧链接 / 手输地址也不该能进，
+       * 直接送回推荐页（录音作品仍留在本地，重新打开开关即可看到）。
+       */
+      beforeEnter: () =>
+        useSettingsStore().studioEnabled ? true : { name: "recommend" },
     },
     {
       path: "/history",

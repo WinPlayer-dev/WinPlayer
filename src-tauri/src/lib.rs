@@ -6,6 +6,8 @@ mod global_shortcuts;
 // 本地音乐（内置播放源）：文件夹扫描 + 标签/封面/歌词提取
 mod local_music;
 mod player;
+// 录音棚（唱歌模式）：伴奏分流 + 麦克风采集 + 混音导出
+mod recorder;
 mod smtc;
 #[cfg(windows)]
 mod tray;
@@ -118,7 +120,7 @@ pub fn run() {
 
     // 主题资源协议 / 本地封面协议 / 图片缓存协议都是自定义 URI 协议，
     // 逐个包一层注册（顺序无关，链式写太深不易读）
-    let builder = commands::themes::register(commands::localmusic::register(
+    let builder = recorder::register(commands::themes::register(commands::localmusic::register(
         commands::cache::register(
             builder
             // 安卓媒体控件（媒体通知/锁屏/线控），桌面端自动 no-op
@@ -127,6 +129,8 @@ pub fn run() {
             .plugin(tauri_plugin_apk_installer::init())
             // 安卓触感反馈（WebView 无 navigator.vibrate，走原生 Vibrator），桌面端自动 no-op
             .plugin(tauri_plugin_haptics::init())
+            // 安卓麦克风运行时授权（录音棚用），桌面端自动 no-op
+            .plugin(tauri_plugin_mic_permission::init())
             .plugin(
                 tauri_plugin_sql::Builder::default()
                     .add_migrations("sqlite:winplayer.db", db_migrations())
@@ -197,12 +201,26 @@ pub fn run() {
                 player::player_set_rate,
                 player::player_list_output_devices,
                 player::player_set_output_device,
+                recorder::recorder_list_devices,
+                recorder::recorder_status,
+                recorder::recorder_level,
+                recorder::recorder_probe_mic,
+                recorder::recorder_open_mic_settings,
+                recorder::recorder_start,
+                recorder::recorder_stop,
+                recorder::recorder_list,
+                recorder::recorder_play_path,
+                recorder::recorder_export_mix,
+                recorder::recorder_delete,
+                recorder::recorder_reveal,
             ])
             .setup(|app| {
                 // 主窗口此时已创建，可在其上挂接系统媒体传输控件（SMTC）
                 smtc::init(app.handle());
                 // 原生音频播放引擎（命令 + 事件见 src-tauri/src/player/）
                 player::init(app);
+                // 录音棚状态（命令见 src-tauri/src/recorder/）
+                recorder::init(app);
                 // 系统托盘 + 关闭到托盘（仅 Windows 桌面）
                 #[cfg(windows)]
                 if let Err(e) = tray::init(app) {
@@ -247,7 +265,7 @@ pub fn run() {
                 }
             }),
         ),
-    ));
+    )));
     builder
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

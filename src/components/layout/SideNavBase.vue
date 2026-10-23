@@ -5,6 +5,8 @@ import { ContentDialog, TextBox } from "@/components/winui";
 import { useLibraryStore, type LocalPlaylist } from "@/stores/library";
 import { usePluginsStore, type AggregatedSourceResult } from "@/stores/plugins";
 import { useDownloadsStore } from "@/stores/downloads";
+import { useRecorderStore } from "@/stores/recorder";
+import { useSettingsStore } from "@/stores/settings";
 import { openContextMenu, type ContextMenuItem } from "@/services/contextMenu";
 import { openImportDialog } from "@/services/playlistIO";
 import { toast } from "@/services/toast";
@@ -16,6 +18,8 @@ const route = useRoute();
 const library = useLibraryStore();
 const plugins = usePluginsStore();
 const downloads = useDownloadsStore();
+const recorder = useRecorderStore();
+const settings = useSettingsStore();
 
 /** ContentDialog 通过 ShowAsync() 打开（库没有 IsOpen prop） */
 interface DialogRef {
@@ -441,6 +445,14 @@ function isActive(name: string): boolean {
             <span v-if="downloads.downloadedCount" class="nav-badge">{{ downloads.downloadedCount }}</span>
           </router-link>
         </li>
+        <!-- 录音棚（实验性）：设置里可以关掉入口，录音中的红点跟随入口一起隐藏 -->
+        <li v-if="settings.studioEnabled">
+          <router-link :to="{ name: 'studio' }" class="nav-item" :class="{ active: isActive('studio') }">
+            <span class="wp-icon nav-icon">&#xE7FA;</span>
+            <span class="nav-label">录音棚</span>
+            <span v-if="recorder.recording" class="nav-badge recording-badge" title="正在录音" />
+          </router-link>
+        </li>
       </ul>
 
       <div class="nav-section-header">
@@ -594,6 +606,27 @@ function isActive(name: string): boolean {
 </template>
 
 <style scoped>
+/* 录音中的红点：不做数字角标，避免和下载/收藏计数混淆 */
+.nav-badge.recording-badge {
+  width: 8px;
+  height: 8px;
+  min-width: 8px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--wp-danger);
+  animation: rec-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes rec-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
 .sidenav {
   display: flex;
   flex-direction: column;
