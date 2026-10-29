@@ -61,6 +61,47 @@ const uninstallDialogRef = ref<DialogRef | null>(null);
 
 const installedCount = computed(() => plugins.installedRecords.length);
 
+/* ------------------------------ 卡片折叠 ------------------------------ */
+
+/**
+ * 已安装插件卡片的折叠状态：纯 UI 偏好，存 localStorage（与录音棚一致，不占用 settings 表）。
+ *
+ * 存「已折叠的插件 id」而不是「全部插件的展开/收起状态」：新装的插件默认展开，
+ * 用户折叠过的那几个即使升级/重装也保持折叠。
+ */
+const COLLAPSED_KEY = "winplayer.plugins.collapsed";
+
+function readCollapsed(): Set<string> {
+  try {
+    const text = localStorage.getItem(COLLAPSED_KEY);
+    if (!text) return new Set();
+    const parsed = JSON.parse(text) as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((id): id is string => typeof id === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+const collapsedIds = ref<Set<string>>(readCollapsed());
+
+function isCollapsed(id: string): boolean {
+  return collapsedIds.value.has(id);
+}
+
+/** 折叠 / 展开单张卡片（整体替换 Set 以触发 ref 更新） */
+function toggleCollapse(id: string): void {
+  const next = new Set(collapsedIds.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  collapsedIds.value = next;
+  try {
+    localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+  } catch {
+    // 存不下不影响使用
+  }
+}
+
 /** 插件设置的编辑草稿（避免每敲一个字就重建插件运行时） */
 const drafts = ref<Record<string, unknown>>({});
 const draftTimers = new Map<string, number>();
@@ -540,136 +581,173 @@ onUnmounted(() => {
       </EmptyState>
 
       <div v-else class="plugin-list">
-        <div v-for="record in plugins.installedRecords" :key="record.entry.id" class="plugin-card">
+        <div
+          v-for="record in plugins.installedRecords"
+          :key="record.entry.id"
+          class="plugin-card"
+          :class="{ collapsed: isCollapsed(record.entry.id), off: !record.enabled }"
+        >
           <div class="plugin-main">
             <div class="plugin-title-row">
               <span class="plugin-name">{{ record.entry.manifest.name }}</span>
               <span class="plugin-version">v{{ record.entry.manifest.version }}</span>
               <span v-if="record.entry.kind === 'file'" class="plugin-kind">单文件</span>
-            </div>
-            <div class="plugin-desc">{{ record.entry.manifest.description || "无描述" }}</div>
-            <div class="plugin-chips">
+              <!-- 折叠后看不到错误详情，用红点 + 悬浮提示兜底 -->
               <span
-                v-for="capability in record.entry.manifest.capabilities ?? []"
-                :key="capability"
-                class="chip"
-              >
-                {{ capabilityLabel(capability) }}
-              </span>
+                v-if="isCollapsed(record.entry.id) && record.error"
+                class="plugin-dot error"
+                :title="`运行错误：${record.error}`"
+              ></span>
             </div>
-            <div class="plugin-meta">
-              <span v-if="record.entry.manifest.author">作者：{{ record.entry.manifest.author }}</span>
-              <span class="plugin-id">ID: {{ record.entry.id }}</span>
+            <!-- 正文区：折叠时靠 grid-template-rows 收成 0 高（纯 CSS 过渡，不靠 JS 测高） -->
+            <div class="plugin-body">
+              <div class="plugin-body-inner">
+                <div class="plugin-desc">{{ record.entry.manifest.description || "无描述" }}</div>
+                <div class="plugin-chips">
+                  <span
+                    v-for="capability in record.entry.manifest.capabilities ?? []"
+                    :key="capability"
+                    class="chip"
+                  >
+                    {{ capabilityLabel(capability) }}
+                  </span>
+                </div>
+                <div class="plugin-meta">
+                  <span v-if="record.entry.manifest.author">作者：{{ record.entry.manifest.author }}</span>
+                  <span class="plugin-id">ID: {{ record.entry.id }}</span>
+                </div>
+                <div v-if="record.error" class="plugin-error">运行错误：{{ record.error }}</div>
+              </div>
             </div>
-            <div v-if="record.error" class="plugin-error">运行错误：{{ record.error }}</div>
           </div>
 
           <div class="plugin-side">
-            <ToggleSwitch :IsOn="record.enabled" @Toggled="onToggle(record, $event)" />
-            <WpButton class="small danger" @click="confirmUninstall(record)" variant="standard">
+            <div class="plugin-side-top">
+              <ToggleSwitch :IsOn="record.enabled" @Toggled="onToggle(record, $event)" />
+              <button
+                type="button"
+                class="collapse-btn"
+                :title="isCollapsed(record.entry.id) ? '展开' : '折叠'"
+                :aria-label="isCollapsed(record.entry.id) ? '展开插件卡片' : '折叠插件卡片'"
+                :aria-expanded="!isCollapsed(record.entry.id)"
+                @click="toggleCollapse(record.entry.id)"
+              >
+                <span class="chevron"></span>
+              </button>
+            </div>
+            <WpButton
+              v-if="!isCollapsed(record.entry.id)"
+              class="small danger"
+              @click="confirmUninstall(record)"
+              variant="standard"
+            >
               卸载
             </WpButton>
           </div>
 
-          <!-- 扫码登录（能力：login） -->
-          <div v-if="supportsLogin(record)" class="plugin-login">
-            <template v-if="isLoggedIn(record.entry.id)">
-              <div class="login-user">
-                <img
-                  v-if="loginAvatar(record.entry.id)"
-                  class="login-avatar"
-                  :src="loginAvatar(record.entry.id)"
-                  alt=""
-                />
-                <span v-else class="wp-icon login-icon">&#xF5BE;</span>
-                <span class="login-name">{{ loginName(record.entry.id) }}</span>
-                <span v-if="statusText(record.entry.id)" class="login-sub">
-                  {{ statusText(record.entry.id) }}
-                </span>
-              </div>
-              <WpButton class="small" @click="confirmLogout(record)" variant="standard">退出登录</WpButton>
-            </template>
+          <!-- 扫码登录（能力：login）：折叠时整块收成 0 高，DOM 保留（扫码轮询与登录态不中断） -->
+          <div v-if="supportsLogin(record)" class="plugin-fold">
+            <div class="plugin-login">
+              <template v-if="isLoggedIn(record.entry.id)">
+                <div class="login-user">
+                  <img
+                    v-if="loginAvatar(record.entry.id)"
+                    class="login-avatar"
+                    :src="loginAvatar(record.entry.id)"
+                    alt=""
+                  />
+                  <span v-else class="wp-icon login-icon">&#xF5BE;</span>
+                  <span class="login-name">{{ loginName(record.entry.id) }}</span>
+                  <span v-if="statusText(record.entry.id)" class="login-sub">
+                    {{ statusText(record.entry.id) }}
+                  </span>
+                </div>
+                <WpButton class="small" @click="confirmLogout(record)" variant="standard">退出登录</WpButton>
+              </template>
 
-            <template v-else-if="qrActive(record.entry.id)">
-              <div class="qr-box">
-                <img class="qr-image" :src="qrImage(record.entry.id)" alt="登录二维码" />
-              </div>
-              <div class="qr-side">
-                <div class="login-name">{{ statusText(record.entry.id) || "等待扫码" }}</div>
-                <div v-if="errorText(record.entry.id)" class="login-error">
-                  {{ errorText(record.entry.id) }}
+              <template v-else-if="qrActive(record.entry.id)">
+                <div class="qr-box">
+                  <img class="qr-image" :src="qrImage(record.entry.id)" alt="登录二维码" />
                 </div>
-                <WpButton class="small" @click="cancelQr(record)" variant="standard">取消</WpButton>
-              </div>
-            </template>
+                <div class="qr-side">
+                  <div class="login-name">{{ statusText(record.entry.id) || "等待扫码" }}</div>
+                  <div v-if="errorText(record.entry.id)" class="login-error">
+                    {{ errorText(record.entry.id) }}
+                  </div>
+                  <WpButton class="small" @click="cancelQr(record)" variant="standard">取消</WpButton>
+                </div>
+              </template>
 
-            <template v-else>
-              <div class="login-idle">
-                <div class="login-name">未登录</div>
-                <div class="login-desc">扫码登录后可播放 VIP / 受限歌曲</div>
-                <div v-if="statusText(record.entry.id)" class="login-sub">
-                  {{ statusText(record.entry.id) }}
+              <template v-else>
+                <div class="login-idle">
+                  <div class="login-name">未登录</div>
+                  <div class="login-desc">扫码登录后可播放 VIP / 受限歌曲</div>
+                  <div v-if="statusText(record.entry.id)" class="login-sub">
+                    {{ statusText(record.entry.id) }}
+                  </div>
+                  <div v-if="errorText(record.entry.id)" class="login-error">
+                    {{ errorText(record.entry.id) }}
+                  </div>
                 </div>
-                <div v-if="errorText(record.entry.id)" class="login-error">
-                  {{ errorText(record.entry.id) }}
-                </div>
-              </div>
-              <WpButton class="small"
-                :disabled="loginBusyNow(record.entry.id)"
-                @click="startQrLogin(record)"
-               variant="accent">
-                {{ loginBusyNow(record.entry.id) ? "获取中…" : "扫码登录" }}
-              </WpButton>
-            </template>
+                <WpButton class="small"
+                  :disabled="loginBusyNow(record.entry.id)"
+                  @click="startQrLogin(record)"
+                 variant="accent">
+                  {{ loginBusyNow(record.entry.id) ? "获取中…" : "扫码登录" }}
+                </WpButton>
+              </template>
+            </div>
           </div>
 
-          <!-- 插件设置表单 -->
-          <div v-if="record.entry.manifest.settings?.length" class="plugin-settings">
-            <div
-              v-for="item in record.entry.manifest.settings"
-              :key="item.key"
-              class="setting-row"
-              :class="{ stacked: item.type === 'password' }"
-            >
-              <div class="setting-label">
-                <div class="setting-name">{{ item.label }}</div>
-                <div v-if="item.description" class="setting-desc">{{ item.description }}</div>
+          <!-- 插件设置表单：同样整块折叠，设置项保持挂载（草稿与输入焦点不丢） -->
+          <div v-if="record.entry.manifest.settings?.length" class="plugin-fold">
+            <div class="plugin-settings">
+              <div
+                v-for="item in record.entry.manifest.settings"
+                :key="item.key"
+                class="setting-row"
+                :class="{ stacked: item.type === 'password' }"
+              >
+                <div class="setting-label">
+                  <div class="setting-name">{{ item.label }}</div>
+                  <div v-if="item.description" class="setting-desc">{{ item.description }}</div>
+                </div>
+                <TextBox
+                  v-if="item.type === 'text'"
+                  class="setting-control"
+                  :Text="String(draftValue(record, item))"
+                  :PlaceholderText="item.placeholder ?? ''"
+                  @update:Text="setDraft(record, item, $event)"
+                />
+                <!-- password 类型同样用普通输入框：凭证（如登录 Cookie）很长，需要可见以便核对粘贴内容 -->
+                <TextBox
+                  v-else-if="item.type === 'password'"
+                  class="setting-control"
+                  :Text="String(draftValue(record, item))"
+                  :PlaceholderText="item.placeholder ?? ''"
+                  @update:Text="setDraft(record, item, $event)"
+                />
+                <NumberBox
+                  v-else-if="item.type === 'number'"
+                  class="setting-control"
+                  :Value="Number(draftValue(record, item)) || 0"
+                  @update:Value="setDraft(record, item, $event)"
+                />
+                <ComboBox
+                  v-else-if="item.type === 'select'"
+                  class="setting-control"
+                  :ItemsSource="selectLabels(item)"
+                  :SelectedIndex="selectIndex(record, item)"
+                  @SelectionChanged="
+                    (sender: unknown, payload: unknown) => onSelectChange(record, item, sender, payload)
+                  "
+                />
+                <ToggleSwitch
+                  v-else-if="item.type === 'switch'"
+                  :IsOn="Boolean(draftValue(record, item))"
+                  @Toggled="setSwitch(record, item, Boolean($event?.IsOn))"
+                />
               </div>
-              <TextBox
-                v-if="item.type === 'text'"
-                class="setting-control"
-                :Text="String(draftValue(record, item))"
-                :PlaceholderText="item.placeholder ?? ''"
-                @update:Text="setDraft(record, item, $event)"
-              />
-              <!-- password 类型同样用普通输入框：凭证（如登录 Cookie）很长，需要可见以便核对粘贴内容 -->
-              <TextBox
-                v-else-if="item.type === 'password'"
-                class="setting-control"
-                :Text="String(draftValue(record, item))"
-                :PlaceholderText="item.placeholder ?? ''"
-                @update:Text="setDraft(record, item, $event)"
-              />
-              <NumberBox
-                v-else-if="item.type === 'number'"
-                class="setting-control"
-                :Value="Number(draftValue(record, item)) || 0"
-                @update:Value="setDraft(record, item, $event)"
-              />
-              <ComboBox
-                v-else-if="item.type === 'select'"
-                class="setting-control"
-                :ItemsSource="selectLabels(item)"
-                :SelectedIndex="selectIndex(record, item)"
-                @SelectionChanged="
-                  (sender: unknown, payload: unknown) => onSelectChange(record, item, sender, payload)
-                "
-              />
-              <ToggleSwitch
-                v-else-if="item.type === 'switch'"
-                :IsOn="Boolean(draftValue(record, item))"
-                @Toggled="setSwitch(record, item, Boolean($event?.IsOn))"
-              />
             </div>
           </div>
         </div>
@@ -838,21 +916,126 @@ onUnmounted(() => {
 
 /**
  * 卡片使用两列网格：主信息占第一列，开关/操作占第二列，
- * 设置表单独占整行（此前用 flex + flex-basis:100% 会被挤进同一行导致排版错乱）
+ * 登录区与设置表各占整行（此前用 flex + flex-basis:100% 会被挤进同一行导致排版错乱）。
+ *
+ * 行间距刻意用 `.plugin-fold` 的 margin-top 而不是 row-gap：折叠时整行高度收成 0，
+ * row-gap 仍会留下空白，margin 才能一起过渡到 0。
  */
 .plugin-card {
   display: grid;
   grid-template-columns: 1fr auto;
   align-content: start;
-  gap: var(--space-lg) var(--space-xl);
+  column-gap: var(--space-xl);
   padding: var(--space-xl);
   background: var(--wp-card);
   border: 1px solid var(--wp-control-stroke);
   border-radius: var(--radius-lg);
+  /* 折叠时上下内边距一起收窄，跟随高度动画 */
+  transition: padding var(--duration-normal) var(--ease-standard);
 }
 
 .plugin-main {
   min-width: 0;
+}
+
+/**
+ * 正文区（描述 / 能力标签 / 作者）：折叠时由 grid-template-rows 1fr → 0fr 收成 0 高。
+ * 用常驻 DOM + 纯 CSS 过渡，而不是 <Transition> 的 JS 钩子测高——窗口在后台或
+ * 被遮挡时 rAF 会停摆，JS 驱动的收起动画会卡在中间态，CSS 过渡没这个问题。
+ */
+.plugin-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition:
+    grid-template-rows var(--duration-normal) var(--ease-standard),
+    visibility 0s linear 0s;
+}
+
+.plugin-body-inner {
+  min-height: 0;
+  overflow: hidden;
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+
+/* 登录区 / 设置表：整行折叠，子元素自带分隔线与上内边距，收起时一并归零 */
+.plugin-fold {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-rows: 1fr;
+  margin-top: var(--space-lg);
+  visibility: visible;
+  transition:
+    grid-template-rows var(--duration-normal) var(--ease-standard),
+    margin-top var(--duration-normal) var(--ease-standard),
+    visibility 0s linear 0s;
+}
+
+.plugin-fold > * {
+  min-height: 0;
+  overflow: hidden;
+  transition:
+    padding-top var(--duration-normal) var(--ease-standard),
+    border-top-width var(--duration-normal) var(--ease-standard);
+}
+
+.plugin-card.collapsed .plugin-body {
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition:
+    grid-template-rows var(--duration-normal) var(--ease-standard),
+    visibility 0s linear var(--duration-normal);
+}
+
+.plugin-card.collapsed .plugin-fold {
+  grid-template-rows: 0fr;
+  margin-top: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows var(--duration-normal) var(--ease-standard),
+    margin-top var(--duration-normal) var(--ease-standard),
+    visibility 0s linear var(--duration-normal);
+}
+
+.plugin-card.collapsed .plugin-body-inner {
+  opacity: 0;
+}
+
+/* 登录区有 min-height 兜底，收起时必须放开，否则压不到 0 */
+.plugin-card.collapsed .plugin-login {
+  min-height: 0;
+}
+
+.plugin-card.collapsed .plugin-fold > * {
+  padding-top: 0;
+  border-top-width: 0;
+}
+
+/* 折叠后只剩一行：收紧纵向内边距 */
+.plugin-card.collapsed {
+  padding: var(--space-md) var(--space-lg);
+}
+
+.plugin-card.collapsed .plugin-title-row {
+  align-items: center;
+  min-width: 0;
+}
+
+.plugin-card.collapsed .plugin-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 停用的插件在折叠态下没有描述可看，靠名称降色区分 */
+.plugin-card.collapsed.off .plugin-name {
+  color: var(--wp-text-secondary);
+}
+
+.plugin-card.collapsed .plugin-side {
+  flex: none;
+  flex-direction: row;
+  align-items: center;
 }
 
 .plugin-title-row {
@@ -922,9 +1105,68 @@ onUnmounted(() => {
   gap: var(--space-md);
 }
 
-/* 扫码登录区：与设置表单一样占满整行 */
+/* 开关与折叠按钮同排，位于卡片右上角 */
+.plugin-side-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--wp-text-tertiary);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.collapse-btn:hover {
+  background: var(--wp-card-hover);
+  border-color: var(--wp-control-stroke-secondary);
+  color: var(--wp-text-primary);
+}
+
+/* 与内置播放源一致：用 CSS 画箭头，不依赖图标字体码位 */
+.chevron {
+  width: 7px;
+  height: 7px;
+  border-bottom: 1.5px solid currentColor;
+  border-right: 1.5px solid currentColor;
+  /* 展开态朝上（点击收起） */
+  transform: rotate(-135deg);
+  transition: transform var(--duration-normal) var(--ease-standard);
+}
+
+.plugin-card.collapsed .chevron {
+  /* 折叠态朝下（点击展开） */
+  transform: rotate(45deg);
+}
+
+/* 折叠态的错误提示小圆点 */
+.plugin-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  align-self: center;
+  border-radius: 50%;
+}
+
+.plugin-dot.error {
+  background: var(--wp-danger);
+}
+
+/* 扫码登录区：外层 `.plugin-fold` 负责占整行与折叠，这里只管自身排版 */
 .plugin-login {
-  grid-column: 1 / -1;
   border-top: 1px solid var(--wp-divider);
   padding-top: var(--space-lg);
   display: flex;
@@ -1004,8 +1246,8 @@ onUnmounted(() => {
   margin-top: 2px;
 }
 
+/* 设置表：外层 `.plugin-fold` 负责占整行与折叠 */
 .plugin-settings {
-  grid-column: 1 / -1;
   border-top: 1px solid var(--wp-divider);
   padding-top: var(--space-lg);
   display: flex;
@@ -1212,7 +1454,7 @@ onUnmounted(() => {
 /* 卡片由「主信息 + 操作」两列改为单列纵向堆叠 */
 .plugins-page.mobile .plugin-card {
   grid-template-columns: 1fr;
-  gap: var(--space-lg);
+  row-gap: var(--space-lg);
   padding: var(--space-lg);
 }
 
@@ -1226,6 +1468,18 @@ onUnmounted(() => {
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
+}
+
+/* 折叠态回到「名称 + 开关」同一行，不被单列布局拆成上下两行 */
+.plugins-page.mobile .plugin-card.collapsed {
+  grid-template-columns: 1fr auto;
+  row-gap: 0;
+  padding: var(--space-md) var(--space-lg);
+}
+
+.plugins-page.mobile .plugin-card.collapsed .plugin-side {
+  flex-direction: row;
+  justify-content: flex-end;
 }
 
 /* 扫码登录区：空间不足时允许换行 */
