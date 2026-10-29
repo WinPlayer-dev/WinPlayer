@@ -104,7 +104,7 @@ onBeforeUnmount(() => window.clearTimeout(fontDebounce));
         <div class="card-content">
           <div class="card-header">配色模式</div>
           <div class="card-description">
-            选择应用的亮/暗外观，默认跟随系统设置；主题的深浅两套配色会随这里的选择切换
+            选择应用的亮 / 暗外观，默认跟随系统
           </div>
         </div>
         <ComboBox
@@ -118,8 +118,7 @@ onBeforeUnmount(() => window.clearTimeout(fontDebounce));
         <div class="card-content">
           <div class="card-header">窗口材质</div>
           <div class="card-description">
-            使用系统级 Mica / Acrylic 云母材质作为窗口背景（Mica 仅 Windows 11
-            支持，自动回退 Acrylic）；关闭则使用不透明纯色背景
+            使用系统 Mica / Acrylic 材质作为窗口背景；关闭则使用纯色背景
           </div>
         </div>
         <ComboBox
@@ -133,7 +132,7 @@ onBeforeUnmount(() => window.clearTimeout(fontDebounce));
         <div class="card-content">
           <div class="card-header">封面取色</div>
           <div class="card-description">
-            从当前播放封面的主色生成应用强调色，按钮、进度条等高亮元素跟随封面变化
+            从当前封面提取主色作为强调色，按钮、进度条跟随变化
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.coverAccent" @Toggled="onCoverAccentToggle" />
@@ -142,9 +141,7 @@ onBeforeUnmount(() => window.clearTimeout(fontDebounce));
         <div class="card-content">
           <div class="card-header">按封面原始比例</div>
           <div class="card-description">
-            不再把封面统一裁成正方形，而是按插件返回的原图比例显示（如视频类音源的 16:9 封面）。
-            卡片外框保持正方、图片居中留白并用模糊封面填充；播放条、歌词页等处宽度不变，
-            高度随比例伸缩，超出可用高度时自动缩窄
+            按原图比例显示封面，不再统一裁成正方形；卡片外框保持正方，多余区域用模糊封面填充
           </div>
           <div class="cover-preview" :class="{ natural: settings.coverNaturalRatio }" aria-hidden="true">
             <div class="preview-frame">
@@ -167,8 +164,7 @@ onBeforeUnmount(() => window.clearTimeout(fontDebounce));
         <div class="card-content">
           <div class="card-header">全局字体</div>
           <div class="card-description">
-            自定义整个应用的显示字体，输入 CSS font-family 值（可含备选字体与引号），
-            留空恢复默认；输入即实时预览
+            自定义应用字体，填入 CSS font-family 值（可含备选字体）；留空恢复默认，输入即预览
           </div>
         </div>
         <TextBox

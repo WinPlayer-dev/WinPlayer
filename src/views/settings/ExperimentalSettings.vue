@@ -119,8 +119,7 @@ function onStudioToggle(event: { IsOn: boolean }): void {
 <template>
   <div>
     <p class="experimental-note">
-      这些功能还在打磨中，界面与行为可能随版本调整；遇到问题欢迎反馈。关闭某个开关只是隐藏入口，
-      已经产生的数据（主题、录音作品）不会被删除。
+      这些功能仍在打磨，界面与行为可能随版本调整。关闭开关只是隐藏入口，已有数据不会删除。
     </p>
 
     <!-- 主题皮肤 -->
@@ -131,8 +130,7 @@ function onStudioToggle(event: { IsOn: boolean }): void {
         <div class="card-content">
           <div class="card-header">当前主题</div>
           <div class="card-description">
-            主题可以改配色、圆角、字体、背景壁纸，甚至重写标题栏 / 侧边栏 / 播放条等界面组件；
-            切换后立即生效，无需重启
+            主题可改配色、圆角、背景，甚至重写标题栏 / 播放条等界面组件；切换后立即生效
           </div>
         </div>
         <ComboBox
@@ -189,7 +187,7 @@ function onStudioToggle(event: { IsOn: boolean }): void {
         <div class="card-content">
           <div class="card-header">还没有应用主题</div>
           <div class="card-description">
-            当前使用内置 WinUI 外观。可以从主题市场安装，或导入本地 .zip 主题包。
+            当前使用内置 WinUI 外观，可从主题市场安装或导入 .zip 主题包。
           </div>
         </div>
         <WpButton @click="openThemeMarket" variant="standard">打开主题市场</WpButton>
@@ -204,8 +202,7 @@ function onStudioToggle(event: { IsOn: boolean }): void {
         <div class="card-content">
           <div class="card-header">显示录音棚入口</div>
           <div class="card-description">
-            开启后侧边栏与播放器「更多」菜单里会出现「录音棚」，可以把当前播放的歌曲当伴奏录人声并自动混音。
-            不同声卡 / 麦克风下的延迟与音质表现可能有差异；关闭只隐藏入口，之前录好的作品仍保留在本地
+            开启后侧边栏与「更多」菜单出现「录音棚」，可用当前歌曲伴奏录人声并混音；关闭只隐藏入口，作品仍保留
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.studioEnabled" @Toggled="onStudioToggle" />

@@ -29,6 +29,32 @@ export type UpdateCheckFrequency = "startup" | "daily" | "manual";
 /** 关闭按钮行为：关闭到托盘 / 最小化到任务栏 / 直接退出 */
 export type CloseBehavior = "tray" | "minimize" | "quit";
 
+/** 冷启动后直接进入的页面（默认推荐页） */
+export type StartupPage = "recommend" | "liked" | "offline" | "mine";
+
+/** 启动页候选项：`mobileOnly` 的项仅在移动端出现在设置下拉中（桌面端路由仍可达） */
+export interface StartupPageOption {
+  value: StartupPage;
+  label: string;
+  /** 目标路由名 */
+  route: string;
+  mobileOnly?: boolean;
+}
+
+export const STARTUP_PAGE_OPTIONS: readonly StartupPageOption[] = [
+  { value: "recommend", label: "推荐", route: "recommend" },
+  { value: "liked", label: "我喜欢的音乐", route: "liked" },
+  { value: "offline", label: "离线音乐", route: "offline" },
+  // 「我的」页是移动端底部导航的入口，桌面端侧边栏没有它，故不在桌面端设置里出现
+  { value: "mine", label: "我的", route: "mine", mobileOnly: true },
+];
+
+/** 校验持久化值是否仍是合法页面（老版本 / 手改数据库时回退到推荐页） */
+function normalizeStartupPage(value: unknown): StartupPage {
+  const hit = STARTUP_PAGE_OPTIONS.find((item) => item.value === value);
+  return hit ? hit.value : "recommend";
+}
+
 /** 「来源偏好」默认值：空串表示不指定插件，由系统按当前逻辑自动决定 */
 export type SourcePreference = string;
 
@@ -61,11 +87,22 @@ export const useSettingsStore = defineStore("settings", () => {
    * 已有录音数据不会被删除。
    */
   const studioEnabled = ref(false);
+  /**
+   * 打开时页面：每次冷启动后直接进入所选页面（仅在 App 初始化时跳一次，
+   * 之后手动回首页仍是推荐页）。「我的」只在移动端可选。
+   */
+  const startupPage = ref<StartupPage>("recommend");
   const marketSources = ref<MarketSource[]>([]);
   /** GitHub 镜像源前缀（URL 拼接型，如 https://ghproxy.net/），空串表示直连 */
   const githubMirror = ref("");
   /** 是否启用系统媒体传输控件（SMTC，仅 Windows） */
   const smtcEnabled = ref(true);
+  /**
+   * 车载模式：把系统媒体控件（Windows 媒体浮出窗 / 安卓媒体通知）的标题换成
+   * 当前播放的歌词行，副标题换成「歌曲名 - 作者」。驾驶时抬头看大标题即可，
+   * 不必眯着眼找小字。没有歌词 / 前奏 / 纯音乐段仍回退成歌名。
+   */
+  const carMode = ref(false);
   /**
    * 聚合搜索：开启后搜索页在插件 Tab 之外多出一个「全部」Tab，
    * 把各插件结果交错融合展示；关闭后每个 Tab 只搜自己那一个插件。
@@ -186,9 +223,13 @@ export const useSettingsStore = defineStore("settings", () => {
     theme.value = await getSetting<ThemePreference>("settings.theme", "system");
     onboardingDone.value = await getSetting<boolean>("settings.onboardingDone", false);
     studioEnabled.value = await getSetting<boolean>("settings.studioEnabled", false);
+    startupPage.value = normalizeStartupPage(
+      await getSetting<string>("settings.startupPage", "recommend"),
+    );
     marketSources.value = await getSetting<MarketSource[]>("settings.marketSources", []);
     githubMirror.value = await getSetting<string>("settings.githubMirror", "");
     smtcEnabled.value = await getSetting("settings.smtcEnabled", true);
+    carMode.value = await getSetting<boolean>("settings.carMode", false);
     aggregateSearch.value = await getSetting<boolean>("settings.aggregateSearch", true);
     trackSourceId.value = await getSetting<SourcePreference>("settings.trackSourceId", "");
     playSourceId.value = await getSetting<SourcePreference>("settings.playSourceId", "");
@@ -338,6 +379,12 @@ export const useSettingsStore = defineStore("settings", () => {
     await setSetting("settings.studioEnabled", value);
   }
 
+  /** 切换打开时页面：只写入偏好，下次冷启动才生效（不影响当前所在页面） */
+  async function setStartupPage(value: StartupPage): Promise<void> {
+    startupPage.value = normalizeStartupPage(value);
+    await setSetting("settings.startupPage", startupPage.value);
+  }
+
   async function setGithubMirror(value: string): Promise<void> {
     githubMirror.value = value.trim().replace(/\/+$/, "");
     await setSetting("settings.githubMirror", githubMirror.value);
@@ -346,6 +393,12 @@ export const useSettingsStore = defineStore("settings", () => {
   async function setSmtcEnabled(value: boolean): Promise<void> {
     smtcEnabled.value = value;
     await setSetting("settings.smtcEnabled", value);
+  }
+
+  /** 切换车载模式：只改变系统媒体控件上的文案，播放与界面其余部分不受影响 */
+  async function setCarMode(value: boolean): Promise<void> {
+    carMode.value = value;
+    await setSetting("settings.carMode", value);
   }
 
   /** 切换聚合搜索：只影响搜索页是否出现「全部」Tab，不改变任何插件状态 */
@@ -510,9 +563,11 @@ export const useSettingsStore = defineStore("settings", () => {
     historyEnabled,
     onboardingDone,
     studioEnabled,
+    startupPage,
     marketSources,
     githubMirror,
     smtcEnabled,
+    carMode,
     aggregateSearch,
     cachePolicy,
     downloadDir,
@@ -549,8 +604,10 @@ export const useSettingsStore = defineStore("settings", () => {
     setMarketSources,
     setOnboardingDone,
     setStudioEnabled,
+    setStartupPage,
     setGithubMirror,
     setSmtcEnabled,
+    setCarMode,
     setAggregateSearch,
     setCachePolicy,
     setDownloadDir,

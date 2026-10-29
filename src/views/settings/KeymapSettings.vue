@@ -179,8 +179,7 @@ onBeforeUnmount(() => {
     <section class="settings-section">
       <h2 class="settings-section-title">快捷键</h2>
       <p class="shortcut-hint">
-        点击右侧按键框后按下想要的组合键即可录制；录制时按 Esc 取消，按 Backspace / Delete 清除绑定。
-        快捷键仅在应用窗口处于前台时生效。
+        点击右侧按键框后按下组合键即可录制；Esc 取消，Backspace / Delete 清除。仅窗口在前台时生效。
       </p>
 
       <WpCard variant="row" v-for="action in SHORTCUT_ACTIONS" :key="action.id" >
@@ -226,16 +225,14 @@ onBeforeUnmount(() => {
     <section v-if="!isMobile" class="settings-section">
       <h2 class="settings-section-title">全局快捷键</h2>
       <p class="shortcut-hint">
-        由系统注册的热键：窗口在后台、甚至隐藏到系统托盘时也能用。默认使用 Ctrl + Alt
-        组合键，避免抢占其他应用的常用按键；点击按键框可重新录制（必须带 Ctrl / Alt / Shift / Win），
-        按 Esc 取消、Backspace / Delete 清除。若组合键已被其他程序占用，这里会标出「注册失败」。
+        由系统注册的热键，窗口在后台或托盘中也生效；组合键必须带 Ctrl / Alt / Shift / Win，被其他程序占用时会提示「注册失败」。
       </p>
 
       <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">启用全局快捷键</div>
           <div class="card-description">
-            关闭后立即注销所有系统热键，仅保留窗口内的快捷键；重新开启会按下面的设置恢复注册
+            关闭后立即注销所有系统热键，仅保留窗口内快捷键；重新开启后按下面的设置恢复注册
           </div>
         </div>
         <ToggleSwitch :IsOn="shortcuts.globalEnabled" @Toggled="onGlobalToggle" />

@@ -2,8 +2,13 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { ComboBox, ToggleSwitch } from "@/components/winui";
-import { useSettingsStore, type CloseBehavior, type UpdateCheckFrequency } from "@/stores/settings";
-import { useIsMobile, useIsWindows } from "@/composables/useIsMobile";
+import {
+  useSettingsStore,
+  STARTUP_PAGE_OPTIONS,
+  type CloseBehavior,
+  type UpdateCheckFrequency,
+} from "@/stores/settings";
+import { useIsAndroid, useIsMobile, useIsWindows } from "@/composables/useIsMobile";
 import { resetWindowState } from "@/services/windowState";
 import { toast } from "@/services/toast";
 import WpCard from "@/components/theme/WpCard.vue";
@@ -13,6 +18,8 @@ const settings = useSettingsStore();
 const router = useRouter();
 // SMTC 是 Windows 专属能力，其他平台隐藏该设置项
 const isWindows = useIsWindows();
+// 车载模式依赖媒体控件：Windows 走 SMTC，安卓走媒体通知
+const isAndroid = useIsAndroid();
 // 触感反馈仅移动端有意义
 const isMobile = useIsMobile();
 
@@ -40,8 +47,31 @@ const closeBehaviorIndex = computed(() =>
   CLOSE_BEHAVIORS.findIndex((item) => item.value === settings.closeBehavior),
 );
 
+/**
+ * 「打开时页面」候选项：`mobileOnly` 的项（我的）只在移动端出现。
+ * 桌面端若偏好里仍是「我的」（例如从移动端备份还原过来），下拉显示占位文案但启动照旧生效。
+ */
+const startupOptions = computed(() =>
+  STARTUP_PAGE_OPTIONS.filter((item) => isMobile || !item.mobileOnly),
+);
+const startupLabels = computed(() => startupOptions.value.map((item) => item.label));
+const startupIndex = computed(() =>
+  startupOptions.value.findIndex((item) => item.value === settings.startupPage),
+);
+const startupPlaceholder = computed(() => (isMobile ? "" : "仅移动端可选"));
+
+function onStartupPageChange(_sender: unknown, payload: unknown): void {
+  const label = (payload as { AddedItems?: unknown[] } | undefined)?.AddedItems?.[0];
+  const option = STARTUP_PAGE_OPTIONS.find((item) => item.label === String(label ?? ""));
+  if (option) void settings.setStartupPage(option.value);
+}
+
 function onSmtcToggle(event: { IsOn: boolean }): void {
   void settings.setSmtcEnabled(Boolean(event?.IsOn));
+}
+
+function onCarModeToggle(event: { IsOn: boolean }): void {
+  void settings.setCarMode(Boolean(event?.IsOn));
 }
 
 function onHapticsToggle(event: { IsOn: boolean }): void {
@@ -106,6 +136,29 @@ function replayOnboarding(): void {
 
 <template>
   <div>
+    <!-- 启动：冷启动后直接进入哪个页面 -->
+    <section class="settings-section">
+      <h2 class="settings-section-title">启动</h2>
+      <WpCard variant="row">
+        <div class="card-content">
+          <div class="card-header">打开时页面</div>
+          <div class="card-description">
+            每次启动应用后直接进入所选页面
+            <template v-if="!isMobile">。桌面端不提供「我的」</template>
+          </div>
+        </div>
+        <ComboBox
+          class="card-control"
+          :ItemsSource="startupLabels"
+          :SelectedIndex="startupIndex"
+          :PlaceholderText="startupPlaceholder"
+          @SelectionChanged="
+            (_sender: unknown, payload: unknown) => onStartupPageChange(_sender, payload)
+          "
+        />
+      </WpCard>
+    </section>
+
     <!-- 新手引导：重新进入欢迎页（不改动已装插件） -->
     <section class="settings-section">
       <h2 class="settings-section-title">新手引导</h2>
@@ -113,7 +166,7 @@ function replayOnboarding(): void {
         <div class="card-content">
           <div class="card-header">欢迎引导</div>
           <div class="card-description">
-            重新查看首次进入应用时的欢迎页与「添加你的第一个播放源」引导。已安装的插件和其余设置都不会受影响
+            重新查看欢迎页与添加播放源引导，不影响已装插件与现有设置
           </div>
         </div>
         <WpButton variant="standard" class="small" @click="replayOnboarding">重新查看</WpButton>
@@ -127,7 +180,7 @@ function replayOnboarding(): void {
         <div class="card-content">
           <div class="card-header">震动反馈</div>
           <div class="card-description">
-            长按唤起菜单、下拉刷新、收藏歌曲或切换播放模式时轻微震动，提供操作确认
+            长按菜单、下拉刷新、收藏等操作时轻微震动
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.hapticsEnabled" @Toggled="onHapticsToggle" />
@@ -142,8 +195,7 @@ function replayOnboarding(): void {
         <div class="card-content">
           <div class="card-header">记住窗口大小与位置</div>
           <div class="card-description">
-            退出时记住窗口的尺寸、位置与最大化状态，下次启动原样还原；若显示器有变化导致窗口跑到屏幕外，
-            会自动回到主屏居中
+            退出时记住窗口尺寸、位置与最大化状态，下次启动还原
           </div>
         </div>
         <div class="card-control window-state-control">
@@ -161,7 +213,7 @@ function replayOnboarding(): void {
         <div class="card-content">
           <div class="card-header">关闭按钮行为</div>
           <div class="card-description">
-            关闭窗口时：收藏到系统托盘继续在后台播放、最小化到任务栏，或直接退出应用。托盘图标左键可显示/隐藏主窗口，右键提供播放控制菜单
+            关闭窗口时收进托盘继续播放、最小化到任务栏或直接退出
           </div>
         </div>
         <ComboBox
@@ -178,7 +230,7 @@ function replayOnboarding(): void {
         <div class="card-content">
           <div class="card-header">后台优化</div>
           <div class="card-description">
-            窗口隐藏（关闭到托盘 / 最小化）时暂停界面动画、进度刷新与插件轮询以降低资源占用；音频播放与无缝切歌不受影响
+            窗口隐藏时暂停动画与轮询以降低占用，播放不受影响
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.backgroundOptimize" @Toggled="onOptimizeToggle" />
@@ -188,10 +240,24 @@ function replayOnboarding(): void {
         <div class="card-content">
           <div class="card-header">系统媒体传输控件（SMTC）</div>
           <div class="card-description">
-            在 Windows 媒体浮出窗、锁屏与蓝牙设备上显示正在播放的曲目、封面与进度，并响应系统的播放 / 暂停 / 上一首 / 下一首按钮
+            在系统媒体浮出窗、锁屏与蓝牙设备上显示曲目和进度，并响应系统播放控制
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.smtcEnabled" @Toggled="onSmtcToggle" />
+      </WpCard>
+    </section>
+
+    <!-- 车载模式：依赖媒体控件（Windows 的 SMTC / 安卓的媒体通知） -->
+    <section v-if="isWindows || isAndroid" class="settings-section">
+      <h2 class="settings-section-title">车载模式</h2>
+      <WpCard variant="row">
+        <div class="card-content">
+          <div class="card-header">歌词显示在媒体控件上</div>
+          <div class="card-description">
+            媒体控件标题显示当前歌词行，没有歌词时显示歌名；需开启系统媒体控件
+          </div>
+        </div>
+        <ToggleSwitch :IsOn="settings.carMode" @Toggled="onCarModeToggle" />
       </WpCard>
     </section>
 
@@ -203,8 +269,7 @@ function replayOnboarding(): void {
         <div class="card-content">
           <div class="card-header">聚合搜索</div>
           <div class="card-description">
-            开启后搜索页在插件 Tab 前多出一个「全部」Tab，把所有插件的搜索结果交错融合展示；
-            关闭后搜索页只有插件 Tab，切到哪个 Tab 才搜索哪个插件
+            搜索页多出一个「全部」Tab，聚合所有插件的结果
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.aggregateSearch" @Toggled="onAggregateSearchToggle" />
@@ -219,8 +284,7 @@ function replayOnboarding(): void {
         <div class="card-content">
           <div class="card-header">记录播放历史</div>
           <div class="card-description">
-            记录每首歌的播放次数与最近播放时间，用于「最近播放」页与播放次数统计。关闭后不再写入新记录，
-            已有记录保留并可在该页清空
+            记录播放次数与最近播放时间；关闭后不再记录，已有数据保留
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.historyEnabled" @Toggled="onHistoryToggle" />
@@ -235,7 +299,7 @@ function replayOnboarding(): void {
         <div class="card-content">
           <div class="card-header">自动检查更新</div>
           <div class="card-description">
-            启动时静默检查 GitHub 上是否有新版本，发现后弹窗提示下载安装；关闭后仍可在「关于」页手动检查
+            启动时静默检查新版本，有更新时提示；关闭后仍可在「关于」页手动检查
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.autoCheckUpdate" @Toggled="onAutoCheckToggle" />
@@ -245,7 +309,7 @@ function replayOnboarding(): void {
         <div class="card-content">
           <div class="card-header">自动检查频率</div>
           <div class="card-description">
-            「每次启动」每次打开应用都检查；「每 24 小时」同一天内只检查一次；「仅手动」只在手动点击时检查
+            「每次启动」每次打开都检查，「每 24 小时」每天只检查一次，「仅手动」只在「关于」页检查
           </div>
         </div>
         <ComboBox
@@ -263,7 +327,7 @@ function replayOnboarding(): void {
         <div class="card-content">
           <div class="card-header">接收预览版本（Beta）</div>
           <div class="card-description">
-            开启后会把 GitHub 上的预发布版本也纳入检查，可提前体验新功能，但可能不够稳定
+            同时检查预发布版本，可提前体验新功能，但可能不够稳定
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.updateIncludePrerelease" @Toggled="onPrereleaseToggle" />

@@ -64,7 +64,7 @@ import {
 } from "@/stores/settings";
 import { OFFICIAL_MARKET_SOURCE, pluginDisplayName, usePluginsStore } from "@/stores/plugins";
 import { useDownloadsStore } from "@/stores/downloads";
-import { useIsMobile, useIsWindows } from "@/composables/useIsMobile";
+import { useIsAndroid, useIsMobile, useIsWindows } from "@/composables/useIsMobile";
 import { useLongPress } from "@/composables/useLongPress";
 
 /** 主题宿主上下文：由 themes store 在应用主题时注入 */
@@ -152,7 +152,7 @@ const MODULES: Record<string, Record<string, unknown>> = {
   "@/components/winui/SliderBase.vue": { default: SliderBase },
   "@/components/winui/NumberBoxBase.vue": { default: NumberBoxBase },
 
-  "@/composables/useIsMobile": { useIsMobile, useIsWindows },
+  "@/composables/useIsMobile": { useIsMobile, useIsWindows, useIsAndroid },
   "@/composables/useLongPress": { useLongPress },
 
   // 主题自己的运行时工具（推荐写法）

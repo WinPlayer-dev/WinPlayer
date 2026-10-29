@@ -105,7 +105,7 @@ onMounted(() => {
         <div class="card-content">
           <div class="card-header">缓存项</div>
           <div class="card-description">
-            选择需要缓存的内容。歌单指页面数据（主页推荐、歌单/专辑/歌手详情等），图片指封面等磁盘缓存；切换后立即清除被关闭类型的已有缓存。
+            选择需要缓存的内容（页面数据 / 封面图片）；切换后立即清除被关闭类型的缓存。
           </div>
         </div>
         <ComboBox
@@ -119,7 +119,7 @@ onMounted(() => {
         <div class="card-content">
           <div class="card-header">清除缓存</div>
           <div class="card-description">
-            当前占用：{{ cacheSummary }}。清除后封面图片和主页/歌单页数据将在下次访问时重新下载。
+            当前占用：{{ cacheSummary }}。清除后将在下次访问时重新下载。
           </div>
         </div>
         <WpButton variant="standard" class="small danger" :disabled="cacheLoading" @click="clearCache">

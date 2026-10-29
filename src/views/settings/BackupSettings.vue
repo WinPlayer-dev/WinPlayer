@@ -12,7 +12,6 @@ import WpButton from "@/components/theme/WpButton.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 import { toast } from "@/services/toast";
 import {
-  BACKUP_VERSION,
   collectBackup,
   describeImport,
   runExport,
@@ -110,8 +109,7 @@ function notifyReload(): void {
         <div class="card-content">
           <div class="card-header">导出备份</div>
           <div class="card-description">
-            把{{ scopeText }}写成一个 JSON 文件（格式版本 {{ BACKUP_VERSION }}）。离线音乐只备份索引，
-            音频文件本身不会打包——换机后需要重新下载，原路径失效的条目会在离线页标记为失效。
+            把{{ scopeText }}导出为 JSON。离线音乐只备份索引，音频文件需重新下载。
           </div>
         </div>
         <WpButton variant="standard" class="small" :disabled="busy !== null" @click="doExport">
@@ -123,8 +121,7 @@ function notifyReload(): void {
         <div class="card-content">
           <div class="card-header">包含插件登录凭证</div>
           <div class="card-description">
-            勾选后会把各插件的 Cookie / Token 一并写入备份文件。备份文件是明文 JSON，
-            分享给别人前请确认已取消勾选。
+            勾选后会把插件 Cookie / Token 一并写入备份。备份是明文 JSON，分享前请取消勾选。
           </div>
         </div>
         <ToggleSwitch :IsOn="includeCredentials" @Toggled="onCredentialsToggle" />
@@ -134,8 +131,7 @@ function notifyReload(): void {
         <div class="card-content">
           <div class="card-header">导入备份</div>
           <div class="card-description">
-            按名称合并歌单、按曲目去重写入喜欢与离线索引；导入不会删除你现在已有的任何内容，
-            同一份备份重复导入也不会产生重复数据。
+            按名称合并歌单、按曲目去重；不会删除现有内容，重复导入也不会产生重复数据。
           </div>
         </div>
         <WpButton variant="standard" class="small" :disabled="busy !== null" @click="doImport">

@@ -113,7 +113,7 @@ function restoreIgnored(): void {
           <div class="card-header">第三方组件</div>
           <div class="card-description attribution">
             <p>
-              主要依赖：Tauri（MIT / Apache-2.0）、Vue（MIT）。各依赖的完整列表与协议信息见仓库中的
+              主要依赖：Tauri（MIT / Apache-2.0）、Vue（MIT）。完整列表与协议信息见仓库中的
               THIRD_PARTY_NOTICES.md。
             </p>
           </div>

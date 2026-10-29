@@ -16,3 +16,8 @@ export function useIsMobile(): boolean {
 export function useIsWindows(): boolean {
   return /windows/i.test(navigator.userAgent);
 }
+
+/** 是否为 Android（媒体通知等 Android 专属能力的判定依据） */
+export function useIsAndroid(): boolean {
+  return /android/i.test(navigator.userAgent);
+}

@@ -27,27 +27,25 @@ const SOURCE_KINDS: SourceKindConfig[] = [
   {
     key: "trackSourceId",
     title: "歌曲信息源",
-    description: "搜索结果聚合展示时，该插件的结果排在最前",
+    description: "搜索结果聚合时，该插件的结果排在前面",
     capabilities: ["search"],
   },
   {
     key: "playSourceId",
     title: "播放源",
-    description:
-      "播放歌曲（含歌单、播放队列）时，按「搜索格式」在该插件重新搜索并播放其结果；搜索不到或解析失败时回退歌曲自身来源",
+    description: "播放时在该插件重新搜曲并取其直链；搜不到时回退歌曲自身来源",
     capabilities: ["search", "songUrl"],
   },
   {
     key: "lyricsSourceId",
     title: "歌词源",
-    description:
-      "获取歌词时按「搜索格式」在该插件重新搜曲后取词；取不到时回退歌曲自身来源",
+    description: "取歌词时在该插件重新搜曲后取词；取不到时回退歌曲自身来源",
     capabilities: ["search", "lyrics"],
   },
   {
     key: "avatarSourceId",
     title: "头像源",
-    description: "窗口右上角头像优先从该插件获取，取不到时再依次尝试其他插件",
+    description: "右上角头像优先从该插件获取，取不到时再试其他插件",
     capabilities: ["avatar"],
   },
 ];
@@ -223,8 +221,8 @@ function formatGain(gain: number | undefined): string {
         <div class="card-content">
           <div class="card-header">搜索格式</div>
           <div class="card-description">
-            播放源、歌词源重新搜曲时使用的关键词格式，支持变量
-            {歌曲名}、{歌手名}、{专辑名}、{别名}。留空时使用默认「{{ DEFAULT_SOURCE_SEARCH_FORMAT }}」。
+            播放源、歌词源重新搜曲的关键词格式，支持 {歌曲名}、{歌手名}、{专辑名}、{别名}；
+            留空使用默认「{{ DEFAULT_SOURCE_SEARCH_FORMAT }}」。
           </div>
         </div>
         <TextBox
@@ -244,7 +242,7 @@ function formatGain(gain: number | undefined): string {
           <div class="card-content">
             <div class="card-header">横向淡入淡出（Crossfade）</div>
             <div class="card-description">
-              自动切歌前 6 秒开始混音过渡（前一首淡出、下一首淡入）；手动切歌不适用
+              自动切歌前 6 秒开始淡出淡入，手动切歌不适用
             </div>
           </div>
           <ToggleSwitch :IsOn="settings.crossfadeEnabled" @Toggled="onCrossfadeToggle" />
@@ -252,14 +250,14 @@ function formatGain(gain: number | undefined): string {
         <WpCard variant="row" >
           <div class="card-content">
             <div class="card-header">无缝衔接（Gapless）</div>
-            <div class="card-description">始终开启：关闭淡入淡出后，自动切歌在上一曲播完的瞬间零间隙接续下一曲</div>
+            <div class="card-description">始终开启：关闭淡入淡出后，自动切歌零间隙接续下一曲</div>
           </div>
         </WpCard>
       </template>
       <WpCard variant="row" v-else >
         <div class="card-content">
           <div class="card-header">无缝衔接（Gapless）</div>
-          <div class="card-description">移动端自动切歌时无缝衔接下一曲（不支持混音过渡）</div>
+          <div class="card-description">移动端自动切歌无缝衔接，不支持混音过渡</div>
         </div>
       </WpCard>
     </section>
@@ -271,7 +269,7 @@ function formatGain(gain: number | undefined): string {
         <div class="card-content">
           <div class="card-header">音频输出</div>
           <div class="card-description">
-            选择声音输出到的设备；切换后立即在新设备上继续播放当前曲目。设备列表在打开本页时读取，插入新设备后可点「刷新」
+            选择声音输出设备，切换后立即在新设备上继续播放；插入新设备后点「刷新」
           </div>
         </div>
         <div class="card-control output-device-control">
@@ -299,7 +297,7 @@ function formatGain(gain: number | undefined): string {
         <div class="card-content">
           <div class="card-header">均衡器</div>
           <div class="card-description">
-            10 段均衡器（31Hz ~ 16kHz），播放时实时调整音色；关闭后输出原声
+            10 段均衡（31Hz ~ 16kHz），播放时实时调整音色；关闭后输出原声
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.eqEnabled" @Toggled="onEqToggle" />
@@ -309,7 +307,7 @@ function formatGain(gain: number | undefined): string {
         <WpCard variant="row" >
           <div class="card-content">
             <div class="card-header">预设</div>
-            <div class="card-description">快速套用常见音色；手动拖动滑杆后会自动变为「自定义」</div>
+            <div class="card-description">快速套用常见音色，手动拖动滑杆后变为「自定义」</div>
           </div>
           <ComboBox
             class="card-control"

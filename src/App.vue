@@ -20,7 +20,7 @@ import ShortcutHost from "@/components/common/ShortcutHost.vue";
 import UpdateDialogHost from "@/components/common/UpdateDialogHost.vue";
 import ThemeBackdrop from "@/components/theme/ThemeBackdrop.vue";
 import ThemeBackgroundBase from "@/components/theme/ThemeBackgroundBase.vue";
-import { useSettingsStore } from "@/stores/settings";
+import { useSettingsStore, STARTUP_PAGE_OPTIONS } from "@/stores/settings";
 import { useThemesStore } from "@/stores/themes";
 import { usePluginsStore } from "@/stores/plugins";
 import { useLibraryStore } from "@/stores/library";
@@ -31,7 +31,7 @@ import { useLocalMusicStore } from "@/stores/localMusic";
 import { useWebdavStore } from "@/stores/webdav";
 import { useShortcutsStore } from "@/stores/shortcuts";
 import { useUpdaterStore } from "@/stores/updater";
-import { disposeSmtc, initSmtc, setSmtcEnabled } from "@/services/smtc";
+import { disposeSmtc, initSmtc, setCarMode, setSmtcEnabled } from "@/services/smtc";
 import { initTray, disposeTray } from "@/services/tray";
 import { setAppHidden, setOptimizeEnabled } from "@/services/backgroundMode";
 import { refreshAccentFromCover } from "@/services/coverAccent";
@@ -83,6 +83,13 @@ const stopSmtcWatch = watch(
   { immediate: true },
 );
 
+// 车载模式：把开关同步给媒体控件桥接（标题显示歌词、副标题显示歌名 - 作者）
+const stopCarModeWatch = watch(
+  () => settings.carMode,
+  (value) => setCarMode(value),
+  { immediate: true },
+);
+
 // 跟随封面取色（可在设置中开关）：封面 / 开关 / 主题变化时重新提取强调色
 const stopAccentWatch = watch(
   [() => player.currentTrack?.cover, () => settings.coverAccent, () => settings.theme],
@@ -114,6 +121,17 @@ onMounted(async () => {
       // 插件才视为老用户，否则仍然走首次引导
       if (plugins.installedRecords.length) await settings.setOnboardingDone(true);
       else await router.replace({ name: "welcome" });
+    }
+    /**
+     * 「打开时页面」：只在冷启动的这一次改道，且要求首帧确实落在推荐页（`/`）。
+     * 等路由就绪后再判定，深链（如 `#/liked`）与首次引导（已跳 welcome）都不会被覆盖。
+     */
+    if (settings.startupPage !== "recommend") {
+      await router.isReady();
+      if (router.currentRoute.value.path === "/") {
+        const target = STARTUP_PAGE_OPTIONS.find((item) => item.value === settings.startupPage);
+        if (target) await router.replace({ name: target.route });
+      }
     }
     // 主题只依赖设置与本地文件，尽早恢复且不阻塞后续初始化（失败会静默回退默认外观）
     void themes.init();
@@ -170,6 +188,7 @@ onUnmounted(() => {
   plugins.disposeAll();
   updater.dispose();
   stopSmtcWatch();
+  stopCarModeWatch();
   stopAccentWatch();
   stopOptimizeWatch();
   disposeSmtc();

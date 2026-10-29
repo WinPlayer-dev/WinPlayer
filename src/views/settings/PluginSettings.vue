@@ -54,7 +54,7 @@ function saveMirror() {
         <div class="card-content">
           <div class="card-header">GitHub 镜像源</div>
           <div class="card-description">
-            配置后，凡是经 GitHub 下载的内容（插件仓库安装、市场索引、卡片图片）会自动在此前缀后拼接原始地址加速访问，例如 https://ghproxy.net/ 。留空则直连。
+            为经 GitHub 下载的内容（插件安装、市场索引、图片）加速，例如 https://ghproxy.net/ ；留空直连。
           </div>
         </div>
         <div class="mirror-edit">
@@ -72,7 +72,7 @@ function saveMirror() {
         <div class="card-content">
           <div class="card-header">市场源列表</div>
           <div class="card-description">
-            每个市场源是一个 JSON 索引地址（格式见文档 docs/PLUGIN-DEVELOPMENT.md）。插件市场页会聚合展示所有源中的插件。
+            每个源是一个 JSON 索引地址（格式见 docs/PLUGIN-DEVELOPMENT.md），插件市场会聚合展示所有源。
           </div>
         </div>
 

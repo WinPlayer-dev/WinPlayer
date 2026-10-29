@@ -133,8 +133,8 @@ function openOffline(): void {
           <div class="card-header">下载目录</div>
           <div class="card-description">
             <template v-if="isMobile">
-              移动端下载文件保存在应用私有目录（<span class="dir-path">{{ resolvedDir }}</span>），
-              可在「离线音乐」页导出到公共目录。
+              保存在应用私有目录（<span class="dir-path">{{ resolvedDir }}</span>），
+              可在「离线音乐」页导出。
             </template>
             <template v-else>
               下载的音频与歌词存放位置：<span class="dir-path">{{ resolvedDir }}</span>。
@@ -164,8 +164,8 @@ function openOffline(): void {
         <div class="card-content">
           <div class="card-header">文件名模板</div>
           <div class="card-description">
-            用变量组合下载文件的命名，用 <code>/</code> 可建立子目录（例如
-            <code>{artist}/{album}/{name}</code>）。非法字符会被自动移除，同名文件自动加序号。
+            用变量组合文件名，<code>/</code> 可建立子目录（如
+            <code>{artist}/{album}/{name}</code>）；非法字符自动移除。
           </div>
         </div>
         <div class="template-row">
@@ -203,7 +203,7 @@ function openOffline(): void {
         <div class="card-content">
           <div class="card-header">同时保存歌词</div>
           <div class="card-description">
-            下载时把歌词写入同名 <code>.lrc</code> 文件，离线播放时自动读取（不含翻译）。
+            下载时写入同名 <code>.lrc</code>，离线播放自动读取（不含翻译）。
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.downloadSaveLyrics" @Toggled="onLyricsToggle" />
@@ -212,7 +212,7 @@ function openOffline(): void {
         <div class="card-content">
           <div class="card-header">缓存封面等元数据</div>
           <div class="card-description">
-            下载时把封面写入图片缓存，供「离线音乐」列表在无网络时展示封面。
+            下载时缓存封面，离线列表在无网络时也能显示。
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.downloadSaveMeta" @Toggled="onMetaToggle" />
@@ -220,7 +220,7 @@ function openOffline(): void {
       <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">离线音乐</div>
-          <div class="card-description">查看已下载的曲库、导出文件或在文件夹中定位。</div>
+          <div class="card-description">查看已下载的曲库、导出文件或定位到文件夹。</div>
         </div>
         <WpButton variant="standard" class="small" @click="openOffline">
           <span class="wp-icon">&#xF151;</span>打开
