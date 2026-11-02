@@ -18,6 +18,7 @@ import CachedImage from "@/components/common/CachedImage.vue";
 import { openPlaylistPicker, useCanAddToPlaylist } from "@/services/playlistPicker";
 import { startTrackDrag, endTrackDrag } from "@/services/trackDrag";
 import { copyText } from "@/services/clipboard";
+import { canUploadToCloud, uploadTrackToCloud } from "@/services/cloudUpload";
 import { formatDuration, trackTitle } from "@/types/player";
 import type { UnifiedTrack } from "@/types/plugin";
 
@@ -194,6 +195,14 @@ function rowMenuItems(track: UnifiedTrack): ContextMenuItem[] {
       label: "下载到本地",
       icon: "&#xF151;",
       action: () => void downloads.downloadTrack(track),
+    });
+  }
+  if (canUploadToCloud(track)) {
+    items.push({
+      key: "upload-cloud",
+      label: "上传到同频服务器",
+      icon: "&#xF2E5;",
+      action: () => void uploadTrackToCloud(track),
     });
   }
   if (props.removable) {

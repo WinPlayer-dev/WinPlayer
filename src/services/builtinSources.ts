@@ -16,6 +16,9 @@ import {
   useWebdavStore,
   webdavTrackToUnified,
 } from "@/stores/webdav";
+import { useCloudStore } from "@/stores/cloud";
+import { CLOUD_SOURCE_ID } from "@/services/cloud";
+import { libraryTrackToUnified } from "@/services/libraryIndex";
 import { codecOfPath, readLocalLyrics } from "@/services/localMusic";
 import { srtToLrc } from "@/services/lrc";
 import { PLUGIN_API_VERSION } from "@/types/plugin";
@@ -76,8 +79,19 @@ const WEBDAV_MANIFEST: PluginManifest = {
   capabilities: ["search", "songUrl", "lyrics", "album", "artist"],
 };
 
+const CLOUD_MANIFEST: PluginManifest = {
+  id: CLOUD_SOURCE_ID,
+  name: "同频服务器",
+  version: "内置",
+  description: "把你上传到自建 WinPlayer 同频服务器的歌当播放源；同一账号下的喜欢、歌单、自定义信息也会跟着同步",
+  author: "WinPlayer",
+  apiVersion: PLUGIN_API_VERSION,
+  capabilities: ["search", "songUrl", "lyrics", "album", "artist"],
+};
+
 export const BUILTIN_LOCAL_MANIFEST = LOCAL_MANIFEST;
 export const BUILTIN_WEBDAV_MANIFEST = WEBDAV_MANIFEST;
+export const BUILTIN_CLOUD_MANIFEST = CLOUD_MANIFEST;
 
 /** 内置源定义表（顺序即播放源管理页的排列顺序） */
 export const BUILTIN_SOURCE_DEFS: BuiltinSourceDef[] = [
@@ -123,6 +137,31 @@ export const BUILTIN_SOURCE_DEFS: BuiltinSourceDef[] = [
         summary: store.trackCount
           ? `${store.displayName} · ${store.trackCount} 首`
           : `${store.displayName} · 待扫描`,
+        tracks: store.trackCount,
+        albums: store.albumCount,
+        artists: store.artistCount,
+      };
+    },
+  },
+  {
+    id: CLOUD_SOURCE_ID,
+    name: "同频服务器",
+    description: "连接自建的 WinPlayer 同频服务器服务器：歌存在自己的服务器上，换设备也不用重传。",
+    // music_note_2_24_regular（Fluent 真实码位，别抄 MDL2 的）
+    icon: "\uE855",
+    accent: "linear-gradient(135deg, #4f7cff, #22b8a6)",
+    manifest: CLOUD_MANIFEST,
+    stats: () => {
+      const store = useCloudStore();
+      const configured = store.configured;
+      if (!configured) {
+        return { configured: false, summary: "未登录", tracks: 0, albums: 0, artists: 0 };
+      }
+      return {
+        configured: true,
+        summary: store.trackCount
+          ? `${store.displayName} · ${store.trackCount} 首`
+          : `${store.displayName} · 曲库为空`,
         tracks: store.trackCount,
         albums: store.albumCount,
         artists: store.artistCount,
@@ -286,6 +325,70 @@ class WebdavHost implements BuiltinSourceHost {
   }
 }
 
+/** 同频服务器的宿主实现 */
+class CloudHost implements BuiltinSourceHost {
+  readonly ready: Promise<void> = Promise.resolve();
+
+  dispose(): void {
+    /* 无沙箱与计时器，无需清理 */
+  }
+
+  async invoke<T>(method: string, args: Record<string, unknown> = {}): Promise<T | null> {
+    const store = useCloudStore();
+    await store.load();
+    if (!store.configured) return null;
+    const ok = <R>(value: unknown): R => value as R;
+
+    switch (method) {
+      case "search": {
+        const keyword = String(args.keyword ?? "").trim();
+        const type = args.type as string | undefined;
+        if (type === "album") return ok<T>({ albums: store.searchAlbums(keyword) });
+        if (type === "artist") return ok<T>({ artists: store.searchArtists(keyword) });
+        if (type === "playlist") return ok<T>({ playlists: [] });
+        const songs = store.searchTracks(keyword).map((track) =>
+          libraryTrackToUnified(track, CLOUD_SOURCE_ID),
+        );
+        return ok<T>({ songs, total: songs.length });
+      }
+
+      case "getSongUrl": {
+        const info = store.songUrlOf(String(args.id ?? ""));
+        if (!info) return null;
+        return ok<T>({
+          url: info.url,
+          quality: "cloud",
+          codec: info.codec,
+          headers: info.headers,
+        });
+      }
+
+      case "getLyrics": {
+        const lrc = await store.lyricsOf(String(args.id ?? ""));
+        return lrc ? ok<T>({ lrc }) : null;
+      }
+
+      case "getAlbum": {
+        const detail = store.albumDetail(String(args.id ?? ""));
+        return detail ? ok<T>(detail) : null;
+      }
+
+      case "getArtist": {
+        const detail = store.artistDetail(String(args.id ?? ""));
+        return detail ? ok<T>(detail) : null;
+      }
+
+      case "getArtistAlbums": {
+        const albums = store.artistAlbums(String(args.id ?? ""));
+        return ok<T>({ albums, total: albums.length, hasMore: false });
+      }
+
+      default:
+        return null;
+    }
+  }
+}
+
 /** 内置源宿主单例（按 id 取；未知 id 返回 null，调用方回落到插件宿主） */
 const hosts = new Map<string, BuiltinSourceHost>();
 
@@ -293,7 +396,12 @@ export function builtinSourceHost(id: string): BuiltinSourceHost | null {
   if (!isBuiltinSource(id)) return null;
   let host = hosts.get(id);
   if (!host) {
-    host = id === WEBDAV_SOURCE_ID ? new WebdavHost() : new LocalMusicHost();
+    host =
+      id === WEBDAV_SOURCE_ID
+        ? new WebdavHost()
+        : id === CLOUD_SOURCE_ID
+          ? new CloudHost()
+          : new LocalMusicHost();
     hosts.set(id, host);
   }
   return host;

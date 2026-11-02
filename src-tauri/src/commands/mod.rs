@@ -1,4 +1,5 @@
 pub mod cache;
+pub mod cloud;
 pub mod download;
 pub mod http;
 pub mod localmusic;

@@ -31,6 +31,8 @@ import { useDownloadsStore } from "@/stores/downloads";
 import { useHistoryStore } from "@/stores/history";
 import { useLocalMusicStore } from "@/stores/localMusic";
 import { useWebdavStore } from "@/stores/webdav";
+import { useCloudStore } from "@/stores/cloud";
+import { runSync, startAutoSync } from "@/services/cloudSync";
 import { useShortcutsStore } from "@/stores/shortcuts";
 import { useUpdaterStore } from "@/stores/updater";
 import { disposeSmtc, initSmtc, setCarMode, setSmtcEnabled } from "@/services/smtc";
@@ -53,6 +55,7 @@ const trackMeta = useTrackMetaStore();
 const downloads = useDownloadsStore();
 const localMusic = useLocalMusicStore();
 const webdav = useWebdavStore();
+const cloud = useCloudStore();
 const history = useHistoryStore();
 const shortcuts = useShortcutsStore();
 const updater = useUpdaterStore();
@@ -107,6 +110,28 @@ const stopOptimizeWatch = watch(
   { immediate: true },
 );
 
+/**
+ * 同频服务器启动流程（不阻塞首屏）：
+ * 1. 读上次的曲库索引与登录态；
+ * 2. 已登录 → 起 2 分钟一次的自动同步、立刻跑一次合并、顺便刷新曲库列表；
+ * 3. 未登录 → 什么都不做（设置页里会引导登录）。
+ */
+async function bootstrapCloud(): Promise<void> {
+  try {
+    await cloud.init();
+    if (!cloud.configured) return;
+    startAutoSync();
+    void runSync().catch(() => {
+      /* 断网 / 服务器未启动：静默失败，下一次自动同步会重试 */
+    });
+    void cloud.refresh().catch(() => {
+      /* 曲库刷新失败不影响本地已缓存的索引 */
+    });
+  } catch (error) {
+    console.error("初始化同频服务器失败", error);
+  }
+}
+
 onMounted(async () => {
   try {
     await settings.load();
@@ -116,6 +141,8 @@ onMounted(async () => {
     // 播放历史：只读一次库，供「最近播放」页与 SongTable 的播放次数列使用
     void history.load();
     await plugins.loadInstalled();
+    // 同频服务器：先读缓存的曲库索引（断网也能看到），再在后台刷新并起自动同步
+    void bootstrapCloud();
     /**
      * 首次引导：只有「从未完成过」且「一个插件都没有」才进入欢迎页。
      * 老用户升级上来已经有插件，说明不是首次使用——静默补写完成标记，避免被引导页拦一次。

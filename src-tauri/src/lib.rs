@@ -67,6 +67,12 @@ fn db_migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/006_track_meta.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 7,
+            description: "cloud sync shadow state",
+            sql: include_str!("../migrations/007_cloud_sync.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -153,6 +159,7 @@ pub fn run() {
                 commands::cache::cover_dominant_color,
                 commands::cache::image_cache_prefetch,
                 commands::http::http_fetch,
+                commands::cloud::cloud_upload,
                 commands::download::download_default_dir,
                 commands::download::download_song,
                 commands::download::download_cancel,

@@ -26,6 +26,9 @@ export const BACKUP_VERSION = 1;
 /** 页面数据缓存前缀（备份时排除，还原时不覆盖） */
 const CACHE_PREFIX = "cache.data.";
 
+/** 同频服务器登录态：属于凭证，任何情况下都不导出 */
+const CLOUD_SESSION_KEY = "settings.cloudSession";
+
 /** 插件登录凭证的 key：默认不导出，避免备份文件泄露账号 */
 const CREDENTIAL_KEYS = new Set(["cookie", "credential", "token"]);
 
@@ -69,6 +72,7 @@ export interface ImportSummary {
 
 /** 插件 ID 的登录凭证 key（形如 `plugin.xxx.cookie` 或直接 `cookie`） */
 function isCredentialKey(key: string): boolean {
+  if (key === CLOUD_SESSION_KEY) return true;
   const tail = key.split(".").pop() ?? "";
   return CREDENTIAL_KEYS.has(tail) || CREDENTIAL_KEYS.has(key);
 }
