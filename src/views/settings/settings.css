@@ -143,6 +143,47 @@
   width: 100%;
 }
 
+/* 关于页：Hero 在窄屏改为竖向居中堆叠（图标缩小，按钮各占整行） */
+.settings-page.mobile .about-hero {
+  padding: var(--space-2xl) var(--space-xl) 0;
+}
+
+.settings-page.mobile .hero-mark-wrap {
+  width: 72px;
+  height: 72px;
+}
+
+.settings-page.mobile .hero-glow {
+  inset: -24px;
+}
+
+.settings-page.mobile .hero-name {
+  margin-top: var(--space-lg);
+  font-size: 22px;
+}
+
+.settings-page.mobile .hero-specs {
+  margin-top: var(--space-xl);
+  padding: var(--space-md) 0;
+}
+
+.settings-page.mobile .hero-actions {
+  width: 100%;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.settings-page.mobile .hero-actions .wp-accent-button,
+.settings-page.mobile .hero-actions .wp-standard-button {
+  width: 100%;
+}
+
+/* 关于页：致谢卡的「查看完整声明」在窄屏落到文字下方并占满整行，
+   否则它会挤在右侧，把协议文案压成很窄的一条 */
+.settings-page.mobile .notices-button {
+  flex: 1 1 100%;
+}
+
 /* 关于页：更新按钮整行并可换行 */
 .settings-page.mobile .update-actions {
   flex: 1 1 100%;

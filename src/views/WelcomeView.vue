@@ -15,6 +15,7 @@ import { useRoute, useRouter } from "vue-router";
 import { usePluginsStore } from "@/stores/plugins";
 import { useSettingsStore } from "@/stores/settings";
 import WpButton from "@/components/theme/WpButton.vue";
+import AppMark from "@/components/brand/AppMark.vue";
 import { toast } from "@/services/toast";
 import type { MarketEntry } from "@/types/plugin";
 
@@ -117,42 +118,7 @@ function retryMarket(): void {
       <section class="stage-inner intro" :class="{ on: step === 'intro' }">
         <div class="logo-wrap">
           <div class="logo-halo" aria-hidden="true" />
-          <svg class="logo-mark" viewBox="0 0 1024 1024" role="img" aria-label="WinPlayer">
-            <defs>
-              <linearGradient id="wp-welcome-logo" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stop-color="var(--wp-accent-hover)" />
-                <stop offset="100%" stop-color="var(--wp-accent)" />
-              </linearGradient>
-              <mask id="wp-welcome-logo-mask">
-                <polygon
-                  points="285,270 285,755 700,512"
-                  fill="#fff"
-                  stroke="#fff"
-                  stroke-width="120"
-                  stroke-linejoin="round"
-                />
-                <line
-                  x1="545"
-                  y1="762"
-                  x2="812"
-                  y2="616"
-                  stroke="#fff"
-                  stroke-width="86"
-                  stroke-linecap="round"
-                />
-                <rect x="330" y="406" width="92" height="92" rx="6" fill="#000" />
-                <rect x="432" y="406" width="92" height="92" rx="6" fill="#000" />
-                <rect x="330" y="508" width="92" height="92" rx="6" fill="#000" />
-                <rect x="432" y="508" width="92" height="92" rx="6" fill="#000" />
-              </mask>
-            </defs>
-            <rect
-              width="1024"
-              height="1024"
-              fill="url(#wp-welcome-logo)"
-              mask="url(#wp-welcome-logo-mask)"
-            />
-          </svg>
+          <AppMark class="logo-mark" />
         </div>
 
         <h1 class="brand">WinPlayer</h1>
