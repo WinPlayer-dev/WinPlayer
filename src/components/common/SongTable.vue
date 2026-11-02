@@ -10,7 +10,9 @@ import { useLibraryStore } from "@/stores/library";
 import { usePluginsStore } from "@/stores/plugins";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useHistoryStore } from "@/stores/history";
+import { useTrackMetaStore } from "@/stores/trackMeta";
 import { openContextMenu, openContextMenuAt, type ContextMenuItem } from "@/services/contextMenu";
+import { openTrackMetaEditor } from "@/services/trackMetaEditor";
 import { useLongPress } from "@/composables/useLongPress";
 import CachedImage from "@/components/common/CachedImage.vue";
 import { openPlaylistPicker, useCanAddToPlaylist } from "@/services/playlistPicker";
@@ -52,6 +54,7 @@ const library = useLibraryStore();
 const plugins = usePluginsStore();
 const downloads = useDownloadsStore();
 const history = useHistoryStore();
+const trackMeta = useTrackMetaStore();
 const router = useRouter();
 /** 移动端判定：决定走卡片式两行布局、单击播放等交互 */
 const isMobile = useIsMobile();
@@ -62,44 +65,58 @@ interface CellLink {
   target: RouteLocationRaw | null;
 }
 
+/**
+ * 歌手单元格：有 artistId 才做成可点链接。
+ *
+ * 来源优先取 `artistSourceId`——用户用别的播放源里的歌当模板时，歌手 id 属于
+ * 那个源，拿曲目自身的 sourceId 去拼 /artist/:source/:id 会打开错误的页面。
+ */
 function artistCells(track: UnifiedTrack): CellLink[] {
   const names = track.artists ?? [];
   const ids = track.artistIds ?? [];
+  const sourceId = track.artistSourceId ?? track.sourceId;
   return names.map((name, index) => ({
     name,
     target:
-      track.sourceId && ids[index]
-        ? { name: "artist", params: { source: track.sourceId, id: ids[index] } }
+      sourceId && ids[index]
+        ? { name: "artist", params: { source: sourceId, id: ids[index] } }
         : null,
   }));
 }
 
 function albumCell(track: UnifiedTrack): CellLink | null {
   if (!track.album) return null;
+  const sourceId = track.albumSourceId ?? track.sourceId;
   return {
     name: track.album,
     target:
-      track.sourceId && track.albumId
-        ? { name: "album", params: { source: track.sourceId, id: track.albumId } }
+      sourceId && track.albumId
+        ? { name: "album", params: { source: sourceId, id: track.albumId } }
         : null,
   };
 }
 
 const rows = computed(() =>
-  props.tracks.map((track, index) => ({
-    track,
-    index,
-    key: `${track.sourceId ?? ""}:${track.id}`,
-    liked: library.isLiked(track),
-    downloaded: downloads.isDownloaded(track),
-    playing: player.currentTrack !== null && `${player.currentTrack.sourceId ?? ""}:${player.currentTrack.id}` === `${track.sourceId ?? ""}:${track.id}`,
-    sourceName: track.sourceId
-      ? plugins.records.find((r) => r.entry.id === track.sourceId)?.entry.manifest.name ?? track.sourceId
-      : "",
-    artists: artistCells(track),
-    album: albumCell(track),
-    playCount: props.showPlayCount ? history.countOf(track) : 0,
-  })),
+  props.tracks.map((track, index) => {
+    // view 只用于显示（歌名/歌手/专辑/封面可能被用户改过），track 留给播放、
+    // 喜欢、加歌单等写操作——写进快照的必须是来源原始信息
+    const view = trackMeta.decorate(track);
+    return {
+      track,
+      view,
+      index,
+      key: `${track.sourceId ?? ""}:${track.id}`,
+      liked: library.isLiked(track),
+      downloaded: downloads.isDownloaded(track),
+      playing: player.currentTrack !== null && `${player.currentTrack.sourceId ?? ""}:${player.currentTrack.id}` === `${track.sourceId ?? ""}:${track.id}`,
+      sourceName: track.sourceId
+        ? plugins.records.find((r) => r.entry.id === track.sourceId)?.entry.manifest.name ?? track.sourceId
+        : "",
+      artists: artistCells(view),
+      album: albumCell(view),
+      playCount: props.showPlayCount ? history.countOf(track) : 0,
+    };
+  }),
 );
 
 function playRow(index: number) {
@@ -189,10 +206,17 @@ function rowMenuItems(track: UnifiedTrack): ContextMenuItem[] {
     });
   }
   items.push({
+    key: "edit-meta",
+    label: "编辑歌曲信息",
+    icon: "&#xF3DE;",
+    action: () => openTrackMetaEditor(track),
+  });
+  items.push({
     key: "copy-name",
     label: "复制歌曲名",
     icon: "&#xF32C;",
-    action: () => copyText(track.name, "歌曲名"),
+    // 复制看到的名字：用户改过名就复制改后的
+    action: () => copyText(trackMeta.decorate(track).name, "歌曲名"),
   });
   const alias = track.alias;
   if (alias) {
@@ -218,7 +242,7 @@ const longPress = useLongPress();
 
 function onRowPointerDown(event: PointerEvent, track: UnifiedTrack) {
   longPress.start(event, (point) =>
-    openContextMenuAt(point.x, point.y, rowMenuItems(track), trackTitle(track)),
+    openContextMenuAt(point.x, point.y, rowMenuItems(track), trackTitle(trackMeta.decorate(track))),
   );
 }
 
@@ -399,13 +423,13 @@ function onTouchDragUp(): void {
           @pointercancel.stop="onTouchDragUp"
           @click.stop
         >&#xE76F;</span>
-        <CachedImage v-if="row.track.cover" :src="row.track.cover" class="row-cover" />
+        <CachedImage v-if="row.view.cover" :src="row.view.cover" class="row-cover" />
         <span v-else-if="isMobile" class="row-cover row-cover-placeholder">
           <span class="wp-icon">&#xE852;</span>
         </span>
         <span class="title-main">
-          <span class="title-text ellipsis">{{ trackTitle(row.track) }}</span>
-          <span v-if="row.track.alias" class="title-alias ellipsis">（{{ row.track.alias }}）</span>
+          <span class="title-text ellipsis">{{ trackTitle(row.view) }}</span>
+          <span v-if="row.view.alias" class="title-alias ellipsis">（{{ row.view.alias }}）</span>
           <span
             v-if="row.downloaded"
             class="title-downloaded wp-icon"
@@ -413,7 +437,7 @@ function onTouchDragUp(): void {
             aria-label="已下载"
           >&#xF151;</span>
         </span>
-        <span v-if="row.track.vip" class="title-vip">VIP</span>
+        <span v-if="row.view.vip" class="title-vip">VIP</span>
       </span>
       <span class="col-artist ellipsis">
         <template v-for="(artist, index) in row.artists" :key="`${artist.name}-${index}`">

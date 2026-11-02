@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
 import { usePluginsStore } from "@/stores/plugins";
+import { useTrackMetaStore } from "@/stores/trackMeta";
 import { useAutoCenter } from "@/composables/useAutoCenter";
 import { openContextMenu, type ContextMenuItem } from "@/services/contextMenu";
 import { openPlaylistPicker } from "@/services/playlistPicker";
@@ -13,6 +14,7 @@ import type { UnifiedTrack } from "@/types/plugin";
 const player = usePlayerStore();
 const library = useLibraryStore();
 const plugins = usePluginsStore();
+const trackMeta = useTrackMetaStore();
 
 const bodyRef = ref<HTMLElement | null>(null);
 
@@ -66,7 +68,7 @@ function openItemMenu(track: UnifiedTrack, uid: string, event: MouseEvent) {
     key: "copy-name",
     label: "复制歌曲名",
     icon: "&#xF32C;",
-    action: () => copyText(track.name, "歌曲名"),
+    action: () => copyText(trackMeta.decorate(track).name, "歌曲名"),
   });
   const alias = track.alias;
   if (alias) {
@@ -108,8 +110,8 @@ function openItemMenu(track: UnifiedTrack, uid: string, event: MouseEvent) {
               <span v-else>{{ index + 1 }}</span>
             </div>
             <div class="queue-meta">
-              <div class="queue-title ellipsis">{{ trackTitle(item.track) }}</div>
-              <div class="queue-artist ellipsis">{{ trackArtist(item.track) }}</div>
+              <div class="queue-title ellipsis">{{ trackTitle(trackMeta.decorate(item.track)) }}</div>
+              <div class="queue-artist ellipsis">{{ trackArtist(trackMeta.decorate(item.track)) }}</div>
             </div>
             <span class="queue-duration">{{ formatDuration(item.track.duration) }}</span>
             <button class="queue-remove" title="移除" @click.stop="player.removeFromQueue(item.uid)">

@@ -119,15 +119,17 @@ interface ArtistLink {
 }
 
 const artistCells = computed<ArtistLink[]>(() => {
-  const track = player.currentTrack;
+  // 展示版曲目：歌名 / 歌手 / 封面可能被用户自定义过；歌手 id 的来源也以它为准
+  const track = player.displayTrack;
   if (!track) return [];
   const names = track.artists ?? [];
   const ids = track.artistIds ?? [];
+  const sourceId = track.artistSourceId ?? track.sourceId;
   return names.map((name, index) => ({
     name,
     target:
-      track.sourceId && ids[index]
-        ? { name: "artist", params: { source: track.sourceId, id: ids[index] } }
+      sourceId && ids[index]
+        ? { name: "artist", params: { source: sourceId, id: ids[index] } }
         : null,
   }));
 });
@@ -336,9 +338,9 @@ onUnmounted(() => {
       <div class="cover">
         <transition name="cover-fade" mode="out-in">
           <CachedImage
-            v-if="player.currentTrack?.cover"
-            :key="player.currentTrack.cover"
-            :src="player.currentTrack.cover"
+            v-if="player.displayTrack?.cover"
+            :key="player.displayTrack.cover"
+            :src="player.displayTrack.cover"
             class="cover-img"
           />
           <span v-else class="wp-icon cover-placeholder">&#xE852;</span>
@@ -346,10 +348,10 @@ onUnmounted(() => {
       </div>
       <transition name="track-meta" mode="out-in">
         <div class="meta" :key="player.currentTrack ? `${player.currentTrack.sourceId}:${player.currentTrack.id}` : 'empty'">
-          <div class="title ellipsis">{{ player.currentTrack ? trackTitle(player.currentTrack) : "未在播放" }}</div>
+          <div class="title ellipsis">{{ player.displayTrack ? trackTitle(player.displayTrack) : "未在播放" }}</div>
           <div class="artist ellipsis">
-            <template v-if="!player.currentTrack">从插件来源发现音乐</template>
-            <template v-else-if="!artistCells.length">{{ trackArtist(player.currentTrack) }}</template>
+            <template v-if="!player.displayTrack">从插件来源发现音乐</template>
+            <template v-else-if="!artistCells.length">{{ trackArtist(player.displayTrack) }}</template>
             <template v-else>
               <template v-for="(artist, index) in artistCells" :key="`${artist.name}-${index}`">
                 <span v-if="index" class="artist-sep"> / </span>

@@ -61,6 +61,12 @@ fn db_migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/005_builtin_sources.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 6,
+            description: "custom track meta",
+            sql: include_str!("../migrations/006_track_meta.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -168,6 +174,8 @@ pub fn run() {
                 commands::localmusic::local_music_scan,
                 commands::localmusic::local_music_lyrics,
                 commands::webdav::builtin_cover_fetch,
+                commands::trackmeta::custom_cover_import,
+                commands::trackmeta::custom_cover_fetch,
                 commands::themes::theme_list,
                 commands::themes::theme_read_text,
                 commands::themes::theme_install_from_path,

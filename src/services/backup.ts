@@ -18,6 +18,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getDb, getSetting, setSetting } from "@/services/db";
 import { toast } from "@/services/toast";
 import { useUpdaterStore } from "@/stores/updater";
+import { useTrackMetaStore } from "@/stores/trackMeta";
 
 /** 备份文件格式版本：结构变化时递增，导入时据此拒绝未来版本 */
 export const BACKUP_VERSION = 1;
@@ -41,6 +42,8 @@ export interface BackupPayload {
   offlineSongs?: Array<Record<string, unknown>>;
   /** 播放历史（最近播放 / 播放次数） */
   playHistory?: Array<Record<string, unknown>>;
+  /** 歌曲自定义信息（歌名 / 歌手 / 歌手主页 / 专辑 / 封面） */
+  trackMeta?: Array<Record<string, unknown>>;
   /** 播放队列快照（player.queue 的 value 文本） */
   queue?: string | null;
 }
@@ -57,6 +60,7 @@ export interface ImportSummary {
   playlistTracks: number;
   offlineSongs: number;
   playHistory: number;
+  trackMeta: number;
   queue: boolean;
   skipped: string[];
 }
@@ -82,7 +86,7 @@ export async function collectBackup(options: ExportOptions = {}): Promise<Backup
       !row.key.startsWith(CACHE_PREFIX) && (includeCredentials || !isCredentialKey(row.key)),
   );
 
-  const [likedSongs, playlists, playlistTracks, offlineSongs, playHistory, queue] =
+  const [likedSongs, playlists, playlistTracks, offlineSongs, playHistory, trackMeta, queue] =
     await Promise.all([
       db.select<Array<Record<string, unknown>>>("select * from liked_songs order by id asc"),
       db.select<Array<Record<string, unknown>>>("select * from playlists order by id asc"),
@@ -94,6 +98,9 @@ export async function collectBackup(options: ExportOptions = {}): Promise<Backup
       ),
       db.select<Array<Record<string, unknown>>>(
         "select * from play_history order by last_played desc",
+      ),
+      db.select<Array<Record<string, unknown>>>(
+        "select * from track_meta order by updated_at asc",
       ),
       getSetting<string | null>("player.queue", null),
     ]);
@@ -109,6 +116,7 @@ export async function collectBackup(options: ExportOptions = {}): Promise<Backup
     playlistTracks,
     offlineSongs,
     playHistory,
+    trackMeta,
     queue: typeof queue === "string" ? queue : queue ? JSON.stringify(queue) : null,
   };
 }
@@ -193,6 +201,7 @@ export async function restoreBackup(payload: BackupPayload): Promise<ImportSumma
     playlistTracks: 0,
     offlineSongs: 0,
     playHistory: 0,
+    trackMeta: 0,
     queue: false,
     skipped: [],
   };
@@ -337,7 +346,21 @@ export async function restoreBackup(payload: BackupPayload): Promise<ImportSumma
     summary.playHistory += 1;
   }
 
-  // 7. 播放队列
+  // 7. 歌曲自定义信息：按 (source_id, track_id) 直接覆盖（以备份里的为准）
+  for (const row of payload.trackMeta ?? []) {
+    const sourceId = String(row.source_id ?? "");
+    const trackId = String(row.track_id ?? "");
+    const meta = typeof row.meta === "string" ? row.meta : "";
+    if (!trackId || !meta) continue;
+    await db.execute(
+      `insert into track_meta (source_id, track_id, meta, updated_at) values ($1, $2, $3, $4)
+       on conflict(source_id, track_id) do update set meta = $3, updated_at = $4`,
+      [sourceId, trackId, meta, Number(row.updated_at ?? Date.now())],
+    );
+    summary.trackMeta += 1;
+  }
+
+  // 8. 播放队列
   if (typeof payload.queue === "string" && payload.queue.trim()) {
     await setSetting("player.queue", JSON.parse(payload.queue));
     summary.queue = true;
@@ -355,6 +378,7 @@ export function describeImport(summary: ImportSummary): string {
   if (summary.playlistTracks) parts.push(`${summary.playlistTracks} 首歌单曲目`);
   if (summary.offlineSongs) parts.push(`${summary.offlineSongs} 条离线索引`);
   if (summary.playHistory) parts.push(`${summary.playHistory} 条播放历史`);
+  if (summary.trackMeta) parts.push(`${summary.trackMeta} 首自定义信息`);
   if (summary.queue) parts.push("播放队列");
   return parts.length ? `已恢复：${parts.join("、")}` : "备份里没有可恢复的内容";
 }
@@ -375,6 +399,8 @@ export async function runImport(): Promise<ImportSummary | null> {
     const payload = await readBackupFile();
     if (!payload) return null;
     const summary = await restoreBackup(payload);
+    // 自定义歌曲信息直接读库缓存在 store 里，导入后立刻重载，列表才认新名字
+    await useTrackMetaStore().load();
     toast(describeImport(summary), "success");
     if (summary.skipped.length) {
       toast(`有 ${summary.skipped.length} 项被跳过：${summary.skipped[0]}`, "info");

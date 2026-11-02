@@ -7,6 +7,7 @@ import { ref, watch } from "vue";
 import { ContentDialog } from "@/components/winui";
 import { useLibraryStore } from "@/stores/library";
 import { usePluginsStore } from "@/stores/plugins";
+import { useTrackMetaStore } from "@/stores/trackMeta";
 import { toast } from "@/services/toast";
 import { closePlaylistPicker, playlistPickerState } from "@/services/playlistPicker";
 import { trackTitle } from "@/types/player";
@@ -28,6 +29,7 @@ interface PickerDialogRef {
 
 const library = useLibraryStore();
 const plugins = usePluginsStore();
+const trackMeta = useTrackMetaStore();
 
 const dialogRef = ref<PickerDialogRef | null>(null);
 const pickerLoading = ref(false);
@@ -113,7 +115,7 @@ async function pickPlaylist(option: PlaylistOption) {
   <ContentDialog ref="dialogRef" Title="添加到歌单" CloseButtonText="取消">
     <div class="picker">
       <div v-if="playlistPickerState.track" class="picker-track ellipsis">
-        {{ trackTitle(playlistPickerState.track) }}
+        {{ trackTitle(trackMeta.decorate(playlistPickerState.track)) }}
       </div>
       <div v-if="pickerLoading" class="picker-hint">正在加载平台歌单…</div>
       <div v-else-if="!pickerOptions.length" class="picker-hint">还没有可用的歌单</div>

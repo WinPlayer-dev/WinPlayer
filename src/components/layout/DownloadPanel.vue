@@ -9,10 +9,12 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { useDownloadsStore, type DownloadTask } from "@/stores/downloads";
+import { useTrackMetaStore } from "@/stores/trackMeta";
 import { trackArtist, trackTitle } from "@/types/player";
 
 const router = useRouter();
 const downloads = useDownloadsStore();
+const trackMeta = useTrackMetaStore();
 
 const hasActive = computed(() => downloads.activeTasks.length > 0);
 
@@ -70,9 +72,9 @@ function openOffline(): void {
         <ul v-else class="download-list">
           <li v-for="task in downloads.tasks" :key="task.id" class="download-item" :class="task.status">
             <div class="item-main">
-              <div class="item-title ellipsis">{{ trackTitle(task.track) }}</div>
+              <div class="item-title ellipsis">{{ trackTitle(trackMeta.decorate(task.track)) }}</div>
               <div class="item-sub">
-                <span class="ellipsis">{{ trackArtist(task.track) }}</span>
+                <span class="ellipsis">{{ trackArtist(trackMeta.decorate(task.track)) }}</span>
                 <span class="item-status" :class="{ error: task.status === 'error' }">
                   {{ statusText(task) }}
                 </span>

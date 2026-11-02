@@ -112,6 +112,13 @@ export interface UnifiedTrack {
   albumId?: string;
   /** 各艺术家的 ID（能力：artist），与 artists 一一对应；缺失的位置同样退化为纯文本 */
   artistIds?: string[];
+  /**
+   * 歌手 ID 所属的来源（自定义歌曲信息时可能用别的源里的歌当模板，
+   * 此时歌手 id 属于那个源而不是曲目自身的 `sourceId`）。缺省即与 `sourceId` 相同。
+   */
+  artistSourceId?: string;
+  /** 专辑 ID 所属的来源，语义同 `artistSourceId` */
+  albumSourceId?: string;
   /** 来源插件 ID（主程序在返回给上层前统一补全） */
   sourceId?: string;
   /** 透传数据，仅插件自身可见 */

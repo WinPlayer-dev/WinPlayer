@@ -38,7 +38,8 @@ const settings = useSettingsStore();
 const router = useRouter();
 const isMobile = useIsMobile();
 
-const currentTrack = computed(() => player.currentTrack);
+// 展示版曲目：录音棚顶部的歌名 / 封面、录音作品的标题都用用户自定义后的信息
+const currentTrack = computed(() => player.displayTrack);
 
 /* ------------------------------ 麦克风 / 监听 ------------------------------ */
 

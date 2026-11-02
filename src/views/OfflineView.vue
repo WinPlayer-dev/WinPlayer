@@ -14,10 +14,12 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import MobilePageHeader from "@/components/layout/MobilePageHeader.vue";
 import { useDownloadsStore, type DownloadGroup, type OfflineSong } from "@/stores/downloads";
 import { usePlayerStore } from "@/stores/player";
+import { useTrackMetaStore } from "@/stores/trackMeta";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { useLongPress } from "@/composables/useLongPress";
 import { useRefreshable } from "@/composables/useRefreshable";
 import { openContextMenu, openContextMenuAt, type ContextMenuItem } from "@/services/contextMenu";
+import { openTrackMetaEditor } from "@/services/trackMetaEditor";
 import { copyText } from "@/services/clipboard";
 import { toast } from "@/services/toast";
 import { formatDuration, trackArtist, trackTitle } from "@/types/player";
@@ -26,6 +28,7 @@ import WpButton from "@/components/theme/WpButton.vue";
 
 const downloads = useDownloadsStore();
 const player = usePlayerStore();
+const trackMeta = useTrackMetaStore();
 const isMobile = useIsMobile();
 
 /** 展示用分组：同一首歌可同时出现在其来源的多个分组里 */
@@ -159,6 +162,11 @@ async function askDelete(song: OfflineSong): Promise<void> {
   pendingDelete.value = null;
 }
 
+/** 展示版曲目：用户自定义过的歌名 / 歌手 / 封面优先 */
+function viewOf(song: OfflineSong): UnifiedTrack {
+  return trackMeta.decorate(song.track);
+}
+
 function menuItems(song: OfflineSong): ContextMenuItem[] {
   return [
     {
@@ -181,10 +189,16 @@ function menuItems(song: OfflineSong): ContextMenuItem[] {
       action: () => void exportSong(song),
     },
     {
+      key: "edit-meta",
+      label: "编辑歌曲信息",
+      icon: "&#xF3DE;",
+      action: () => openTrackMetaEditor(song.track),
+    },
+    {
       key: "copy-name",
       label: "复制歌曲名",
       icon: "&#xF32C;",
-      action: () => copyText(song.track.name, "歌曲名"),
+      action: () => copyText(viewOf(song).name, "歌曲名"),
     },
     {
       key: "delete",
@@ -207,7 +221,7 @@ const longPress = useLongPress();
 
 function onRowPointerDown(event: PointerEvent, song: OfflineSong): void {
   longPress.start(event, (point) =>
-    openContextMenuAt(point.x, point.y, menuItems(song), trackTitle(song.track)),
+    openContextMenuAt(point.x, point.y, menuItems(song), trackTitle(viewOf(song))),
   );
 }
 
@@ -336,15 +350,15 @@ useRefreshable(() => downloads.refreshMissing());
               <span v-if="isPlaying(song)" class="wp-icon filled index-playing">&#xF5AC;</span>
               <span v-else class="index-number">{{ index + 1 }}</span>
             </span>
-            <CachedImage v-if="song.track.cover" :src="song.track.cover" class="row-cover" />
+            <CachedImage v-if="viewOf(song).cover" :src="viewOf(song).cover" class="row-cover" />
             <span v-else class="row-cover row-cover-placeholder">
               <span class="wp-icon">&#xE852;</span>
             </span>
             <span class="col-title">
-              <span class="title-text ellipsis">{{ trackTitle(song.track) }}</span>
+              <span class="title-text ellipsis">{{ trackTitle(viewOf(song)) }}</span>
               <span v-if="song.hasLyrics" class="lyric-badge" title="含歌词">LRC</span>
             </span>
-            <span class="col-artist ellipsis">{{ trackArtist(song.track) }}</span>
+            <span class="col-artist ellipsis">{{ trackArtist(viewOf(song)) }}</span>
             <span class="col-size">{{ downloads.formatBytes(song.size) }}</span>
             <span class="col-duration">{{ formatDuration(song.track.duration) }}</span>
             <span class="col-actions">
@@ -372,7 +386,7 @@ useRefreshable(() => downloads.refreshMissing());
 
     <ContentDialog
       ref="deleteDialogRef"
-      :Title="`移除「${pendingDelete ? trackTitle(pendingDelete.track) : ''}」`"
+      :Title="`移除「${pendingDelete ? trackTitle(viewOf(pendingDelete)) : ''}」`"
       PrimaryButtonText="移除"
       CloseButtonText="取消"
     >

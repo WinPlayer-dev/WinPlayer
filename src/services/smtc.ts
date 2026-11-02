@@ -70,6 +70,8 @@ export interface SmtcSnapshot {
 /** 服务需要的播放器能力（避免服务反向依赖 store 造成循环引用） */
 export interface SmtcPlayer {
   readonly currentTrack: UnifiedTrack | null;
+  /** 套了用户自定义歌名 / 歌手 / 封面的展示版曲目（系统侧显示这个） */
+  readonly displayTrack: UnifiedTrack | null;
   readonly playing: boolean;
   readonly currentTime: number;
   readonly duration: number;
@@ -149,7 +151,8 @@ function livePosition(): number {
 }
 
 function buildSnapshot(): SmtcSnapshot {
-  const track = player?.currentTrack ?? null;
+  // 系统媒体控件显示用户自定义过的歌名 / 歌手 / 封面，与界面保持一致
+  const track = player?.displayTrack ?? player?.currentTrack ?? null;
   if (!track) return inactiveSnapshot();
 
   // 车载模式下进度取引擎的真实值，其余场景沿用 store 的（已做后台节流的）进度

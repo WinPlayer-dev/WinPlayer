@@ -20,6 +20,7 @@ import { getDb } from "@/services/db";
 import { toast } from "@/services/toast";
 import { useSettingsStore, DEFAULT_DOWNLOAD_NAME_TEMPLATE } from "./settings";
 import { pluginDisplayName, usePluginsStore } from "./plugins";
+import { useTrackMetaStore } from "./trackMeta";
 import { resolveImgUrl } from "@/services/imageCache";
 import { mediaHeadersFor } from "@/services/audio";
 import { readLocalLyrics } from "@/services/localMusic";
@@ -166,6 +167,7 @@ function nextTaskId(): string {
 
 export const useDownloadsStore = defineStore("downloads", () => {
   const settings = useSettingsStore();
+  const trackMeta = useTrackMetaStore();
 
   /** 下载任务列表（含历史；新任务排在最前） */
   const tasks = ref<DownloadTask[]>([]);
@@ -480,7 +482,7 @@ export const useDownloadsStore = defineStore("downloads", () => {
         url: result.url,
         dir,
         template: settings.downloadNameTemplate.trim() || DEFAULT_DOWNLOAD_NAME_TEMPLATE,
-        vars: buildVars(task.track),
+        vars: buildVars(trackMeta.decorate(task.track)),
         lyrics,
         headers: mediaHeadersFor(result.url),
       });
@@ -490,10 +492,13 @@ export const useDownloadsStore = defineStore("downloads", () => {
       let tagInfo: OfflineTagInfo | null = null;
       if (settings.downloadWriteTags) {
         try {
+          // 用展示版曲目写标签：用户在「编辑歌曲信息」里改过歌名 / 歌手 / 封面时，
+          // 下载下来的文件应该带着改后的信息（封面若已落到 localcover，原生侧直接读本地文件）
+          const shown = trackMeta.decorate(task.track);
           const written = await writeDownloadTags({
             path: saved.path,
-            meta: buildTagMeta(task.track),
-            coverUrl: resolveImgUrl(task.track.cover),
+            meta: buildTagMeta(shown),
+            coverUrl: resolveImgUrl(shown.cover),
             lyrics,
           });
           tagsWritten = written.hasTags;
@@ -504,7 +509,7 @@ export const useDownloadsStore = defineStore("downloads", () => {
         }
       }
       // 标签不可用（关闭写入 / 容器不支持）时，仍然把封面预取进图片缓存供离线展示
-      if (!tagsWritten) prefetchCover(task.track.cover);
+      if (!tagsWritten) prefetchCover(trackMeta.decorate(task.track).cover);
 
       task.path = saved.path;
       task.downloaded = saved.size;

@@ -356,8 +356,12 @@ pub async fn download_copy(src: String, dest: String) -> Result<(), String> {
 ///
 /// 封面按 `cover_url` 现取现压，失败只是不内嵌封面；写入整体失败时返回
 /// `hasTags = false`，前端会退回把 UnifiedTrack 存进数据库的旧路径。
+///
+/// `cover_url` 也接受 `localcover` 协议（用户自定义封面的落地形式）：那种地址
+/// 只在 WebView 内有效，这里直接读封面目录里的文件，别真去发 HTTP 请求。
 #[tauri::command]
 pub async fn download_write_tags(
+    app: AppHandle,
     path: String,
     meta: crate::tagging::TagWriteMeta,
     cover_url: Option<String>,
@@ -367,7 +371,10 @@ pub async fn download_write_tags(
         return Err("文件不存在".to_string());
     }
     let cover = match cover_url.as_deref() {
-        Some(url) if !url.trim().is_empty() => crate::tagging::fetch_cover(url).await,
+        Some(url) if !url.trim().is_empty() => match crate::commands::cache::local_cover_path(&app, url) {
+            Some(local) => tokio::fs::read(&local).await.ok().filter(|bytes| !bytes.is_empty()),
+            None => crate::tagging::fetch_cover(url).await,
+        },
         _ => None,
     };
 

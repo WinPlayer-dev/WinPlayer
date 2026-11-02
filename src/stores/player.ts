@@ -17,6 +17,7 @@ import { hapticTap } from "@/services/haptics";
 import { usePluginsStore } from "./plugins";
 import { useDownloadsStore } from "./downloads";
 import { useHistoryStore } from "./history";
+import { useTrackMetaStore } from "./trackMeta";
 import { createQueueUid, type LyricLine, type PlayMode, type QueueItem } from "@/types/player";
 import type { UnifiedTrack } from "@/types/plugin";
 
@@ -27,6 +28,7 @@ export const usePlayerStore = defineStore("player", () => {
   const plugins = usePluginsStore();
   const downloads = useDownloadsStore();
   const history = useHistoryStore();
+  const trackMeta = useTrackMetaStore();
 
   const queue = ref<QueueItem[]>([]);
   const currentIndex = ref(-1);
@@ -80,6 +82,18 @@ export const usePlayerStore = defineStore("player", () => {
       ? queue.value[currentIndex.value].track
       : null,
   );
+
+  /**
+   * 当前曲目的「展示版」：套上用户自定义的歌名 / 歌手 / 专辑 / 封面。
+   *
+   * 界面（播放条、移动端播放器、歌词面板、系统媒体控件、托盘提示）读这个，
+   * 而播放、喜欢、播放历史等写操作仍然读 `currentTrack`——避免把自定义信息
+   * 顺手写进快照，用户点「恢复原始信息」后各处才能立刻回到原样。
+   */
+  const displayTrack = computed<UnifiedTrack | null>(() => {
+    const track = currentTrack.value;
+    return track ? trackMeta.decorate(track) : null;
+  });
 
   /* ------------------------------ 随机播放 ------------------------------ */
 
@@ -1224,6 +1238,7 @@ export const usePlayerStore = defineStore("player", () => {
     showQueue,
     showLyrics,
     currentTrack,
+    displayTrack,
     playAt,
     playTracks,
     playTrack,

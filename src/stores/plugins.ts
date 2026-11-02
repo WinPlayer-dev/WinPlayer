@@ -20,6 +20,7 @@ import {
   type BuiltinSourceHost,
 } from "@/services/builtinSources";
 import { useSettingsStore } from "@/stores/settings";
+import { useTrackMetaStore } from "@/stores/trackMeta";
 import type {
   AlbumDetail,
   ArtistAlbumsResult,
@@ -118,6 +119,7 @@ export const OFFICIAL_MARKET_SOURCE: MarketSource = {
 
 export const usePluginsStore = defineStore("plugins", () => {
   const settingsStore = useSettingsStore();
+  const trackMeta = useTrackMetaStore();
   const records = ref<PluginRecord[]>([]);
   const loading = ref(false);
 
@@ -420,10 +422,17 @@ export const usePluginsStore = defineStore("plugins", () => {
   async function getSongUrl(track: UnifiedTrack): Promise<SongUrlResult> {
     const failures: string[] = [];
     const playSourceId = settingsStore.playSourceId;
+    /**
+     * 换源重搜用的曲目：用户改过歌名 / 歌手时用改后的信息。
+     *
+     * 改名的动机通常就是「原始元数据是错的」，拿错的名字重搜必然搜不到；
+     * id 与来源不受自定义影响，所以「曲目自身来源」那段依旧按原始 id 取直链。
+     */
+    const searchable = trackMeta.decorate(track);
 
     // 1. 播放源偏好
     if (playSourceId && playSourceId !== track.sourceId) {
-      const relocated = await relocateTrack(playSourceId, track);
+      const relocated = await relocateTrack(playSourceId, searchable);
       if (relocated) {
         try {
           const host = await getHost(playSourceId);
@@ -450,13 +459,13 @@ export const usePluginsStore = defineStore("plugins", () => {
 
     // 3. 其它启用插件（跳过前面已经试过的来源；内置源的本地曲库不参与网络歌曲换源）
     const tried = new Set([track.sourceId ?? "", playSourceId].filter(Boolean));
-    const keyword = formatTrackKeyword(track, settingsStore.sourceSearchFormat);
+    const keyword = formatTrackKeyword(searchable, settingsStore.sourceSearchFormat);
     if (keyword) {
       for (const record of enabledRecords.value) {
         if (tried.has(record.entry.id)) continue;
         if (isBuiltinSource(record.entry.id)) continue;
         if (!hasCapability(record, "songUrl") || !hasCapability(record, "search")) continue;
-        const sample = await relocateTrack(record.entry.id, track);
+        const sample = await relocateTrack(record.entry.id, searchable);
         if (!sample) continue;
         try {
           const host = await getHost(record.entry.id);

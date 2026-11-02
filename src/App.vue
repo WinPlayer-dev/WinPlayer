@@ -16,6 +16,7 @@ import ToastHost from "@/components/common/ToastHost.vue";
 import ContextMenuHost from "@/components/common/ContextMenuHost.vue";
 import PlaylistPickerHost from "@/components/common/PlaylistPickerHost.vue";
 import PlaylistImportHost from "@/components/common/PlaylistImportHost.vue";
+import TrackMetaEditorHost from "@/components/common/TrackMetaEditorHost.vue";
 import ShortcutHost from "@/components/common/ShortcutHost.vue";
 import UpdateDialogHost from "@/components/common/UpdateDialogHost.vue";
 import ThemeBackdrop from "@/components/theme/ThemeBackdrop.vue";
@@ -25,6 +26,7 @@ import { useThemesStore } from "@/stores/themes";
 import { usePluginsStore } from "@/stores/plugins";
 import { useLibraryStore } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
+import { useTrackMetaStore } from "@/stores/trackMeta";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useHistoryStore } from "@/stores/history";
 import { useLocalMusicStore } from "@/stores/localMusic";
@@ -47,6 +49,7 @@ const themes = useThemesStore();
 const plugins = usePluginsStore();
 const library = useLibraryStore();
 const player = usePlayerStore();
+const trackMeta = useTrackMetaStore();
 const downloads = useDownloadsStore();
 const localMusic = useLocalMusicStore();
 const webdav = useWebdavStore();
@@ -91,8 +94,9 @@ const stopCarModeWatch = watch(
 );
 
 // 跟随封面取色（可在设置中开关）：封面 / 开关 / 主题变化时重新提取强调色
+// 用展示版曲目：用户换了封面后，强调色也应该跟着新封面走
 const stopAccentWatch = watch(
-  [() => player.currentTrack?.cover, () => settings.coverAccent, () => settings.theme],
+  [() => player.displayTrack?.cover, () => settings.coverAccent, () => settings.theme],
   ([cover, enabled]) => void refreshAccentFromCover(cover, enabled),
 );
 
@@ -108,7 +112,7 @@ onMounted(async () => {
     await settings.load();
     // 快捷键：先订阅全局热键事件再载入绑定（载入会立即把绑定推给 Rust 重建注册表）
     await shortcuts.initGlobalEvents();
-    await Promise.all([library.loadAll(), player.restore(), shortcuts.load()]);
+    await Promise.all([library.loadAll(), player.restore(), shortcuts.load(), trackMeta.load()]);
     // 播放历史：只读一次库，供「最近播放」页与 SongTable 的播放次数列使用
     void history.load();
     await plugins.loadInstalled();
@@ -226,6 +230,7 @@ onUnmounted(() => {
     <ContextMenuHost />
     <PlaylistPickerHost />
     <PlaylistImportHost />
+    <TrackMetaEditorHost />
     <ShortcutHost />
     <UpdateDialogHost />
   </div>

@@ -16,6 +16,7 @@ import { getSetting, setSetting } from "@/services/db";
 import { findLyricIndex } from "@/services/lrc";
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
+import { useTrackMetaStore } from "@/stores/trackMeta";
 import { useSleepTimer } from "@/services/sleepTimer";
 import { useQualityControl } from "@/services/quality";
 import { useRecorderStore } from "@/stores/recorder";
@@ -35,6 +36,7 @@ import {
 } from "@/types/player";
 
 const player = usePlayerStore();
+const trackMeta = useTrackMetaStore();
 const library = useLibraryStore();
 const recorder = useRecorderStore();
 const settings = useSettingsStore();
@@ -723,7 +725,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <template v-if="player.currentTrack">
+  <template v-if="player.displayTrack">
     <!-- 迷你播放条 -->
     <footer class="mini-bar" @click="openFull">
       <!-- 用 scaleX 而不是 width：每 250ms 一次的进度推进不该触发 layout/paint -->
@@ -733,15 +735,15 @@ onBeforeUnmount(() => {
       />
       <div class="mini-cover">
         <CachedImage
-          v-if="player.currentTrack.cover"
-          :src="player.currentTrack.cover"
+          v-if="player.displayTrack.cover"
+          :src="player.displayTrack.cover"
           class="mini-cover-img"
         />
         <span v-else class="wp-icon mini-cover-placeholder">&#xE852;</span>
       </div>
       <div class="mini-meta">
-        <div class="mini-title ellipsis">{{ trackTitle(player.currentTrack) }}</div>
-        <div class="mini-artist ellipsis">{{ trackArtist(player.currentTrack) }}</div>
+        <div class="mini-title ellipsis">{{ trackTitle(player.displayTrack) }}</div>
+        <div class="mini-artist ellipsis">{{ trackArtist(player.displayTrack) }}</div>
       </div>
       <WpIconButton class="mini-action" :title="liked ? '取消喜欢' : '添加到我喜欢'" @click.stop="toggleLikeCurrent">
         <transition name="icon-pop" mode="out-in">
@@ -775,8 +777,8 @@ onBeforeUnmount(() => {
         <!-- 背景：封面高斯模糊铺满 + 暗色遮罩 -->
         <div class="full-bg" aria-hidden="true">
           <CachedImage
-            v-if="player.currentTrack.cover"
-            :src="player.currentTrack.cover"
+            v-if="player.displayTrack.cover"
+            :src="player.displayTrack.cover"
             class="full-bg-img"
           />
         </div>
@@ -808,16 +810,16 @@ onBeforeUnmount(() => {
           <div class="full-hero">
             <div class="full-cover">
               <CachedImage
-                v-if="player.currentTrack.cover"
-                :src="player.currentTrack.cover"
+                v-if="player.displayTrack.cover"
+                :src="player.displayTrack.cover"
                 class="full-cover-img"
               />
               <span v-else class="wp-icon full-cover-placeholder">&#xE852;</span>
             </div>
 
             <div class="full-meta">
-              <div class="full-title ellipsis">{{ trackTitle(player.currentTrack) }}</div>
-              <div class="full-artist ellipsis">{{ trackArtist(player.currentTrack) }}</div>
+              <div class="full-title ellipsis">{{ trackTitle(player.displayTrack) }}</div>
+              <div class="full-artist ellipsis">{{ trackArtist(player.displayTrack) }}</div>
             </div>
           </div>
         </div>
@@ -1160,8 +1162,8 @@ onBeforeUnmount(() => {
                         <span v-else>{{ index + 1 }}</span>
                       </span>
                       <span class="queue-sheet-meta">
-                        <span class="queue-sheet-name ellipsis">{{ trackTitle(item.track) }}</span>
-                        <span class="queue-sheet-artist ellipsis">{{ trackArtist(item.track) }}</span>
+                        <span class="queue-sheet-name ellipsis">{{ trackTitle(trackMeta.decorate(item.track)) }}</span>
+                        <span class="queue-sheet-artist ellipsis">{{ trackArtist(trackMeta.decorate(item.track)) }}</span>
                       </span>
                       <span
                         class="queue-sheet-handle"

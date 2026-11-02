@@ -5,8 +5,10 @@ import { usePluginsStore, type AggregatedSourceResult, type PluginRecord } from 
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
 import { useDownloadsStore } from "@/stores/downloads";
+import { useTrackMetaStore } from "@/stores/trackMeta";
 import { useSettingsStore } from "@/stores/settings";
 import { openContextMenu, openContextMenuAt, type ContextMenuItem } from "@/services/contextMenu";
+import { openTrackMetaEditor } from "@/services/trackMetaEditor";
 import { useLongPress } from "@/composables/useLongPress";
 import { openPlaylistPicker } from "@/services/playlistPicker";
 import { endTrackDrag, startTrackDrag } from "@/services/trackDrag";
@@ -27,6 +29,7 @@ const plugins = usePluginsStore();
 const player = usePlayerStore();
 const library = useLibraryStore();
 const downloads = useDownloadsStore();
+const trackMeta = useTrackMetaStore();
 const settings = useSettingsStore();
 const isMobile = useIsMobile();
 
@@ -129,10 +132,16 @@ function songMenuItems(song: UnifiedTrack): ContextMenuItem[] {
     });
   }
   items.push({
+    key: "edit-meta",
+    label: "编辑歌曲信息",
+    icon: "&#xF3DE;",
+    action: () => openTrackMetaEditor(song),
+  });
+  items.push({
     key: "copy-name",
     label: "复制歌曲名",
     icon: "&#xF32C;",
-    action: () => copyText(song.name, "歌曲名"),
+    action: () => copyText(trackMeta.decorate(song).name, "歌曲名"),
   });
   const alias = song.alias;
   if (alias) {
@@ -272,8 +281,8 @@ onMounted(loadWithCache);
                 <span class="wp-icon filled">&#xF610;</span>
               </button>
             </div>
-            <div class="song-name ellipsis">{{ trackTitle(song) }}</div>
-            <div class="song-artist ellipsis">{{ trackArtist(song) }}</div>
+            <div class="song-name ellipsis">{{ trackTitle(trackMeta.decorate(song)) }}</div>
+            <div class="song-artist ellipsis">{{ trackArtist(trackMeta.decorate(song)) }}</div>
           </div>
         </div>
       </section>

@@ -338,7 +338,10 @@ pub fn cover_cache_path(app: tauri::AppHandle, url: String) -> Option<String> {
 
 /// 把 `http://localcover.localhost/?f=<文件名>` 解析成缓存目录下的实际路径。
 /// 非该协议、或文件名里带路径分隔符（越权读取）时返回 None。
-fn local_cover_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>, url: &str) -> Option<PathBuf> {
+pub(crate) fn local_cover_path<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    url: &str,
+) -> Option<PathBuf> {
     let parsed = tauri::Url::parse(url).ok()?;
     if parsed.host_str()? != "localcover.localhost" {
         return None;
@@ -361,6 +364,15 @@ fn local_cover_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>, url: &str) -> 
 /// 再取色，仍拿不到返回 null，前端保持当前强调色。返回 "#rrggbb"。
 #[tauri::command]
 pub async fn cover_dominant_color(app: tauri::AppHandle, url: String) -> Option<String> {
+    // 自定义封面 / 本地音乐封面走 localcover 协议：直接读封面目录里的文件取色，
+    // 不走下面的「等缓存下载」流程（那套只对网络原图有意义）
+    if let Some(path) = local_cover_path(&app, &url) {
+        let bytes = tokio::fs::read(&path).await.ok()?;
+        return tokio::task::spawn_blocking(move || dominant_color_hex(&bytes))
+            .await
+            .ok()
+            .flatten();
+    }
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return None;
     }

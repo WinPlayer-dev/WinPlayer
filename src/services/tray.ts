@@ -34,6 +34,8 @@ const onWindows = useIsWindows();
 /** 服务需要的播放器能力（避免反向依赖 store 造成循环引用） */
 export interface TrayPlayer {
   readonly currentTrack: UnifiedTrack | null;
+  /** 展示版曲目（用户自定义过歌名时，托盘提示也用新名字） */
+  readonly displayTrack: UnifiedTrack | null;
   readonly playing: boolean;
   next(): Promise<void>;
   prev(): Promise<void>;
@@ -100,9 +102,10 @@ export async function initTray(target: TrayPlayer): Promise<void> {
   });
 
   // 曲目 / 播放状态变化 → 刷新托盘提示（工具提示只显示歌名即可，简洁）
+  // 用展示版曲目：用户改过歌名时托盘提示也跟着变
   stopWatch = watch(
-    [() => target.currentTrack?.name, () => target.playing],
-    ([name]) => void syncTooltip(name ? target.currentTrack : null),
+    [() => target.displayTrack?.name, () => target.playing],
+    ([name]) => void syncTooltip(name ? target.displayTrack : null),
     { immediate: true },
   );
 }
