@@ -110,12 +110,8 @@ onBeforeUnmount(() => window.clearTimeout(templateDebounce));
 
 /* ------------------------------ 内容开关 ------------------------------ */
 
-function onLyricsToggle(event: { IsOn: boolean }): void {
-  void settings.setDownloadSaveLyrics(Boolean(event?.IsOn));
-}
-
-function onMetaToggle(event: { IsOn: boolean }): void {
-  void settings.setDownloadSaveMeta(Boolean(event?.IsOn));
+function onWriteTagsToggle(event: { IsOn: boolean }): void {
+  void settings.setDownloadWriteTags(Boolean(event?.IsOn));
 }
 
 function openOffline(): void {
@@ -201,21 +197,13 @@ function openOffline(): void {
       <h2 class="settings-section-title">下载内容</h2>
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">同时保存歌词</div>
+          <div class="card-header">写入歌曲标签</div>
           <div class="card-description">
-            下载时写入同名 <code>.lrc</code>，离线播放自动读取（不含翻译）。
+            下载时把标题 / 歌手 / 专辑 / 封面 / 歌词写进音频文件，同时保存同名
+            <code>.lrc</code>。离线曲库直接读文件，换目录、换设备都还在；关闭后元数据只存在数据库里。
           </div>
         </div>
-        <ToggleSwitch :IsOn="settings.downloadSaveLyrics" @Toggled="onLyricsToggle" />
-      </WpCard>
-      <WpCard variant="row">
-        <div class="card-content">
-          <div class="card-header">缓存封面等元数据</div>
-          <div class="card-description">
-            下载时缓存封面，离线列表在无网络时也能显示。
-          </div>
-        </div>
-        <ToggleSwitch :IsOn="settings.downloadSaveMeta" @Toggled="onMetaToggle" />
+        <ToggleSwitch :IsOn="settings.downloadWriteTags" @Toggled="onWriteTagsToggle" />
       </WpCard>
       <WpCard variant="row">
         <div class="card-content">

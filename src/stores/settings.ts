@@ -152,10 +152,8 @@ export const useSettingsStore = defineStore("settings", () => {
   const downloadDir = ref("");
   /** 下载文件名模板（`/` 可建子目录） */
   const downloadNameTemplate = ref(DEFAULT_DOWNLOAD_NAME_TEMPLATE);
-  /** 下载时同时保存歌词（同名 .lrc 边车） */
-  const downloadSaveLyrics = ref(true);
-  /** 下载时同时缓存封面等元数据（供离线列表展示） */
-  const downloadSaveMeta = ref(true);
+  /** 下载时把元数据 / 封面 / 歌词写进歌曲文件（离线曲库的元数据来源），同时写 .lrc */
+  const downloadWriteTags = ref(true);
   /** 是否在启动时自动检查更新 */
   const autoCheckUpdate = ref(true);
   /** 自动检查更新的频率 */
@@ -267,8 +265,15 @@ export const useSettingsStore = defineStore("settings", () => {
       "settings.downloadNameTemplate",
       DEFAULT_DOWNLOAD_NAME_TEMPLATE,
     );
-    downloadSaveLyrics.value = await getSetting<boolean>("settings.downloadSaveLyrics", true);
-    downloadSaveMeta.value = await getSetting<boolean>("settings.downloadSaveMeta", true);
+    // 老版本是两个开关（保存歌词 / 缓存封面），迁移时任一为开即写入标签
+    const writeTags = await getSetting<boolean | null>("settings.downloadWriteTags", null);
+    if (writeTags === null) {
+      const legacyLyrics = await getSetting<boolean>("settings.downloadSaveLyrics", true);
+      const legacyMeta = await getSetting<boolean>("settings.downloadSaveMeta", true);
+      downloadWriteTags.value = legacyLyrics || legacyMeta;
+    } else {
+      downloadWriteTags.value = writeTags;
+    }
     autoCheckUpdate.value = await getSetting<boolean>("settings.autoCheckUpdate", true);
     updateCheckFrequency.value = await getSetting<UpdateCheckFrequency>(
       "settings.updateCheckFrequency",
@@ -434,14 +439,10 @@ export const useSettingsStore = defineStore("settings", () => {
     await setSetting("settings.downloadNameTemplate", value);
   }
 
-  async function setDownloadSaveLyrics(value: boolean): Promise<void> {
-    downloadSaveLyrics.value = value;
-    await setSetting("settings.downloadSaveLyrics", value);
-  }
-
-  async function setDownloadSaveMeta(value: boolean): Promise<void> {
-    downloadSaveMeta.value = value;
-    await setSetting("settings.downloadSaveMeta", value);
+  /** 切换「写入歌曲标签」：关闭后下载只保存音频（离线曲库退回数据库元数据） */
+  async function setDownloadWriteTags(value: boolean): Promise<void> {
+    downloadWriteTags.value = value;
+    await setSetting("settings.downloadWriteTags", value);
   }
 
   /* ------------------------------ 自动更新 ------------------------------ */
@@ -572,8 +573,7 @@ export const useSettingsStore = defineStore("settings", () => {
     cachePolicy,
     downloadDir,
     downloadNameTemplate,
-    downloadSaveLyrics,
-    downloadSaveMeta,
+    downloadWriteTags,
     autoCheckUpdate,
     updateCheckFrequency,
     updateIncludePrerelease,
@@ -612,8 +612,7 @@ export const useSettingsStore = defineStore("settings", () => {
     setCachePolicy,
     setDownloadDir,
     setDownloadNameTemplate,
-    setDownloadSaveLyrics,
-    setDownloadSaveMeta,
+    setDownloadWriteTags,
     setAutoCheckUpdate,
     setUpdateCheckFrequency,
     setUpdateIncludePrerelease,

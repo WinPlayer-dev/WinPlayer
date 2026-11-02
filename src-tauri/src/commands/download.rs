@@ -7,6 +7,8 @@
 //! - 进度：通过 `download://progress` 事件上报（约 200ms 一次），
 //!   按 `taskId` 区分任务，可随时 `download_cancel` 取消（保留断点）。
 //! - 歌词：调用方传入 LRC 文本时写同名 `.lrc` 边车文件。
+//! - 标签：下载完成后再由 `download_write_tags`（见 `crate::tagging`）把元数据 /
+//!   封面 / 歌词写进音频文件本身，离线曲库以文件标签为元数据来源。
 //!
 //! 保存的是原始音频字节流，不做任何转码；扩展名优先取 URL，其次
 //! Content-Type，兜底 `mp3`。
@@ -348,6 +350,44 @@ pub async fn download_copy(src: String, dest: String) -> Result<(), String> {
         .await
         .map(|_| ())
         .map_err(|e| format!("导出文件失败：{e}"))
+}
+
+/// 把元数据 / 封面 / 歌词写进已下载的音频文件（离线曲库的唯一元数据来源）。
+///
+/// 封面按 `cover_url` 现取现压，失败只是不内嵌封面；写入整体失败时返回
+/// `hasTags = false`，前端会退回把 UnifiedTrack 存进数据库的旧路径。
+#[tauri::command]
+pub async fn download_write_tags(
+    path: String,
+    meta: crate::tagging::TagWriteMeta,
+    cover_url: Option<String>,
+    lyrics: Option<String>,
+) -> Result<crate::tagging::TagWriteResult, String> {
+    if !Path::new(&path).is_file() {
+        return Err("文件不存在".to_string());
+    }
+    let cover = match cover_url.as_deref() {
+        Some(url) if !url.trim().is_empty() => crate::tagging::fetch_cover(url).await,
+        _ => None,
+    };
+
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::tagging::write_tags(Path::new(&path), &meta, cover.as_deref(), lyrics.as_deref())
+    })
+    .await
+    .map_err(|e| format!("写入标签任务失败：{e}"))
+}
+
+/// 批量回读离线文件的标签（离线索引载入时重建元数据）
+#[tauri::command]
+pub async fn download_read_tags(
+    app: AppHandle,
+    paths: Vec<String>,
+) -> Result<Vec<crate::tagging::OfflineTagInfo>, String> {
+    let covers = crate::local_music::covers_dir(&app)?;
+    tauri::async_runtime::spawn_blocking(move || crate::tagging::read_offline_tags(&paths, &covers))
+        .await
+        .map_err(|e| format!("读取标签任务失败：{e}"))
 }
 
 /// 在系统文件管理器中定位文件

@@ -183,7 +183,7 @@ fn export_cover(path: &Path, mtime: i64, size: u64, picture: &lofty::picture::Pi
 }
 
 /// 读取单个文件的标签与时长
-fn read_tags(path: &Path, covers: &Path, mtime: i64, size: u64) -> ReadTags {
+pub(crate) fn read_tags(path: &Path, covers: &Path, mtime: i64, size: u64) -> ReadTags {
     let mut tags = ReadTags::default();
     let Ok(tagged) = lofty::read_from_path(path) else {
         return tags;
@@ -196,6 +196,7 @@ fn read_tags(path: &Path, covers: &Path, mtime: i64, size: u64) -> ReadTags {
     tags.bitrate = properties.audio_bitrate();
 
     if let Some(tag) = tagged.primary_tag().or_else(|| tagged.first_tag()) {
+        tags.has_tags = true;
         tags.title = tag.title().map(|value| value.trim().to_string()).filter(|v| !v.is_empty());
         tags.artist = tag.artist().map(|value| value.trim().to_string()).filter(|v| !v.is_empty());
         tags.album = tag.album().map(|value| value.trim().to_string()).filter(|v| !v.is_empty());
@@ -219,23 +220,36 @@ fn read_tags(path: &Path, covers: &Path, mtime: i64, size: u64) -> ReadTags {
 }
 
 #[derive(Default)]
-struct ReadTags {
-    title: Option<String>,
-    artist: Option<String>,
-    album: Option<String>,
-    album_artist: Option<String>,
-    genre: Option<String>,
-    year: Option<String>,
-    track_no: Option<u32>,
-    disc_no: Option<u32>,
-    duration_ms: Option<u64>,
-    bitrate: Option<u32>,
-    cover: Option<String>,
-    embedded_lyrics: Option<String>,
+pub(crate) struct ReadTags {
+    /// 文件里是否存在标签（无标签时其余字段一律为空）
+    pub(crate) has_tags: bool,
+    pub(crate) title: Option<String>,
+    pub(crate) artist: Option<String>,
+    pub(crate) album: Option<String>,
+    pub(crate) album_artist: Option<String>,
+    pub(crate) genre: Option<String>,
+    pub(crate) year: Option<String>,
+    pub(crate) track_no: Option<u32>,
+    pub(crate) disc_no: Option<u32>,
+    pub(crate) duration_ms: Option<u64>,
+    pub(crate) bitrate: Option<u32>,
+    pub(crate) cover: Option<String>,
+    pub(crate) embedded_lyrics: Option<String>,
+}
+
+/// 读取单个文件的标签、时长与封面（离线曲库用）。
+///
+/// `size` / `mtime` 现取：封面缓存以「路径 + 时间 + 大小」命名，
+/// 标签刚被写过的文件必须用写入后的大小与时间，否则会复用到旧封面。
+pub(crate) fn probe(path: &Path, covers: &Path) -> ReadTags {
+    let Ok(meta) = std::fs::metadata(path) else {
+        return ReadTags::default();
+    };
+    read_tags(path, covers, mtime_of(&meta), meta.len())
 }
 
 /// 在 `dir` 里找同名的 `.lrc` / `.srt`（大小写不敏感，容忍 `xxx.zh.lrc` 这类语言后缀）
-fn find_sidecar(audio: &Path, ext: &str) -> Option<PathBuf> {
+pub(crate) fn find_sidecar(audio: &Path, ext: &str) -> Option<PathBuf> {
     let dir = audio.parent()?;
     let stem = audio.file_stem()?.to_string_lossy().to_string();
     let stem_lower = stem.to_lowercase();

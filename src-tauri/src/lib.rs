@@ -9,6 +9,8 @@ mod player;
 // 录音棚（唱歌模式）：伴奏分流 + 麦克风采集 + 混音导出
 mod recorder;
 mod smtc;
+// 离线歌曲标签：把元数据 / 封面 / 歌词写进下载的音频文件
+mod tagging;
 #[cfg(windows)]
 mod tray;
 mod updater;
@@ -154,6 +156,8 @@ pub fn run() {
                 commands::download::download_copy,
                 commands::download::download_reveal,
                 commands::download::download_check,
+                commands::download::download_write_tags,
+                commands::download::download_read_tags,
                 commands::plugins::plugin_list,
                 commands::plugins::plugin_read_code,
                 commands::plugins::plugin_install_from_path,

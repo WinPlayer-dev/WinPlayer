@@ -4,7 +4,9 @@
  * - 串行下载队列：一次只下载一首，已完成/失败/暂停的任务保留在面板中可重试；
  * - 已下载曲目自动跳过（按 sourceId + trackId 去重）；
  * - 每首歌曲记录来源分组（歌单/专辑/歌手/喜欢），离线页据此归类；
- * - 索引落 SQLite（offline_songs），音频与 .lrc 歌词落在用户下载目录。
+ * - **元数据以音频文件里的标签为准**：下载完成后由 Rust 侧把标题 / 歌手 /
+ *   专辑 / 封面 / 歌词写进文件，数据库只留路径、分组与时间；容器不支持写标签
+ *   时（`hasTags = false`）才退回把 UnifiedTrack JSON 存进 `offline_songs`。
  *
  * 离线播放：`localUrl(track)` 返回 `local://` + 绝对路径，播放器解析直链时
  * 优先使用它，由原生解码器直接读取本地文件（无需插件/网络）。
@@ -20,6 +22,7 @@ import { useSettingsStore, DEFAULT_DOWNLOAD_NAME_TEMPLATE } from "./settings";
 import { pluginDisplayName, usePluginsStore } from "./plugins";
 import { resolveImgUrl } from "@/services/imageCache";
 import { mediaHeadersFor } from "@/services/audio";
+import { readLocalLyrics } from "@/services/localMusic";
 import {
   cancelDownload,
   checkDownloads,
@@ -30,9 +33,12 @@ import {
   formatBytes,
   isCanceledError,
   onDownloadProgress,
-  readDownloadText,
+  readDownloadTags,
   revealDownload,
+  writeDownloadTags,
   type DownloadVars,
+  type OfflineTagInfo,
+  type TagWriteMeta,
 } from "@/services/downloads";
 import type { UnifiedTrack } from "@/types/plugin";
 
@@ -100,6 +106,56 @@ function offlineKey(track: UnifiedTrack): string {
 /** 曲目在下载列表里的展示名（用于单曲下载的分组名） */
 function trackGroupName(track: UnifiedTrack): string {
   return track.name || "单曲";
+}
+
+/** 写进文件标签的元数据（歌手按「A / B」拼接，与重建时的拆分对应） */
+function buildTagMeta(track: UnifiedTrack): TagWriteMeta {
+  return {
+    title: track.name ?? "",
+    artist: (track.artists ?? []).join(" / "),
+    album: track.album ?? "",
+  };
+}
+
+/** 标签里的歌手是「A / B」拼接串（与〔buildTagMeta〕的写入保持一致） */
+function splitArtists(value: string): string[] {
+  const parts = value
+    .split(" / ")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return parts.length ? parts : [value.trim()];
+}
+
+/** 用文件标签重建曲目；标签缺失（老记录 / 容器不支持）时退回数据库里存的 JSON */
+function buildTrack(
+  row: { track_id: string; source_id: string },
+  stored: UnifiedTrack | null,
+  info?: OfflineTagInfo | null,
+): UnifiedTrack {
+  const fallback: UnifiedTrack = {
+    id: row.track_id,
+    sourceId: row.source_id || undefined,
+    name: stored?.name || "未知曲目",
+    artists: stored?.artists ?? [],
+    album: stored?.album,
+    cover: stored?.cover,
+    duration: stored?.duration,
+    albumId: stored?.albumId,
+    artistIds: stored?.artistIds,
+    vip: stored?.vip,
+    alias: stored?.alias,
+    extra: stored?.extra,
+  };
+  if (!info?.hasTags) return fallback;
+  return {
+    ...fallback,
+    name: info.title?.trim() || fallback.name,
+    artists: info.artist ? splitArtists(info.artist) : fallback.artists,
+    album: info.album?.trim() || fallback.album,
+    // 内嵌封面导出成 localcover 协议地址：离线、清缓存、换目录都不会丢
+    cover: info.cover ?? fallback.cover,
+    duration: info.durationMs ?? fallback.duration,
+  };
 }
 
 let taskSeq = 0;
@@ -179,13 +235,13 @@ export const useDownloadsStore = defineStore("downloads", () => {
     return song ? `local://${song.path}` : null;
   }
 
-  /** 读取离线歌词（.lrc 边车）；无文件返回 null */
+  /** 读取离线歌词：同名 .lrc / .srt 优先，其次文件内嵌歌词；没有歌词返回 null */
   async function readLyrics(track: UnifiedTrack): Promise<string | null> {
     const song = findSong(track);
     if (!song || !song.hasLyrics) return null;
-    const lrcPath = song.path.replace(/\.[^./\\]+$/, ".lrc");
     try {
-      return await readDownloadText(lrcPath);
+      const lyrics = await readLocalLyrics(song.path);
+      return lyrics?.text ?? null;
     } catch {
       return null;
     }
@@ -201,18 +257,32 @@ export const useDownloadsStore = defineStore("downloads", () => {
 
   async function loadIndex(): Promise<void> {
     const db = await getDb();
-    const rows = await db.select<OfflineRow[]>(
-      `select source_id, track_id, track, path, size, has_lyrics, groups, saved_at
-       from offline_songs order by saved_at desc`,
-    );
-    const parsed: OfflineSong[] = [];
-    for (const row of rows ?? []) {
-      let track: UnifiedTrack;
+    const rows =
+      (await db.select<OfflineRow[]>(
+        `select source_id, track_id, track, path, size, has_lyrics, groups, saved_at
+         from offline_songs order by saved_at desc`,
+      )) ?? [];
+
+    // 元数据以文件标签为准：一次性批量回读（读不到标签的老记录退回数据库 JSON）
+    let tagMap = new Map<string, OfflineTagInfo>();
+    if (rows.length) {
       try {
-        track = JSON.parse(row.track) as UnifiedTrack;
-      } catch {
-        continue;
+        const infos = await readDownloadTags(rows.map((row) => row.path));
+        tagMap = new Map(infos.map((info) => [info.path, info]));
+      } catch (error) {
+        console.error("[downloads] 读取文件标签失败，退回数据库元数据", error);
       }
+    }
+
+    const parsed: OfflineSong[] = [];
+    for (const row of rows) {
+      let stored: UnifiedTrack | null = null;
+      try {
+        stored = JSON.parse(row.track) as UnifiedTrack;
+      } catch {
+        stored = null;
+      }
+      const info = tagMap.get(row.path);
       let groups: DownloadGroup[] = [];
       try {
         const value = row.groups ? JSON.parse(row.groups) : [];
@@ -223,10 +293,10 @@ export const useDownloadsStore = defineStore("downloads", () => {
       parsed.push({
         sourceId: row.source_id,
         trackId: row.track_id,
-        track,
+        track: buildTrack(row, stored, info),
         path: row.path,
         size: Number(row.size ?? 0),
-        hasLyrics: Boolean(row.has_lyrics),
+        hasLyrics: info?.hasLyrics ?? Boolean(row.has_lyrics),
         groups,
         savedAt: Number(row.saved_at ?? 0),
         missing: false,
@@ -296,21 +366,28 @@ export const useDownloadsStore = defineStore("downloads", () => {
     size: number,
     hasLyrics: boolean,
     groups: DownloadGroup[],
+    tagsWritten: boolean,
+    tagInfo?: OfflineTagInfo | null,
   ): Promise<void> {
     const db = await getDb();
     const now = Date.now();
     const sourceId = track.sourceId ?? "";
+    // 标签写成功时数据库只留身份信息，元数据从文件读；写失败才存完整 JSON 兜底
+    const storedTrack = tagsWritten
+      ? { id: track.id, sourceId, name: track.name ?? "" }
+      : track;
     await db.execute(
       `insert into offline_songs (source_id, track_id, track, path, size, has_lyrics, groups, saved_at)
        values ($1, $2, $3, $4, $5, $6, $7, $8)
        on conflict(source_id, track_id) do update set
          track = $3, path = $4, size = $5, has_lyrics = $6, groups = $7, saved_at = $8`,
-      [sourceId, track.id, JSON.stringify(track), path, size, hasLyrics ? 1 : 0, JSON.stringify(groups), now],
+      [sourceId, track.id, JSON.stringify(storedTrack), path, size, hasLyrics ? 1 : 0, JSON.stringify(groups), now],
     );
     const row: OfflineSong = {
       sourceId,
       trackId: track.id,
-      track,
+      // 标签可用时立刻换成文件里的元数据（封面走 localcover，下载完就能离线显示）
+      track: tagsWritten ? buildTrack({ track_id: track.id, source_id: sourceId }, track, tagInfo) : track,
       path,
       size,
       hasLyrics,
@@ -386,8 +463,9 @@ export const useDownloadsStore = defineStore("downloads", () => {
     try {
       const result = await plugins.getSongUrl(task.track);
 
+      // 歌词：写入同名 .lrc 边车（下载链路）+ 内嵌进歌曲标签（离线唯一来源）
       let lyrics: string | null = null;
-      if (settings.downloadSaveLyrics) {
+      if (settings.downloadWriteTags) {
         try {
           const fetched = await plugins.getLyrics(task.track);
           if (fetched?.lrc) lyrics = fetched.lrc;
@@ -395,7 +473,6 @@ export const useDownloadsStore = defineStore("downloads", () => {
           /* 歌词获取失败不影响音频下载 */
         }
       }
-      if (settings.downloadSaveMeta) prefetchCover(task.track.cover);
 
       const dir = settings.downloadDir.trim() || (await ensureDefaultDir());
       const saved = await downloadSong({
@@ -408,11 +485,40 @@ export const useDownloadsStore = defineStore("downloads", () => {
         headers: mediaHeadersFor(result.url),
       });
 
+      // 元数据 / 封面 / 歌词写进音频文件：离线曲库不再依赖数据库里的 JSON
+      let tagsWritten = false;
+      let tagInfo: OfflineTagInfo | null = null;
+      if (settings.downloadWriteTags) {
+        try {
+          const written = await writeDownloadTags({
+            path: saved.path,
+            meta: buildTagMeta(task.track),
+            coverUrl: resolveImgUrl(task.track.cover),
+            lyrics,
+          });
+          tagsWritten = written.hasTags;
+          // 回读一次：拿到内嵌封面导出的 localcover 地址与文件实际时长
+          if (tagsWritten) tagInfo = (await readDownloadTags([saved.path]))[0] ?? null;
+        } catch (error) {
+          console.warn("[downloads] 写入歌曲标签失败，退回数据库元数据", error);
+        }
+      }
+      // 标签不可用（关闭写入 / 容器不支持）时，仍然把封面预取进图片缓存供离线展示
+      if (!tagsWritten) prefetchCover(task.track.cover);
+
       task.path = saved.path;
       task.downloaded = saved.size;
       task.total = saved.size;
       task.status = "done";
-      await upsertSong(task.track, saved.path, saved.size, saved.hasLyrics, task.groups);
+      await upsertSong(
+        task.track,
+        saved.path,
+        saved.size,
+        saved.hasLyrics || Boolean(tagInfo?.hasLyrics),
+        task.groups,
+        tagsWritten,
+        tagInfo,
+      );
     } catch (error) {
       if (task.pauseRequested) {
         task.pauseRequested = false;

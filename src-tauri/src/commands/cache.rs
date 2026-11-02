@@ -321,11 +321,39 @@ pub async fn image_cache_prefetch(app: tauri::AppHandle, url: String) -> Result<
 /// 未命中返回 `null` 且**不触发下载**——系统侧展示封面另有原图直连兜底，这里保持零阻塞
 #[tauri::command]
 pub fn cover_cache_path(app: tauri::AppHandle, url: String) -> Option<String> {
+    // 离线 / 本地音乐的封面走 localcover 协议：直接映射到 `cache/localcovers` 里的文件，
+    // 否则系统媒体控件只能拿到 WebView 专属域名，离线时显示不出封面
+    if let Some(path) = local_cover_path(&app, &url) {
+        if path.is_file() {
+            return tauri::Url::from_file_path(path).ok().map(|uri| uri.to_string());
+        }
+        return None;
+    }
     let path = image_path(&app, &url).ok()?;
     if !path.is_file() {
         return None;
     }
     tauri::Url::from_file_path(path).ok().map(|uri| uri.to_string())
+}
+
+/// 把 `http://localcover.localhost/?f=<文件名>` 解析成缓存目录下的实际路径。
+/// 非该协议、或文件名里带路径分隔符（越权读取）时返回 None。
+fn local_cover_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>, url: &str) -> Option<PathBuf> {
+    let parsed = tauri::Url::parse(url).ok()?;
+    if parsed.host_str()? != "localcover.localhost" {
+        return None;
+    }
+    let name = parsed
+        .query_pairs()
+        .find(|(key, _)| key == "f")
+        .map(|(_, value)| value.into_owned())?;
+    if std::path::Path::new(&name)
+        .components()
+        .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        return None;
+    }
+    crate::local_music::covers_dir(app).ok().map(|dir| dir.join(name))
 }
 
 /// 提取封面主色（跟随封面的动态强调色用）：优先读磁盘缓存；

@@ -44,6 +44,69 @@ export function downloadDefaultDir(): Promise<string> {
   return invoke<string>("download_default_dir");
 }
 
+/* ------------------------------ 歌曲标签 ------------------------------ */
+
+/** 写进音频文件的元数据（camelCase 与 Rust 侧 TagWriteMeta 对齐） */
+export interface TagWriteMeta {
+  title: string;
+  artist: string;
+  album: string;
+  albumArtist?: string;
+  genre?: string;
+  year?: number | null;
+  trackNo?: number | null;
+  discNo?: number | null;
+}
+
+/** 标签写入结果 */
+export interface TagWriteResult {
+  /** 元数据是否写进文件（false 表示容器不支持，需要退回数据库存储） */
+  hasTags: boolean;
+  hasCover: boolean;
+  hasLyrics: boolean;
+}
+
+/** 离线文件标签回读结果 */
+export interface OfflineTagInfo {
+  path: string;
+  hasTags: boolean;
+  title?: string | null;
+  artist?: string | null;
+  album?: string | null;
+  albumArtist?: string | null;
+  trackNo?: number | null;
+  year?: string | null;
+  durationMs?: number | null;
+  /** 内嵌封面导出的协议地址（`http://localcover.localhost/`） */
+  cover?: string | null;
+  hasLyrics: boolean;
+}
+
+/**
+ * 把元数据 / 封面 / 歌词写进已下载的音频文件。
+ *
+ * 封面在 Rust 侧现取现压（不带 Referer），失败只是不内嵌封面；
+ * 整个标签写入失败时返回 `hasTags = false`，调用方应把元数据存进数据库兜底。
+ */
+export function writeDownloadTags(args: {
+  path: string;
+  meta: TagWriteMeta;
+  coverUrl?: string | null;
+  lyrics?: string | null;
+}): Promise<TagWriteResult> {
+  return invoke<TagWriteResult>("download_write_tags", {
+    path: args.path,
+    meta: args.meta,
+    coverUrl: args.coverUrl ?? null,
+    lyrics: args.lyrics ?? null,
+  });
+}
+
+/** 批量回读离线文件的标签（离线索引载入时重建元数据） */
+export function readDownloadTags(paths: string[]): Promise<OfflineTagInfo[]> {
+  return invoke<OfflineTagInfo[]>("download_read_tags", { paths });
+}
+
 /** 下载单曲到本地；lyrics 非空时写同名 .lrc 边车 */
 export function downloadSong(args: {
   taskId: string;
