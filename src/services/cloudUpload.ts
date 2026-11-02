@@ -64,7 +64,7 @@ export async function uploadTrackToCloud(track: UnifiedTrack): Promise<void> {
   const plugins = usePluginsStore();
 
   if (!cloud.configured) {
-    toast("请先在 设置 → 同步（温韵同频） 登录", "error");
+    toast("请先在 设置 → 同步 登录", "error");
     return;
   }
   const key = `${track.sourceId ?? ""}:${track.id}`;
