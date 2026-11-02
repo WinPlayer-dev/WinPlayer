@@ -130,6 +130,9 @@ export const usePlayerStore = defineStore("player", () => {
     }
     queue.value = reordered;
     currentIndex.value = 0;
+    // 重洗后整张队列的下标都变了：旧链上「下标 → 直链」的对应关系全部作废，
+    // 不丢链的话 next() 走 startAt(0) 会取到旧下标对应的另一首歌
+    resetPreload(true);
   }
 
   /** 恢复原始播放列表顺序，并让正在播放的曲目跟随（离开随机模式时调用） */
@@ -237,11 +240,21 @@ export const usePlayerStore = defineStore("player", () => {
     // （crossfade 时双流已经在混音）。先让元数据切到新曲再暂停，避免界面停在
     // 上一首上；紧接着清掉播放链 / 预载槽，防止它继续往下播。
     const stop = notifyTrackFinished();
+    // 单曲循环只允许衔接到当前曲目本身：先记下当前曲目，衔接回来后校验
+    const expected = mode.value === "loop-one" ? currentIndex.value : null;
     handleAdvanced(url, index);
     if (stop) {
       engine.pause();
       resetPreload(true);
       playing.value = false;
+      return;
+    }
+    if (expected != null && currentIndex.value !== expected) {
+      // 引擎沿旧链 / 旧预载衔接到了别的曲目（典型就是「上一首」）：立即按当前
+      // 曲目重新加载，而不是顺着错下去——这就是单曲循环第二遍播回上一首的兜底
+      console.warn(`[player] 单曲循环被衔接到 #${currentIndex.value}，纠正回 #${expected}`);
+      flushPlayReport(0); // 错误曲目只响了一瞬，按 0 秒结算
+      void playAt(expected);
     }
   });
   engine.on("error", (message) => {
@@ -449,6 +462,9 @@ export const usePlayerStore = defineStore("player", () => {
     if (!tracks.length) return;
     const items: QueueItem[] = tracks.map((track) => ({ uid: createQueueUid(), track }));
     const safeStart = Math.min(Math.max(0, startIndex), items.length - 1);
+    // 队列整体替换：旧链上「队列下标 → 直链」的对应关系全部作废（同一个下标
+    // 现在指向另一首歌）。不丢链的话，引擎会沿旧链播出上一首。
+    resetPreload(true);
     if (mode.value === "shuffle") {
       // 新的播放上下文：以传入顺序作为原始列表备份，再洗牌播放目标曲目
       const targetUid = items[safeStart].uid;
@@ -496,6 +512,8 @@ export const usePlayerStore = defineStore("player", () => {
       const insertAt = currentIndex.value + 1;
       const anchorUid = currentUid();
       const item: QueueItem = { uid: createQueueUid(), track };
+      // 插入会让其后的队列下标整体后移，链上的旧下标对应关系随之失效
+      resetPreload(true);
       queue.value.splice(insertAt, 0, item);
       if (mode.value === "shuffle") {
         // 备份中同步插入到当前曲目之后；找不到锚点时追加到末尾
@@ -581,8 +599,12 @@ export const usePlayerStore = defineStore("player", () => {
    * （不必在后台唤醒插件 Worker 解析直链）。
    *
    * chainToken 用于丢弃解析期间已过期的结果。
+   *
+   * 每条都带队列条目的 `uid`：链是「下标 → 直链」映射，一旦队列被替换或
+   * 重排，同一个下标就可能指向另一首歌。取链上直链前必须用 uid 核对，
+   * 否则会把上一首的直链当成这一首预载出去（界面不动、声音串歌）。
    */
-  let chainEntries: Array<{ index: number; url: string }> = [];
+  let chainEntries: Array<{ index: number; uid: string; url: string }> = [];
   let chainToken = 0;
 
   /** 链长：够锁屏连续听一段时间，又不至于一次解析太多接口 */
@@ -626,7 +648,11 @@ export const usePlayerStore = defineStore("player", () => {
     // 以「当前曲目 + 后续曲目」作为链：current = 0，引擎衔接后前进一格
     const current = currentIndex.value;
     const wanted = [current, ...targets];
-    const known = new Map(chainEntries.map((entry) => [entry.index, entry.url]));
+    // 只有 uid 仍然对得上的缓存才可信（队列换过之后同下标可能是另一首歌）
+    const known = new Map<number, string>();
+    for (const entry of chainEntries) {
+      if (queue.value[entry.index]?.uid === entry.uid) known.set(entry.index, entry.url);
+    }
     // 先按队列位置去重解析（单曲循环的链是同一位置重复多项，只需解析一次）
     const resolvedByIndex = new Map<number, string>();
     for (const index of new Set(wanted)) {
@@ -648,7 +674,11 @@ export const usePlayerStore = defineStore("player", () => {
     if (token !== chainToken) return;
     const resolved = wanted
       .filter((index) => resolvedByIndex.has(index))
-      .map((index) => ({ index, url: resolvedByIndex.get(index)! }));
+      .map((index) => ({
+        index,
+        uid: queue.value[index]?.uid ?? "",
+        url: resolvedByIndex.get(index)!,
+      }));
     // 链首必须是当前曲目（否则指针位置无从对齐）
     if (!resolved.length || resolved[0].index !== current) return;
     chainEntries = resolved;
@@ -659,10 +689,13 @@ export const usePlayerStore = defineStore("player", () => {
    * 链上该队列位置已解析的直链（媒体栏切歌可据此直接起播，无需插件解析）。
    *
    * 同一队列位置在链上可能出现多次（单曲循环重复下发），任意一条都指向
-   * 同一首曲目，取首个即可。
+   * 同一首曲目，取首个即可。取用前必须核对 uid：链是「下标 → 直链」映射，
+   * 队列换过之后同一个下标可能已经是另一首歌，照用就会串歌。
    */
   function chainUrlAt(index: number): string | null {
-    return chainEntries.find((entry) => entry.index === index)?.url ?? null;
+    const uid = queue.value[index]?.uid;
+    if (!uid) return null;
+    return chainEntries.find((entry) => entry.index === index && entry.uid === uid)?.url ?? null;
   }
 
   /* ------------------------------ 锁屏/后台恢复对齐 ------------------------------ */
@@ -713,7 +746,11 @@ export const usePlayerStore = defineStore("player", () => {
     const url = await engine.currentSourceUrl().catch(() => null);
     if (!url) return null;
     // 锁屏期间引擎是沿播放链前进的：直链命中链上某条即知其队列位置
-    return chainEntries.find((entry) => entry.url === url)?.index ?? null;
+    // （uid 仍要对得上，避免队列变过之后按旧下标认错曲目）
+    const entry = chainEntries.find(
+      (item) => item.url === url && queue.value[item.index]?.uid === item.uid,
+    );
+    return entry?.index ?? null;
   }
 
   /** 采纳某个队列下标为当前曲目（元数据 + 歌词 + 持久化） */
@@ -800,8 +837,21 @@ export const usePlayerStore = defineStore("player", () => {
    */
   function republishChain(): void {
     if (!chainEntries.length) return;
-    const position = chainEntries.findIndex((entry) => entry.index === currentIndex.value);
-    engine.setPlayChain(chainEntries, position >= 0 ? position : null);
+    const uid = queue.value[currentIndex.value]?.uid;
+    // 命中的链条目必须同时对上「下标 + uid」，才算指向当前曲目
+    const position = uid
+      ? chainEntries.findIndex((entry) => entry.index === currentIndex.value && entry.uid === uid)
+      : -1;
+    if (position < 0) {
+      // 当前曲目不在链上：这条链已经不能描述「接下来该播什么」了（队列被
+      // 替换 / 插入了新曲目 / 模式刚改过）。绝不能带着「指针为空」的链重新
+      // 下发——引擎会把链首当成下一条，而链首正是切歌前那一首，表现为
+      // 「单曲循环第二遍播回了上一首」。直接清空，交给 syncPlayChain 重解析。
+      chainEntries = [];
+      engine.setPlayChain([], null);
+      return;
+    }
+    engine.setPlayChain(chainEntries, position);
   }
 
   /** 引擎已衔接至下一首：切换曲目元数据（音频由引擎无缝续接） */

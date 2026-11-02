@@ -270,8 +270,14 @@ export class AudioEngine {
    * `entries` 按播放顺序排好，`index` 是该曲目在播放队列中的位置（引擎在
    * advanced 事件里回传，前端据此对齐元数据/歌词）；`current` 为当前曲目
    * 在链上的位置。空数组表示清除（队列/模式变更、硬切换后调用）。
+   *
+   * `uid` 是队列条目的唯一标识（引擎不关心，随链透传，用于前端回读时核对
+   * 「这个下标现在还是不是这首歌」）。
    */
-  setPlayChain(entries: Array<{ index: number; url: string }>, current: number | null): void {
+  setPlayChain(
+    entries: Array<{ index: number; url: string; uid?: string }>,
+    current: number | null,
+  ): void {
     if (!this.inTauri) return;
     // 链上每条也带上各自的请求头：锁屏后引擎自行换曲时前端无法再补
     const payload = entries.map((entry) => ({ ...entry, headers: headersFor(entry.url) }));

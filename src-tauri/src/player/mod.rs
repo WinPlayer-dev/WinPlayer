@@ -734,10 +734,23 @@ impl PlayerEngine {
     }
 
     /// 链上下一条（相对当前指针，到链尾回卷）
+    ///
+    /// 前置校验：链必须与**当前曲目**对齐。前端切歌后若把上一轮队列/模式
+    /// 留下的旧链原样重发（指针为空），链首就是切歌前那一首，引擎沿它前进
+    /// 就会播出「上一首」——典型表现是单曲循环第二遍播回上一首。这里直接
+    /// 判定链不可用，回退 `player://ended` 由前端按当前曲目换曲。
     fn chain_next(&self) -> Option<(usize, String, MediaHeaders)> {
-        self.play_chain
-            .lock()
-            .unwrap()
+        // 先取当前直链再锁链：锁顺序与 gapless_append_slot 保持一致
+        let current_url = self.current_url_str();
+        let chain = self.play_chain.lock().unwrap();
+        if chain.current.is_none() {
+            if let Some(url) = current_url.as_deref() {
+                if !chain.entries.iter().any(|entry| entry.url == url) {
+                    return None;
+                }
+            }
+        }
+        chain
             .next_entry()
             .map(|entry| (entry.index, entry.url.clone(), entry.headers.clone()))
     }
@@ -754,7 +767,19 @@ impl PlayerEngine {
         // 保留，免得丢掉已经解码好的音源。
         let (_, want, want_headers) = match self.chain_next() {
             Some(next) => next,
-            None => return false,
+            // 链不可用（空链 / 旧链）：预载槽如果是前端为本曲之后解析的目标，
+            // 直接等它衔接；槽里就停在本曲上则是空转，回退 ended 更安全。
+            None => {
+                let current = self.current_url_str();
+                let usable = {
+                    let guard = self.pending.lock().unwrap();
+                    match guard.as_ref() {
+                        Some(slot) => Some(slot.url.as_str()) != current.as_deref(),
+                        None => false,
+                    }
+                };
+                return usable && self.wait_gapless_ready(from_id);
+            }
         };
         let stale = {
             let guard = self.pending.lock().unwrap();
