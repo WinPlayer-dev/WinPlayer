@@ -64,6 +64,8 @@ interface PlatformNavItem {
   sourceId: string;
   playlistId: string;
   name: string;
+  /** 平台返回的歌单封面（已归一化为缓存协议地址，可能为空） */
+  cover: string;
   sourceName: string;
   pinned: boolean;
 }
@@ -80,6 +82,7 @@ const platformItems = computed<PlatformNavItem[]>(() => {
         sourceId: group.record.entry.id,
         playlistId: p.id,
         name: p.name,
+        cover: p.cover ?? "",
         sourceName: group.record.entry.manifest.name,
         pinned: Boolean(p.pinned),
       });
@@ -286,7 +289,10 @@ function onPlaylistClick(playlist: LocalPlaylist) {
           @pointercancel="longPress.end"
           @pointerleave="longPress.end"
         >
-          <span class="wp-icon playlist-icon">&#xF4EE;</span>
+          <span class="playlist-cover" :class="{ empty: !playlist.cover }">
+            <CachedImage v-if="playlist.cover" :src="playlist.cover" alt="" />
+            <span v-else class="wp-icon playlist-icon">&#xF4EE;</span>
+          </span>
           <span class="playlist-name ellipsis">{{ playlist.name }}</span>
           <span v-if="playlist.trackCount" class="playlist-badge">{{ playlist.trackCount }}</span>
         </button>
@@ -320,7 +326,10 @@ function onPlaylistClick(playlist: LocalPlaylist) {
               })
             "
           >
-            <span class="wp-icon playlist-icon">&#xF4EE;</span>
+            <span class="playlist-cover" :class="{ empty: !item.cover }">
+              <CachedImage v-if="item.cover" :src="item.cover" alt="" />
+              <span v-else class="wp-icon playlist-icon">&#xF4EE;</span>
+            </span>
             <span class="playlist-name ellipsis">{{ item.name }}</span>
             <span class="playlist-source">{{ item.sourceName }}</span>
           </button>
@@ -559,6 +568,30 @@ function onPlaylistClick(playlist: LocalPlaylist) {
   font-size: 16px;
   color: var(--wp-text-secondary);
   flex: none;
+}
+
+/* 歌单封面缩略图：36px 方图，空歌单回落到文件夹图标（:deep 穿透 CachedImage 的 img） */
+.playlist-cover {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--wp-control-fill-secondary);
+}
+
+.playlist-cover :deep(img) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.playlist-cover.empty {
+  background: transparent;
 }
 
 .playlist-name {

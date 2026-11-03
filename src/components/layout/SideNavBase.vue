@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ContentDialog, TextBox } from "@/components/winui";
+import CachedImage from "@/components/common/CachedImage.vue";
 import { useLibraryStore, type LocalPlaylist } from "@/stores/library";
 import { usePluginsStore, type AggregatedSourceResult } from "@/stores/plugins";
 import { useDownloadsStore } from "@/stores/downloads";
@@ -103,6 +104,8 @@ interface PlatformNavItem {
   sourceId: string;
   playlistId: string;
   name: string;
+  /** 平台返回的歌单封面（已归一化为缓存协议地址，可能为空） */
+  cover: string;
   sourceName: string;
   pinned: boolean;
 }
@@ -120,6 +123,7 @@ const platformItems = computed<PlatformNavItem[]>(() => {
         sourceId: group.record.entry.id,
         playlistId: p.id,
         name: p.name,
+        cover: p.cover ?? "",
         sourceName: group.record.entry.manifest.name,
         pinned: Boolean(p.pinned),
       });
@@ -483,7 +487,10 @@ function isActive(name: string): boolean {
             @dragleave="onItemDragLeave(`local:${playlist.id}`, $event)"
             @drop.prevent.stop="dropOnLocal(playlist, $event)"
           >
-            <span class="wp-icon nav-icon">&#xF4EE;</span>
+            <span class="nav-cover" :class="{ empty: !playlist.cover }">
+              <CachedImage v-if="playlist.cover" :src="playlist.cover" alt="" />
+              <span v-else class="wp-icon nav-cover-icon">&#xF4EE;</span>
+            </span>
             <span class="nav-label ellipsis">{{ playlist.name }}</span>
             <span v-if="dropKey === `local:${playlist.id}`" class="drop-hint">松手添加</span>
             <span v-else-if="playlist.trackCount" class="nav-badge">{{ playlist.trackCount }}</span>
@@ -523,7 +530,10 @@ function isActive(name: string): boolean {
               @dragleave="onItemDragLeave(item.key, $event)"
               @drop.prevent.stop="dropOnPlatform(item, $event)"
             >
-              <span class="wp-icon nav-icon">&#xF4EE;</span>
+              <span class="nav-cover" :class="{ empty: !item.cover }">
+                <CachedImage v-if="item.cover" :src="item.cover" alt="" />
+                <span v-else class="wp-icon nav-cover-icon">&#xF4EE;</span>
+              </span>
               <span class="nav-label ellipsis">{{ item.name }}</span>
               <span v-if="dropKey === item.key" class="drop-hint">松手添加</span>
             </router-link>
@@ -717,6 +727,39 @@ function isActive(name: string): boolean {
   flex: none;
 }
 
+/* 歌单封面：占住图标的位置（22px 槽位），保证有/无封面的行文字左边界对齐；
+   :deep 用于穿透到 CachedImage 的 <img>（其根节点带父组件的 scope id） */
+.nav-cover {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--wp-control-fill-secondary);
+  transition: box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.nav-cover :deep(img) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 无封面（空歌单）时退化为原来的文件夹图标，不额外画圆角底 */
+.nav-cover.empty {
+  background: transparent;
+  border-radius: 0;
+}
+
+.nav-cover-icon {
+  font-size: 18px;
+  color: var(--wp-text-secondary);
+}
+
 .nav-label {
   flex: 1;
   min-width: 0;
@@ -752,6 +795,11 @@ function isActive(name: string): boolean {
 
 .nav-item.drop-target .nav-icon {
   color: var(--wp-accent);
+}
+
+/* 拖拽落点：封面也加一圈强调色描边，与整行高亮呼应 */
+.nav-item.drop-target .nav-cover {
+  box-shadow: 0 0 0 2px var(--wp-accent);
 }
 
 /* 落点提示胶囊：临时替换右侧的计数徽标 */

@@ -22,6 +22,21 @@ interface LikedRow {
   likedAt: number;
 }
 
+/** 歌单列表查询行：firstTrack 是首曲 JSON，用于没设封面时兜底 */
+interface PlaylistRow extends LocalPlaylist {
+  firstTrack?: string | null;
+}
+
+/** 从首曲 JSON 里取封面地址（解析失败按无封面处理） */
+function firstTrackCover(raw?: string | null): string {
+  if (!raw) return "";
+  try {
+    return (JSON.parse(raw) as UnifiedTrack).cover ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export function trackKey(track: UnifiedTrack): string {
   return `${track.sourceId ?? ""}:${track.id}`;
 }
@@ -53,14 +68,26 @@ export const useLibraryStore = defineStore("library", () => {
       .filter((row): row is LikedRow => row !== null);
   }
 
+  /**
+   * 读取歌单列表。
+   *
+   * 本地歌单的 `cover` 列目前没有设置入口（始终为空），所以额外取「首曲」
+   * 的 JSON 兜底：没设封面时用第一首歌的封面，空歌单仍返回空串，由界面
+   * 显示占位图标。侧边栏、添加到歌单选择器、歌单详情页共用这份数据。
+   */
   async function loadPlaylists(): Promise<void> {
     const db = await getDb();
-    const rows = await db.select<LocalPlaylist[]>(
+    const rows = await db.select<PlaylistRow[]>(
       `select p.id, p.name, p.description, p.cover, p.created_at as createdAt, p.updated_at as updatedAt,
-              (select count(*) from playlist_tracks t where t.playlist_id = p.id) as trackCount
+              (select count(*) from playlist_tracks t where t.playlist_id = p.id) as trackCount,
+              (select t.track from playlist_tracks t where t.playlist_id = p.id
+                order by t.position asc limit 1) as firstTrack
        from playlists p order by p.updated_at desc`,
     );
-    playlists.value = rows ?? [];
+    playlists.value = (rows ?? []).map((row) => {
+      const { firstTrack, ...rest } = row;
+      return { ...rest, cover: rest.cover || firstTrackCover(firstTrack) };
+    });
   }
 
   async function loadAll(): Promise<void> {

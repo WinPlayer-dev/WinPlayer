@@ -5,6 +5,7 @@
  */
 import { ref, watch } from "vue";
 import { ContentDialog } from "@/components/winui";
+import CachedImage from "@/components/common/CachedImage.vue";
 import { useLibraryStore } from "@/stores/library";
 import { usePluginsStore } from "@/stores/plugins";
 import { useTrackMetaStore } from "@/stores/trackMeta";
@@ -17,6 +18,8 @@ interface PlaylistOption {
   key: string;
   name: string;
   meta: string;
+  /** 歌单封面（本地歌单无自定义封面时取首曲封面；空歌单为空串） */
+  cover: string;
   kind: "local" | "remote";
   playlistId: string;
   sourceId?: string;
@@ -49,6 +52,7 @@ watch(
       key: `local:${p.id}`,
       name: p.name,
       meta: p.trackCount ? `${p.trackCount} 首 · 本地` : "本地歌单",
+      cover: p.cover ?? "",
       kind: "local",
       playlistId: String(p.id),
     }));
@@ -75,6 +79,7 @@ watch(
             ]
               .filter(Boolean)
               .join(" · "),
+            cover: p.cover ?? "",
             kind: "remote",
             playlistId: p.id,
             sourceId: group.record.entry.id,
@@ -127,7 +132,10 @@ async function pickPlaylist(option: PlaylistOption) {
           :disabled="pickerBusy"
           @click="pickPlaylist(option)"
         >
-          <span class="wp-icon picker-icon">&#xF4EE;</span>
+          <span class="picker-cover" :class="{ empty: !option.cover }">
+            <CachedImage v-if="option.cover" :src="option.cover" alt="" />
+            <span v-else class="wp-icon picker-icon">&#xF4EE;</span>
+          </span>
           <span class="picker-name ellipsis">{{ option.name }}</span>
           <span class="picker-meta ellipsis">{{ option.meta }}</span>
         </button>
@@ -158,20 +166,22 @@ async function pickPlaylist(option: PlaylistOption) {
 .picker-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  max-height: 320px;
+  gap: var(--space-xs);
+  /* 行高放大后一屏能看到的条数减少，列表区同步放宽（对话框自身会滚动） */
+  max-height: 380px;
   overflow-y: auto;
 }
 
+/* 整行都是点击区：48px 高、封面 38px，避免列表密集时点错歌单 */
 .picker-item {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
-  height: 36px;
-  padding: 0 var(--space-md);
+  gap: var(--space-lg);
+  height: 48px;
+  padding: 0 var(--space-lg);
   border: none;
   background: transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   font: inherit;
   color: var(--wp-text-primary);
   cursor: pointer;
@@ -189,15 +199,39 @@ async function pickPlaylist(option: PlaylistOption) {
 }
 
 .picker-icon {
-  font-size: 14px;
+  font-size: 18px;
   color: var(--wp-text-secondary);
   flex: none;
+}
+
+/* 歌单封面缩略图：固定方形，占位图标在其中居中（:deep 穿透到 CachedImage 的 img） */
+.picker-cover {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--wp-control-fill-secondary);
+}
+
+.picker-cover :deep(img) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.picker-cover.empty {
+  background: transparent;
 }
 
 .picker-name {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .picker-meta {
@@ -215,8 +249,8 @@ async function pickPlaylist(option: PlaylistOption) {
 
 /* ---------------------------------- 移动端 ---------------------------------- */
 /* 对话框 teleport 到 body，命中不到 .app-shell 下的触摸尺寸规则，用 html.is-mobile
-   兜住（main.ts 挂在 <html> 上）。桌面 36px 的行高在拇指下太难点，这里放到 48px，
-   字号一起提上去，列表最大高度也放宽——底部面板本身有 86vh 可用。 */
+   兜住（main.ts 挂在 <html> 上）。桌面 48px 的行高在拇指下仍偏小，这里放到 56px，
+   封面与字号一起提上去，列表最大高度也放宽——底部面板本身有 86vh 可用。 */
 html.is-mobile .picker {
   gap: var(--space-md);
 }
@@ -233,13 +267,13 @@ html.is-mobile .picker-hint {
 html.is-mobile .picker-list {
   /* 扣掉标题 / 曲目行 / 按钮区之后能留给列表的空间 */
   max-height: min(56vh, 520px);
-  gap: var(--space-xs);
+  gap: var(--space-sm);
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
 
 html.is-mobile .picker-item {
-  height: 48px;
+  height: 56px;
   gap: var(--space-lg);
   border-radius: var(--radius-md);
 }
@@ -254,11 +288,17 @@ html.is-mobile .picker-item:active:not(:disabled) {
 }
 
 html.is-mobile .picker-icon {
-  font-size: 18px;
+  font-size: 20px;
+}
+
+html.is-mobile .picker-cover {
+  width: 44px;
+  height: 44px;
+  border-radius: 7px;
 }
 
 html.is-mobile .picker-name {
-  font-size: 15px;
+  font-size: 16px;
 }
 
 html.is-mobile .picker-meta {
