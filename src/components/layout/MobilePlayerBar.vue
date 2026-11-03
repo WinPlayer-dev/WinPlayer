@@ -11,6 +11,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import CachedImage from "@/components/common/CachedImage.vue";
 import { useAutoCenter } from "@/composables/useAutoCenter";
+import { useLongPress } from "@/composables/useLongPress";
 import { registerBackInterceptor } from "@/services/backButton";
 import { getSetting, setSetting } from "@/services/db";
 import { findLyricIndex } from "@/services/lrc";
@@ -149,6 +150,25 @@ const liked = computed(() => (player.currentTrack ? library.isLiked(player.curre
 
 async function toggleLikeCurrent(): Promise<void> {
   if (player.currentTrack) await library.toggleLike(player.currentTrack);
+}
+
+/**
+ * 喜欢按钮长按 = 「添加到歌单」快捷入口（移动端没有右键，长按即快捷菜单）。
+ * - 与「更多」里那一项同一判定：没有任何可写歌单时手势完全不启动，短按照常切换喜欢
+ * - 触发后由 useLongPress 吞掉浏览器补发的 click，所以不会顺手把喜欢改掉
+ * - 迷你条 / 全屏页头部两个爱心共用同一个手势控制器
+ */
+const likeLongPress = useLongPress();
+
+function onLikePointerDown(event: PointerEvent): void {
+  if (!canAddToPlaylist.value) return;
+  likeLongPress.start(event, () => {
+    const track = player.currentTrack;
+    if (!track) return;
+    // 全屏页的「更多」面板不该和歌单对话框叠在一起
+    showMore.value = false;
+    openPlaylistPicker(track);
+  });
 }
 
 function openFull(): void {
@@ -745,7 +765,16 @@ onBeforeUnmount(() => {
         <div class="mini-title ellipsis">{{ trackTitle(player.displayTrack) }}</div>
         <div class="mini-artist ellipsis">{{ trackArtist(player.displayTrack) }}</div>
       </div>
-      <WpIconButton class="mini-action" :title="liked ? '取消喜欢' : '添加到我喜欢'" @click.stop="toggleLikeCurrent">
+      <WpIconButton
+        class="mini-action"
+        :title="liked ? '取消喜欢' : '添加到我喜欢'"
+        @click.stop="toggleLikeCurrent"
+        @pointerdown="onLikePointerDown"
+        @pointermove="likeLongPress.move"
+        @pointerup="likeLongPress.end"
+        @pointercancel="likeLongPress.end"
+        @pointerleave="likeLongPress.end"
+      >
         <transition name="icon-pop" mode="out-in">
           <span class="wp-icon" :class="{ filled: liked }" :key="liked ? 'liked' : 'unliked'">{{ liked ? "&#xF47E;" : "&#xF47A;" }}</span>
         </transition>
@@ -799,6 +828,11 @@ onBeforeUnmount(() => {
                 class="full-icon-button"
                 :title="liked ? '取消喜欢' : '添加到我喜欢'"
                 @click="toggleLikeCurrent"
+                @pointerdown="onLikePointerDown"
+                @pointermove="likeLongPress.move"
+                @pointerup="likeLongPress.end"
+                @pointercancel="likeLongPress.end"
+                @pointerleave="likeLongPress.end"
               >
                 <transition name="icon-pop" mode="out-in">
                   <span class="wp-icon" :class="{ filled: liked }" :key="liked ? 'liked' : 'unliked'">{{ liked ? "&#xF47E;" : "&#xF47A;" }}</span>
