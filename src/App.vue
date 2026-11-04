@@ -38,6 +38,7 @@ import { useUpdaterStore } from "@/stores/updater";
 import { disposeSmtc, initSmtc, setCarMode, setSmtcEnabled } from "@/services/smtc";
 import { initTray, disposeTray } from "@/services/tray";
 import { setAppHidden, setOptimizeEnabled } from "@/services/backgroundMode";
+import { initDesktopLyrics, disposeDesktopLyrics } from "@/services/desktopLyrics";
 import { refreshAccentFromCover } from "@/services/coverAccent";
 import { installBackButton, uninstallBackButton } from "@/services/backButton";
 import { uninstallKeyboardInset } from "@/services/keyboard";
@@ -169,6 +170,8 @@ onMounted(async () => {
     initSmtc(player);
     // 系统托盘（仅 Windows）：可见性事件驱动后台模式，切歌刷新托盘提示
     initTray(player);
+    // 桌面歌词：独立置顶窗口，按上次的开关状态恢复（移动端没有多窗口，跳过）
+    if (!isMobile) void initDesktopLyrics(player, settings);
     // 离线下载：订阅进度、解析默认目录、载入离线索引（不阻塞首屏）
     void downloads.init();
     // 本地曲库（内置播放源）：读索引后后台增量扫描，不阻塞首屏
@@ -224,6 +227,7 @@ onUnmounted(() => {
   stopOptimizeWatch();
   disposeSmtc();
   disposeTray();
+  disposeDesktopLyrics();
   void uninstallBackButton();
   uninstallKeyboardInset();
 });

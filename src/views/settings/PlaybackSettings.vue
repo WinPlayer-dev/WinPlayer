@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { ComboBox, Slider, TextBox, ToggleSwitch } from "@/components/winui";
-import { useSettingsStore, DEFAULT_SOURCE_SEARCH_FORMAT } from "@/stores/settings";
+import {
+  DESKTOP_LYRICS_FONT_MAX,
+  DESKTOP_LYRICS_FONT_MIN,
+  DEFAULT_SOURCE_SEARCH_FORMAT,
+  useSettingsStore,
+} from "@/stores/settings";
 import { usePluginsStore } from "@/stores/plugins";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { getAudioEngine } from "@/services/audio";
@@ -164,6 +169,30 @@ function onOutputDeviceChange(_sender: unknown, payload?: { AddedItems?: unknown
   if (value !== settings.outputDevice) void settings.setOutputDevice(value);
 }
 
+/* ------------------------------ 桌面歌词 ------------------------------ */
+
+/** 外观下拉：与 settings.desktopLyricsStyle 一一对应 */
+const LYRICS_STYLE_LABELS = ["纯文字", "歌曲卡片"];
+
+const lyricsStyleIndex = computed(() => (settings.desktopLyricsStyle === "glass" ? 1 : 0));
+
+function onLyricsStyleChange(_sender: unknown, payload?: { AddedItems?: unknown[] }): void {
+  const label = String(payload?.AddedItems?.[0] ?? "");
+  void settings.setDesktopLyricsStyle(label === "歌曲卡片" ? "glass" : "plain");
+}
+
+function onDesktopLyricsToggle(event: { IsOn: boolean }): void {
+  void settings.setDesktopLyricsEnabled(Boolean(event?.IsOn));
+}
+
+function onLyricsLockToggle(event: { IsOn: boolean }): void {
+  void settings.setDesktopLyricsLocked(Boolean(event?.IsOn));
+}
+
+function onLyricsFontInput(value: number): void {
+  void settings.setDesktopLyricsFontSize(value);
+}
+
 onMounted(() => {
   void loadOutputDevices();
 });
@@ -260,6 +289,68 @@ function formatGain(gain: number | undefined): string {
           <div class="card-description">移动端自动切歌无缝衔接，不支持混音过渡</div>
         </div>
       </WpCard>
+    </section>
+
+    <!-- 桌面歌词（独立置顶窗口，仅桌面端） -->
+    <section v-if="!isMobile" class="settings-section">
+      <h2 class="settings-section-title">桌面歌词</h2>
+      <WpCard variant="row">
+        <div class="card-content">
+          <div class="card-header">显示桌面歌词</div>
+          <div class="card-description">
+            在桌面上显示一个置顶歌词窗，可拖动到任意位置（位置会被记住），不占任务栏
+          </div>
+        </div>
+        <ToggleSwitch :IsOn="settings.desktopLyricsEnabled" @Toggled="onDesktopLyricsToggle" />
+      </WpCard>
+
+      <template v-if="settings.desktopLyricsEnabled">
+        <WpCard variant="row">
+          <div class="card-content">
+            <div class="card-header">外观</div>
+            <div class="card-description">
+              纯文字用描边投影，压在亮壁纸上也看得清；歌曲卡片带歌曲信息与封面模糊底色
+            </div>
+          </div>
+          <ComboBox
+            class="card-control"
+            :ItemsSource="LYRICS_STYLE_LABELS"
+            :SelectedIndex="lyricsStyleIndex"
+            @SelectionChanged="onLyricsStyleChange"
+          />
+        </WpCard>
+
+        <WpCard variant="column">
+          <div class="card-content">
+            <div class="card-header">字号</div>
+            <div class="card-description">当前行字号，上下句按比例缩小</div>
+          </div>
+          <div class="lyrics-font-row">
+            <Slider
+              class="lyrics-font-slider"
+              :Value="settings.desktopLyricsFontSize"
+              :Minimum="DESKTOP_LYRICS_FONT_MIN"
+              :Maximum="DESKTOP_LYRICS_FONT_MAX"
+              :StepFrequency="2"
+              :SmallChange="2"
+              :LargeChange="4"
+              :IsThumbToolTipEnabled="false"
+              @update:Value="onLyricsFontInput"
+            />
+            <span class="lyrics-font-value">{{ settings.desktopLyricsFontSize }}px</span>
+          </div>
+        </WpCard>
+
+        <WpCard variant="row">
+          <div class="card-content">
+            <div class="card-header">锁定（鼠标穿透）</div>
+            <div class="card-description">
+              锁定后点击直接落到下面的窗口，歌词不再挡住操作；解锁请回到这里或播放条「更多」
+            </div>
+          </div>
+          <ToggleSwitch :IsOn="settings.desktopLyricsLocked" @Toggled="onLyricsLockToggle" />
+        </WpCard>
+      </template>
     </section>
 
     <!-- 输出设备（仅桌面端可枚举选择） -->
@@ -363,6 +454,28 @@ function formatGain(gain: number | undefined): string {
 .output-device-control :deep(.wp-combo-box) {
   flex: 1;
   min-width: 0;
+}
+
+/* 桌面歌词字号：滑杆 + 数值 */
+.lyrics-font-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  width: 100%;
+}
+
+.lyrics-font-slider {
+  flex: 1;
+  min-width: 0;
+}
+
+.lyrics-font-value {
+  flex: none;
+  min-width: 48px;
+  text-align: right;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--wp-text-secondary);
 }
 
 /* 均衡器：10 段竖向滑杆 */

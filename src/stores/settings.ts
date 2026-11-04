@@ -29,6 +29,20 @@ export type UpdateCheckFrequency = "startup" | "daily" | "manual";
 /** 关闭按钮行为：关闭到托盘 / 最小化到任务栏 / 直接退出 */
 export type CloseBehavior = "tray" | "minimize" | "quit";
 
+/** 桌面歌词外观：无底色纯文字 + 描边投影 / 歌曲卡片（封面模糊底 + 歌曲信息） */
+export type DesktopLyricsStyle = "plain" | "glass";
+
+/** 桌面歌词字号范围（px）：下限保证小屏看得清，上限与歌词窗口固定高度对齐 */
+export const DESKTOP_LYRICS_FONT_MIN = 20;
+export const DESKTOP_LYRICS_FONT_MAX = 36;
+
+/** 把持久化 / 用户输入的字号夹到合法区间（老版本或手改数据库时兜底） */
+export function normalizeLyricsFontSize(value: unknown): number {
+  const size = Math.round(Number(value));
+  if (!Number.isFinite(size)) return 30;
+  return Math.min(DESKTOP_LYRICS_FONT_MAX, Math.max(DESKTOP_LYRICS_FONT_MIN, size));
+}
+
 /** 冷启动后直接进入的页面（默认推荐页） */
 export type StartupPage = "recommend" | "liked" | "offline" | "mine";
 
@@ -138,6 +152,17 @@ export const useSettingsStore = defineStore("settings", () => {
   const closeBehavior = ref<CloseBehavior>("tray");
   /** 后台优化：窗口隐藏（托盘/最小化）时降低渲染与轮询开销（默认开启） */
   const backgroundOptimize = ref(true);
+  /**
+   * 桌面歌词：独立置顶透明窗口是否开启（仅桌面端）。
+   * 关掉只是销毁窗口，不影响播放；重新打开会恢复上次拖到的位置。
+   */
+  const desktopLyricsEnabled = ref(false);
+  /** 桌面歌词外观：纯文字描边 / 歌曲卡片 */
+  const desktopLyricsStyle = ref<DesktopLyricsStyle>("plain");
+  /** 桌面歌词当前行字号（px） */
+  const desktopLyricsFontSize = ref(30);
+  /** 桌面歌词是否锁定（鼠标穿透到下层窗口，只能回主窗口解锁） */
+  const desktopLyricsLocked = ref(false);
   /** 触感反馈（震动，仅移动端生效） */
   const hapticsEnabled = ref(true);
   /** 是否跟随当前播放封面提取主色作为应用强调色 */
@@ -252,6 +277,15 @@ export const useSettingsStore = defineStore("settings", () => {
     await setWindowStateEnabled(rememberWindowState.value);
     closeBehavior.value = await getSetting<CloseBehavior>("settings.closeBehavior", "tray");
     backgroundOptimize.value = await getSetting<boolean>("settings.backgroundOptimize", true);
+    desktopLyricsEnabled.value = await getSetting<boolean>("settings.desktopLyricsEnabled", false);
+    desktopLyricsStyle.value =
+      (await getSetting<string>("settings.desktopLyricsStyle", "plain")) === "glass"
+        ? "glass"
+        : "plain";
+    desktopLyricsFontSize.value = normalizeLyricsFontSize(
+      await getSetting<number>("settings.desktopLyricsFontSize", 30),
+    );
+    desktopLyricsLocked.value = await getSetting<boolean>("settings.desktopLyricsLocked", false);
     // 把关闭行为同步给 Rust（托盘拦截关闭、最小化/退出判定）
     await import("@/services/tray").then(({ setCloseBehavior }) => setCloseBehavior(closeBehavior.value));
     hapticsEnabled.value = await getSetting<boolean>("settings.hapticsEnabled", true);
@@ -333,6 +367,30 @@ export const useSettingsStore = defineStore("settings", () => {
   async function setBackgroundOptimize(value: boolean): Promise<void> {
     backgroundOptimize.value = value;
     await setSetting("settings.backgroundOptimize", value);
+  }
+
+  /** 开关桌面歌词窗口：窗口本身由 `services/desktopLyrics` 监听这个值来创建 / 销毁 */
+  async function setDesktopLyricsEnabled(value: boolean): Promise<void> {
+    desktopLyricsEnabled.value = value;
+    await setSetting("settings.desktopLyricsEnabled", value);
+    // 关窗顺手解锁：否则下次打开时窗口一出现就穿透，用户会以为「打不开」
+    if (!value && desktopLyricsLocked.value) await setDesktopLyricsLocked(false);
+  }
+
+  async function setDesktopLyricsStyle(value: DesktopLyricsStyle): Promise<void> {
+    desktopLyricsStyle.value = value === "glass" ? "glass" : "plain";
+    await setSetting("settings.desktopLyricsStyle", desktopLyricsStyle.value);
+  }
+
+  async function setDesktopLyricsFontSize(value: number): Promise<void> {
+    desktopLyricsFontSize.value = normalizeLyricsFontSize(value);
+    await setSetting("settings.desktopLyricsFontSize", desktopLyricsFontSize.value);
+  }
+
+  /** 锁定 = 整个歌词窗口鼠标穿透，避免挡住下面窗口的点击 */
+  async function setDesktopLyricsLocked(value: boolean): Promise<void> {
+    desktopLyricsLocked.value = value;
+    await setSetting("settings.desktopLyricsLocked", value);
   }
 
   async function setHaptics(value: boolean): Promise<void> {
@@ -558,6 +616,10 @@ export const useSettingsStore = defineStore("settings", () => {
     rememberWindowState,
     closeBehavior,
     backgroundOptimize,
+    desktopLyricsEnabled,
+    desktopLyricsStyle,
+    desktopLyricsFontSize,
+    desktopLyricsLocked,
     hapticsEnabled,
     coverAccent,
     coverNaturalRatio,
@@ -597,6 +659,10 @@ export const useSettingsStore = defineStore("settings", () => {
     setRememberWindowState,
     setCloseBehavior,
     setBackgroundOptimize,
+    setDesktopLyricsEnabled,
+    setDesktopLyricsStyle,
+    setDesktopLyricsFontSize,
+    setDesktopLyricsLocked,
     setHaptics,
     setCoverAccent,
     setCoverNaturalRatio,

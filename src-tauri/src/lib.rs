@@ -178,6 +178,11 @@ pub fn run() {
                 commands::plugins::plugin_remove,
                 commands::plugins::plugin_storage_get,
                 commands::plugins::plugin_storage_set,
+                commands::lyrics_window::lyrics_window_open,
+                commands::lyrics_window::lyrics_window_close,
+                commands::lyrics_window::lyrics_window_exists,
+                commands::lyrics_window::lyrics_window_set_ignore_cursor,
+                commands::lyrics_window::lyrics_window_set_style,
                 commands::localmusic::local_music_scan,
                 commands::localmusic::local_music_lyrics,
                 commands::webdav::builtin_cover_fetch,
@@ -278,6 +283,28 @@ pub fn run() {
                         }
                         tauri::WindowEvent::CloseRequested { .. } => {
                             window_state::save_now(window.app_handle());
+                        }
+                        _ => {}
+                    }
+                }
+                // 桌面歌词窗口：位置和尺寸单独存一份（生命周期与主窗口不同）。
+                // 尺寸按「当前外观」分开记，切回纯文字 / 歌曲卡片时各用各的。
+                #[cfg(winplayer_desktop)]
+                if window.label() == commands::lyrics_window::LYRICS_WINDOW {
+                    match event {
+                        tauri::WindowEvent::Moved(position) => {
+                            commands::lyrics_window::on_moved(
+                                window.app_handle(),
+                                position.x,
+                                position.y,
+                            );
+                        }
+                        tauri::WindowEvent::Resized(size) => {
+                            commands::lyrics_window::on_resized(
+                                window.app_handle(),
+                                size.width,
+                                size.height,
+                            );
                         }
                         _ => {}
                     }

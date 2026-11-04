@@ -188,7 +188,9 @@ function toggleDownloads(): void {
 }
 
 /** 「更多」二级菜单：一级列出不常用入口，二级展开倍速档位 / 输出设备 / 音质 / 睡眠定时器 */
-const moreView = ref<"root" | "rate" | "device" | "quality" | "sleep" | "ab" | null>(null);
+const moreView = ref<"root" | "rate" | "device" | "quality" | "sleep" | "ab" | "lyrics" | null>(
+  null,
+);
 const morePicker = ref<HTMLElement | null>(null);
 
 /** 「添加到歌单」入口：没有任何可写歌单时整项隐藏（与歌曲行菜单同一判定） */
@@ -206,6 +208,31 @@ function addCurrentToPlaylist(): void {
 function openStudio(): void {
   moreView.value = null;
   void router.push({ name: "studio" });
+}
+
+/* ------------------------------ 桌面歌词 ------------------------------ */
+
+/**
+ * 桌面歌词：独立置顶透明窗口，开关状态持久化在设置里，
+ * 由 `services/desktopLyrics` 监听设置值来创建 / 销毁窗口。
+ */
+function toggleDesktopLyrics(): void {
+  void settings.setDesktopLyricsEnabled(!settings.desktopLyricsEnabled);
+}
+
+/** 「更多」菜单里的摘要文案：一眼看出窗口现在是什么状态 */
+const desktopLyricsSummary = computed(() => {
+  if (!settings.desktopLyricsEnabled) return "关闭";
+  return settings.desktopLyricsLocked ? "已锁定" : "显示中";
+});
+
+function stepLyricsFont(delta: number): void {
+  void settings.setDesktopLyricsFontSize(settings.desktopLyricsFontSize + delta);
+}
+
+/** 锁定后整个歌词窗口鼠标穿透，只能从这里（主窗口）解开 */
+function toggleLyricsLock(): void {
+  void settings.setDesktopLyricsLocked(!settings.desktopLyricsLocked);
 }
 
 /** 睡眠定时器：按钮高亮与二级菜单摘要都依赖它的状态 */
@@ -403,6 +430,13 @@ onUnmounted(() => {
         <WpIconButton :active="player.showLyrics" title="歌词" :disabled="!player.currentTrack" @click="player.showLyrics = !player.showLyrics; player.showQueue = false; downloads.panelOpen = false">
           <span class="wp-icon">&#xF801;</span>
         </WpIconButton>
+        <WpIconButton
+          :active="settings.desktopLyricsEnabled"
+          :title="settings.desktopLyricsEnabled ? '关闭桌面歌词' : '桌面歌词'"
+          @click="toggleDesktopLyrics"
+        >
+          <span class="wp-icon">&#xEE5E;</span>
+        </WpIconButton>
       </div>
       <div class="seek-row">
         <span class="time">{{ seekTime }}</span>
@@ -525,6 +559,17 @@ onUnmounted(() => {
                     <span class="wp-icon more-item-chevron">&#xF2B0;</span>
                   </span>
                 </button>
+                <button
+                  class="more-item"
+                  :class="{ 'is-on': settings.desktopLyricsEnabled }"
+                  @click="moreView = 'lyrics'"
+                >
+                  <span class="more-item-label">桌面歌词</span>
+                  <span class="more-item-tail">
+                    <span class="more-item-value">{{ desktopLyricsSummary }}</span>
+                    <span class="wp-icon more-item-chevron">&#xF2B0;</span>
+                  </span>
+                </button>
               </div>
               <div v-else-if="moreView === 'rate'" key="rate" class="more-page">
                 <button class="more-back" @click="moreView = 'root'">
@@ -610,6 +655,59 @@ onUnmounted(() => {
                 </button>
                 <p class="more-hint">
                   写入 {{ quality.support.value?.sourceName }} 的音质设置；取不到时自动降级
+                </p>
+              </div>
+              <div v-else-if="moreView === 'lyrics'" key="lyrics" class="more-page">
+                <button class="more-back" @click="moreView = 'root'">
+                  <span class="wp-icon">&#xF2AA;</span>
+                  <span>桌面歌词</span>
+                </button>
+                <button class="more-item" @click="toggleDesktopLyrics">
+                  <span class="more-item-label">
+                    {{ settings.desktopLyricsEnabled ? "关闭桌面歌词" : "开启桌面歌词" }}
+                  </span>
+                  <span v-if="settings.desktopLyricsEnabled" class="wp-icon more-item-check">
+                    &#xF294;
+                  </span>
+                </button>
+                <button
+                  class="more-item"
+                  :disabled="!settings.desktopLyricsEnabled"
+                  @click="toggleLyricsLock"
+                >
+                  <span class="more-item-label">锁定（鼠标穿透）</span>
+                  <span v-if="settings.desktopLyricsLocked" class="wp-icon more-item-check">
+                    &#xF294;
+                  </span>
+                </button>
+                <div class="lyrics-style-row">
+                  <button
+                    class="lyrics-style"
+                    :class="{ on: settings.desktopLyricsStyle === 'plain' }"
+                    @click="settings.setDesktopLyricsStyle('plain')"
+                  >
+                    纯文字
+                  </button>
+                  <button
+                    class="lyrics-style"
+                    :class="{ on: settings.desktopLyricsStyle === 'glass' }"
+                    @click="settings.setDesktopLyricsStyle('glass')"
+                  >
+                    歌曲卡片
+                  </button>
+                </div>
+                <div class="lyrics-size-row">
+                  <span class="lyrics-size-label">字号</span>
+                  <button class="lyrics-size-button" title="缩小" @click="stepLyricsFont(-2)">
+                    A-
+                  </button>
+                  <span class="lyrics-size-value">{{ settings.desktopLyricsFontSize }}</span>
+                  <button class="lyrics-size-button" title="放大" @click="stepLyricsFont(2)">
+                    A+
+                  </button>
+                </div>
+                <p class="more-hint">
+                  歌词窗可拖动；锁定后鼠标穿透到下层窗口，需回主窗口解锁
                 </p>
               </div>
               <div v-else key="sleep" class="more-page">
@@ -1076,6 +1174,74 @@ onUnmounted(() => {
 /* 已生效的开关型菜单项（如睡眠定时器倒计时中）：值文本用强调色提示 */
 .more-item.is-on .more-item-value {
   color: var(--wp-accent);
+}
+
+/* 桌面歌词二级页：外观分段按钮 + 字号步进 */
+.lyrics-style-row {
+  display: flex;
+  gap: 4px;
+  padding: 2px 10px 4px;
+}
+
+.lyrics-style {
+  flex: 1;
+  height: 28px;
+  border: 1px solid var(--wp-control-stroke);
+  border-radius: var(--radius-sm);
+  background: var(--wp-control-fill-secondary);
+  color: var(--wp-text-primary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.lyrics-style:hover {
+  background: var(--wp-control-fill-tertiary);
+}
+
+.lyrics-style.on {
+  background: var(--wp-accent);
+  border-color: var(--wp-accent);
+  color: var(--wp-text-on-accent);
+}
+
+.lyrics-size-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 4px 10px;
+}
+
+.lyrics-size-label {
+  flex: 1;
+  font-size: 13px;
+}
+
+.lyrics-size-value {
+  min-width: 26px;
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--wp-text-secondary);
+}
+
+.lyrics-size-button {
+  width: 30px;
+  height: 26px;
+  border: 1px solid var(--wp-control-stroke);
+  border-radius: var(--radius-sm);
+  background: var(--wp-control-fill-secondary);
+  color: var(--wp-text-primary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lyrics-size-button:hover {
+  background: var(--wp-control-fill-tertiary);
 }
 
 /* 二级菜单里的说明文字（音质可能被自动降级等） */

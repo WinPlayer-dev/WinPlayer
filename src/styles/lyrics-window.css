@@ -1,0 +1,36 @@
+/**
+ * 桌面歌词窗口的基础样式。
+ *
+ * 这个窗口是 `transparent: true` 的，**任何一处不透明背景都会变成一块黑框**，
+ * 所以这里只做最基础的重置，且显式把 html / body / #app 设成 transparent。
+ * 主窗口那套 global.css / tokens.css 一律不加载。
+ */
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+body {
+  font-family:
+    "Microsoft YaHei UI",
+    "Microsoft YaHei",
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  /* 歌词窗口不该出现文本选择 / 拖选高亮 */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
