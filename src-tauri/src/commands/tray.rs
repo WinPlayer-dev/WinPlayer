@@ -12,6 +12,9 @@
 /// `settings.closeBehavior`，双写会引入 sqlite 并发与一致性问题。
 #[tauri::command]
 pub fn tray_set_close_behavior(app: tauri::AppHandle, behavior: String) {
+    // 非 Windows 没有托盘：参数在实现体里自然用不上，显式消费掉避免 unused 警告
+    #[cfg(not(windows))]
+    let _ = (&app, &behavior);
     #[cfg(windows)]
     {
         use tauri::Manager;
@@ -25,6 +28,8 @@ pub fn tray_set_close_behavior(app: tauri::AppHandle, behavior: String) {
 /// 显示/隐藏主窗口（例如「最小化到托盘」按钮）
 #[tauri::command]
 pub fn tray_toggle_window(app: tauri::AppHandle) {
+    #[cfg(not(windows))]
+    let _ = &app;
     #[cfg(windows)]
     crate::tray::toggle_main_window(&app);
 }
@@ -32,6 +37,8 @@ pub fn tray_toggle_window(app: tauri::AppHandle) {
 /// 隐藏主窗口到托盘
 #[tauri::command]
 pub fn tray_hide_window(app: tauri::AppHandle) {
+    #[cfg(not(windows))]
+    let _ = &app;
     #[cfg(windows)]
     crate::tray::hide_main_window(&app);
 }
@@ -39,6 +46,8 @@ pub fn tray_hide_window(app: tauri::AppHandle) {
 /// 真正退出应用（托盘菜单「退出」的前端等价物）
 #[tauri::command]
 pub fn tray_quit(app: tauri::AppHandle) {
+    #[cfg(not(windows))]
+    let _ = &app;
     #[cfg(windows)]
     crate::tray::quit_app(&app);
 }
@@ -46,6 +55,8 @@ pub fn tray_quit(app: tauri::AppHandle) {
 /// 更新托盘 tooltip（前端在切歌时推送「歌名 - 歌手」）
 #[tauri::command]
 pub fn tray_set_tooltip(app: tauri::AppHandle, text: String) {
+    #[cfg(not(windows))]
+    let _ = (&app, &text);
     #[cfg(windows)]
     {
         if let Some(tray) = app.tray_by_id("main") {

@@ -272,6 +272,9 @@ pub fn run() {
                 Ok(())
             })
             .on_window_event(|window, event| {
+                // 移动端下面每一段都是 Windows / 桌面端专属，两个参数一次也用不到
+                #[cfg(not(winplayer_desktop))]
+                let _ = (&window, &event);
                 // 拦截主窗口关闭请求：按「关闭行为」隐藏 / 最小化 / 退出。
                 // 仅 Windows 有托盘；其他平台维持默认「关闭即退出」。
                 #[cfg(windows)]
