@@ -12,6 +12,7 @@ import { toast } from "@/services/toast";
 import { applyGithubMirror, resolveAssetUrl } from "@/services/githubMirror";
 import { QUALITY_SETTING_KEY, qualityChainOf } from "@/services/quality";
 import { rememberMediaHeaders } from "@/services/audio";
+import { demoName } from "@/services/demoMode";
 import {
   BUILTIN_ENTRIES,
   builtinSourceHost,
@@ -966,10 +967,10 @@ function withCover<T extends { cover?: string }>(item: T): T {
   return { ...item, cover: cachedImgUrl(item.cover) };
 }
 
-/** 供外部（如视图）判断插件来源显示名 */
+/** 供外部（如视图）判断插件来源显示名；演示模式下统一返回通用名 */
 export function pluginDisplayName(records: PluginRecord[], sourceId?: string): string {
   if (!sourceId) return "";
-  return records.find((r) => r.entry.id === sourceId)?.entry.manifest.name ?? sourceId;
+  return demoName(records.find((r) => r.entry.id === sourceId)?.entry.manifest.name ?? sourceId);
 }
 
 /** 把各种来源的错误压成一句可读文本（汇总多来源失败原因时用） */

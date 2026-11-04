@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { usePluginsStore, type AggregatedSourceResult, type PluginRecord } from "@/stores/plugins";
 import { usePlayerStore } from "@/stores/player";
@@ -10,12 +10,13 @@ import { useSettingsStore } from "@/stores/settings";
 import { openContextMenu, openContextMenuAt, type ContextMenuItem } from "@/services/contextMenu";
 import { openTrackMetaEditor } from "@/services/trackMetaEditor";
 import { useLongPress } from "@/composables/useLongPress";
-import { openPlaylistPicker } from "@/services/playlistPicker";
+import { openPlaylistPicker, useCanAddToPlaylist } from "@/services/playlistPicker";
 import { endTrackDrag, startTrackDrag } from "@/services/trackDrag";
 import { copyText } from "@/services/clipboard";
 import { trackArtist, trackTitle } from "@/types/player";
 import type { RecommendResult, UnifiedTrack } from "@/types/plugin";
 import { getCachedData, setCachedData } from "@/services/cache";
+import { demoName } from "@/services/demoMode";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { useRefreshable } from "@/composables/useRefreshable";
 import PlaylistCard from "@/components/common/PlaylistCard.vue";
@@ -96,11 +97,8 @@ function onSongClick(section: SectionView, index: number) {
 
 /* ------------------------------ 歌曲卡片右键菜单 ------------------------------ */
 
-const canAddToPlaylist = computed(
-  () =>
-    library.playlists.length > 0 ||
-    plugins.records.some((r) => r.enabled && plugins.hasCapability(r, "myPlaylists")),
-);
+/** 与歌曲列表 / 播放条共用同一判定（演示模式下入口整体隐藏） */
+const canAddToPlaylist = useCanAddToPlaylist();
 
 /** 推荐歌曲菜单项：添加到歌单 / 添加到喜欢 / 复制歌曲名 / 复制歌曲别名 */
 function songMenuItems(song: UnifiedTrack): ContextMenuItem[] {
@@ -228,7 +226,7 @@ onMounted(loadWithCache);
 
       <div v-if="errors.length" class="error-list">
         <p v-for="item in errors" :key="item.record.entry.id" class="error-item">
-          「{{ item.record.entry.manifest.name }}」加载失败：{{ item.error }}
+          「{{ demoName(item.record.entry.manifest.name) }}」加载失败：{{ item.error }}
         </p>
       </div>
 
@@ -241,7 +239,7 @@ onMounted(loadWithCache);
 
       <section v-for="section in sections" :key="section.sourceId" class="source-section">
         <h2 class="wp-section-title">
-          {{ section.name }}
+          {{ demoName(section.name) }}
           <span class="section-sub">的推荐</span>
         </h2>
 

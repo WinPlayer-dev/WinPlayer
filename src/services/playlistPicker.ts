@@ -3,6 +3,7 @@
 import { computed, reactive, type ComputedRef } from "vue";
 import { useLibraryStore } from "@/stores/library";
 import { usePluginsStore } from "@/stores/plugins";
+import { demoMode } from "@/services/demoMode";
 import type { UnifiedTrack } from "@/types/plugin";
 
 interface PlaylistPickerState {
@@ -28,6 +29,7 @@ export function closePlaylistPicker(): void {
 /**
  * 「添加到歌单」入口是否该显示：本地歌单非空，或某个启用中的插件支持平台个人歌单。
  * 歌曲行、播放条「更多」、全屏歌词页「更多」共用同一判定，避免各入口口径不一致。
+ * 演示模式下歌单入口整体隐藏，这里一并返回 false。
  * 必须在组件 setup 期调用（内部要解析 store）。
  */
 export function useCanAddToPlaylist(): ComputedRef<boolean> {
@@ -35,7 +37,8 @@ export function useCanAddToPlaylist(): ComputedRef<boolean> {
   const plugins = usePluginsStore();
   return computed(
     () =>
-      library.playlists.length > 0 ||
-      plugins.records.some((r) => r.enabled && plugins.hasCapability(r, "myPlaylists")),
+      !demoMode.value &&
+      (library.playlists.length > 0 ||
+        plugins.records.some((r) => r.enabled && plugins.hasCapability(r, "myPlaylists"))),
   );
 }

@@ -7,6 +7,7 @@ import { getSetting, setSetting } from "@/services/db";
 import { getAudioEngine } from "@/services/audio";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { setHapticsEnabled } from "@/services/haptics";
+import { setDemoModeState, demoMode } from "@/services/demoMode";
 import { clearDataCache } from "@/services/cache";
 import { applyWindowMaterial, type WindowMaterial } from "@/services/windowMaterial";
 import { setWindowStateEnabled } from "@/services/windowState";
@@ -101,6 +102,12 @@ export const useSettingsStore = defineStore("settings", () => {
    * 已有录音数据不会被删除。
    */
   const studioEnabled = ref(false);
+  /**
+   * 演示模式（录屏 / 截图用）：打开后界面上的播放源名称统一显示成通用名，
+   * 歌单 / 平台歌单的入口整体隐藏。只影响显示，不动数据。
+   * 状态本体在 services/demoMode（模板与工具函数都要读它），这里直接暴露同一个 ref，
+   * 避免「store 一份、服务一份」导致两边不同步。
+   */
   /**
    * 打开时页面：每次冷启动后直接进入所选页面（仅在 App 初始化时跳一次，
    * 之后手动回首页仍是推荐页）。「我的」只在移动端可选。
@@ -246,6 +253,7 @@ export const useSettingsStore = defineStore("settings", () => {
     theme.value = await getSetting<ThemePreference>("settings.theme", "system");
     onboardingDone.value = await getSetting<boolean>("settings.onboardingDone", false);
     studioEnabled.value = await getSetting<boolean>("settings.studioEnabled", false);
+    demoMode.value = await getSetting<boolean>("settings.demoMode", false);
     startupPage.value = normalizeStartupPage(
       await getSetting<string>("settings.startupPage", "recommend"),
     );
@@ -442,6 +450,12 @@ export const useSettingsStore = defineStore("settings", () => {
     await setSetting("settings.studioEnabled", value);
   }
 
+  /** 开关演示模式：同步给 demoMode 服务，界面各处据此隐藏来源名与歌单入口 */
+  async function setDemoMode(value: boolean): Promise<void> {
+    setDemoModeState(value);
+    await setSetting("settings.demoMode", value);
+  }
+
   /** 切换打开时页面：只写入偏好，下次冷启动才生效（不影响当前所在页面） */
   async function setStartupPage(value: StartupPage): Promise<void> {
     startupPage.value = normalizeStartupPage(value);
@@ -626,6 +640,7 @@ export const useSettingsStore = defineStore("settings", () => {
     historyEnabled,
     onboardingDone,
     studioEnabled,
+    demoMode,
     startupPage,
     marketSources,
     githubMirror,
@@ -670,6 +685,7 @@ export const useSettingsStore = defineStore("settings", () => {
     setMarketSources,
     setOnboardingDone,
     setStudioEnabled,
+    setDemoMode,
     setStartupPage,
     setGithubMirror,
     setSmtcEnabled,

@@ -23,6 +23,7 @@ import { useQualityControl } from "@/services/quality";
 import { useRecorderStore } from "@/stores/recorder";
 import { useSettingsStore } from "@/stores/settings";
 import { openPlaylistPicker, useCanAddToPlaylist } from "@/services/playlistPicker";
+import { demoName } from "@/services/demoMode";
 import WpIconButton from "@/components/theme/WpIconButton.vue";
 import SleepTimerPicker from "@/components/common/SleepTimerPicker.vue";
 import {
@@ -1132,7 +1133,7 @@ onBeforeUnmount(() => {
                 </WpIconButton>
               </div>
               <div class="offset-hint">
-                {{ quality.support.value?.sourceName }} · 取不到该档位时自动降级
+                {{ demoName(quality.support.value?.sourceName) }} · 取不到该档位时自动降级
               </div>
               <div class="quality-list">
                 <button

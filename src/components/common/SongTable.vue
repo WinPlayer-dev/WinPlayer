@@ -7,7 +7,7 @@ import { useRouter, type RouteLocationRaw } from "vue-router";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
-import { usePluginsStore } from "@/stores/plugins";
+import { pluginDisplayName, usePluginsStore } from "@/stores/plugins";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useHistoryStore } from "@/stores/history";
 import { useTrackMetaStore } from "@/stores/trackMeta";
@@ -110,9 +110,8 @@ const rows = computed(() =>
       liked: library.isLiked(track),
       downloaded: downloads.isDownloaded(track),
       playing: player.currentTrack !== null && `${player.currentTrack.sourceId ?? ""}:${player.currentTrack.id}` === `${track.sourceId ?? ""}:${track.id}`,
-      sourceName: track.sourceId
-        ? plugins.records.find((r) => r.entry.id === track.sourceId)?.entry.manifest.name ?? track.sourceId
-        : "",
+      // 演示模式下 pluginDisplayName 会统一返回通用来源名
+      sourceName: pluginDisplayName(plugins.records, track.sourceId),
       artists: artistCells(view),
       album: albumCell(view),
       playCount: props.showPlayCount ? history.countOf(track) : 0,

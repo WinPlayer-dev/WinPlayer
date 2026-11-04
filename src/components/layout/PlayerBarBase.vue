@@ -26,6 +26,7 @@ import WpIconButton from "@/components/theme/WpIconButton.vue";
 import { useSleepTimer } from "@/services/sleepTimer";
 import { useQualityControl } from "@/services/quality";
 import { openPlaylistPicker, useCanAddToPlaylist } from "@/services/playlistPicker";
+import { demoName } from "@/services/demoMode";
 import SleepTimerPicker from "@/components/common/SleepTimerPicker.vue";
 
 const player = usePlayerStore();
@@ -654,7 +655,7 @@ onUnmounted(() => {
                   >&#xF294;</span>
                 </button>
                 <p class="more-hint">
-                  写入 {{ quality.support.value?.sourceName }} 的音质设置；取不到时自动降级
+                  写入 {{ demoName(quality.support.value?.sourceName) }} 的音质设置；取不到时自动降级
                 </p>
               </div>
               <div v-else-if="moreView === 'lyrics'" key="lyrics" class="more-page">

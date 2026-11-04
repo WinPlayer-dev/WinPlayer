@@ -459,7 +459,8 @@ function isActive(name: string): boolean {
         </li>
       </ul>
 
-      <div class="nav-section-header">
+      <!-- 演示模式：歌单与平台歌单整组隐藏（只影响入口，数据不变） -->
+      <div v-if="!settings.demoMode" class="nav-section-header">
         <span class="nav-section-title">歌单</span>
         <span class="add-buttons">
           <button class="add-button" title="导入歌单（.json / .m3u8）" @click="openImportDialog">
@@ -471,7 +472,11 @@ function isActive(name: string): boolean {
         </span>
       </div>
 
-      <ul class="nav-list" :class="{ 'drop-zone': trackDragState.active && library.playlists.length }">
+      <ul
+        v-if="!settings.demoMode"
+        class="nav-list"
+        :class="{ 'drop-zone': trackDragState.active && library.playlists.length }"
+      >
         <li v-for="playlist in library.playlists" :key="playlist.id">
           <router-link
             :to="{ name: 'playlist', params: { id: playlist.id } }"
@@ -501,7 +506,7 @@ function isActive(name: string): boolean {
         </li>
       </ul>
 
-      <template v-if="hasMyPlaylistsPlugin">
+      <template v-if="hasMyPlaylistsPlugin && !settings.demoMode">
         <div class="nav-section-header">
           <span class="nav-section-title">平台歌单</span>
           <button

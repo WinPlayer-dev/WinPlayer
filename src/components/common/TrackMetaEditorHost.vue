@@ -22,6 +22,7 @@ import CachedImage from "@/components/common/CachedImage.vue";
 import { usePluginsStore } from "@/stores/plugins";
 import { useTrackMetaStore } from "@/stores/trackMeta";
 import { cachedImgUrl, resolveImgUrl } from "@/services/imageCache";
+import { demoName } from "@/services/demoMode";
 import { toast } from "@/services/toast";
 import { closeTrackMetaEditor, trackMetaEditorState } from "@/services/trackMetaEditor";
 import { trackArtist, trackTitle } from "@/types/player";
@@ -288,7 +289,7 @@ async function runSearch(): Promise<void> {
       artistHits.value = results.flatMap((item) =>
         (item.result?.artists ?? []).map((artist) => ({
           artist,
-          source: item.record.entry.manifest.name,
+          source: demoName(item.record.entry.manifest.name),
         })),
       );
       songHits.value = [];
@@ -296,7 +297,7 @@ async function runSearch(): Promise<void> {
       songHits.value = results.flatMap((item) =>
         (item.result?.songs ?? []).map((track) => ({
           track,
-          source: item.record.entry.manifest.name,
+          source: demoName(item.record.entry.manifest.name),
         })),
       );
       artistHits.value = [];

@@ -11,6 +11,7 @@ import { useLibraryStore, type LocalPlaylist } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useHistoryStore } from "@/stores/history";
+import { useSettingsStore } from "@/stores/settings";
 import { pluginDisplayName, usePluginsStore, type AggregatedSourceResult, type AppAvatar } from "@/stores/plugins";
 import { openContextMenuAt } from "@/services/contextMenu";
 import { openImportDialog } from "@/services/playlistIO";
@@ -25,6 +26,7 @@ const player = usePlayerStore();
 const plugins = usePluginsStore();
 const downloads = useDownloadsStore();
 const history = useHistoryStore();
+const settings = useSettingsStore();
 
 /* ------------------------------ 头像（插件能力） ------------------------------ */
 
@@ -264,8 +266,8 @@ function onPlaylistClick(playlist: LocalPlaylist) {
       <span class="wp-icon liked-chevron">&#xF2B1;</span>
     </button>
 
-    <!-- 本地歌单 -->
-    <div class="section-header">
+    <!-- 本地歌单（演示模式下与平台歌单一起隐藏入口） -->
+    <div v-if="!settings.demoMode" class="section-header">
       <span class="section-title">歌单</span>
       <span v-if="library.playlists.length" class="section-count">{{ library.playlists.length }}</span>
       <span class="add-buttons">
@@ -278,7 +280,7 @@ function onPlaylistClick(playlist: LocalPlaylist) {
       </span>
     </div>
 
-    <ul class="playlist-list">
+    <ul v-if="!settings.demoMode" class="playlist-list">
       <li v-for="playlist in library.playlists" :key="playlist.id">
         <button
           class="playlist-item"
@@ -301,7 +303,7 @@ function onPlaylistClick(playlist: LocalPlaylist) {
     </ul>
 
     <!-- 平台歌单 -->
-    <template v-if="hasMyPlaylistsPlugin">
+    <template v-if="hasMyPlaylistsPlugin && !settings.demoMode">
       <div class="section-header">
         <span class="section-title">平台歌单</span>
         <button

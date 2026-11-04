@@ -12,6 +12,7 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import { ProgressRing } from "@/components/winui";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { useRefreshable } from "@/composables/useRefreshable";
+import { demoMode, demoName, DEMO_SOURCE_NAME } from "@/services/demoMode";
 import type { SearchResult, UnifiedAlbum, UnifiedArtist, UnifiedPlaylist, UnifiedTrack } from "@/types/plugin";
 import WpButton from "@/components/theme/WpButton.vue";
 
@@ -102,8 +103,15 @@ const sourceTabs = computed(() => {
   if (settings.aggregateSearch && searchSources.value.length > 1) {
     tabs.push({ key: AGGREGATE_KEY, name: "全部" });
   }
-  for (const record of searchSources.value) {
-    tabs.push({ key: record.entry.id, name: record.entry.manifest.name });
+  for (const [index, record] of searchSources.value.entries()) {
+    tabs.push({
+      key: record.entry.id,
+      // 演示模式下所有源同名，多源时补序号，避免出现一排一模一样的 Tab
+      name:
+        demoMode.value && searchSources.value.length > 1
+          ? `${DEMO_SOURCE_NAME} ${index + 1}`
+          : demoName(record.entry.manifest.name),
+    });
   }
   return tabs;
 });
@@ -116,7 +124,7 @@ const activeSourceName = computed(
 
 const searchPlaceholder = computed(() => {
   if (searchSources.value.length === 1) {
-    return `在 ${searchSources.value[0]?.entry.manifest.name ?? "插件"} 中搜索`;
+    return `在 ${demoName(searchSources.value[0]?.entry.manifest.name) || "插件"} 中搜索`;
   }
   if (isAggregateView.value) return "输入关键词，同时检索所有已启用的插件源";
   return `在 ${activeSourceName.value} 中搜索`;
@@ -190,7 +198,9 @@ const errors = computed(() => {
   if (!entry) return [];
   const list = entry.error ? [entry.error] : [];
   return list.concat(
-    entry.sources.filter((source) => source.error).map((source) => `${source.name}：${source.error}`),
+    entry.sources
+      .filter((source) => source.error)
+      .map((source) => `${demoName(source.name)}：${source.error}`),
   );
 });
 

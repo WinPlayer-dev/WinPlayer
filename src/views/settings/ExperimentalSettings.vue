@@ -109,6 +109,12 @@ function openThemeMarket(): void {
   void router.push({ path: "/plugins", query: { tab: "themes" } });
 }
 
+/* ------------------------------ 演示模式 ------------------------------ */
+
+function onDemoModeToggle(event: { IsOn: boolean }): void {
+  void settings.setDemoMode(Boolean(event?.IsOn));
+}
+
 /* ------------------------------ 录音棚 ------------------------------ */
 
 function onStudioToggle(event: { IsOn: boolean }): void {
@@ -191,6 +197,22 @@ function onStudioToggle(event: { IsOn: boolean }): void {
           </div>
         </div>
         <WpButton @click="openThemeMarket" variant="standard">打开主题市场</WpButton>
+      </WpCard>
+    </section>
+
+    <!-- 演示模式 -->
+    <section class="settings-section">
+      <h2 class="settings-section-title">演示模式</h2>
+
+      <WpCard variant="row">
+        <div class="card-content">
+          <div class="card-header">隐藏来源名与歌单</div>
+          <div class="card-description">
+            录屏 / 截图时使用：播放源名称统一显示为「在线音乐」，侧边栏与「我的」页里的歌单、平台歌单入口一并隐藏。
+            只影响显示，不会删除歌单，也不改变插件的启用状态
+          </div>
+        </div>
+        <ToggleSwitch :IsOn="settings.demoMode" @Toggled="onDemoModeToggle" />
       </WpCard>
     </section>
 

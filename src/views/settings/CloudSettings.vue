@@ -195,7 +195,7 @@ onMounted(async () => {
 
 <template>
   <section class="settings-section">
-    <h2 class="settings-section-title">同步（温韵同频）</h2>
+    <h2 class="settings-section-title">同步</h2>
 
     <!-- 服务器 -->
     <WpCard class="settings-card column cloud-card">

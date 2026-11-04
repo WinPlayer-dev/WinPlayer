@@ -1,19 +1,17 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { ref } from "vue";
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
-import { usePluginsStore } from "@/stores/plugins";
 import { useTrackMetaStore } from "@/stores/trackMeta";
 import { useAutoCenter } from "@/composables/useAutoCenter";
 import { openContextMenu, type ContextMenuItem } from "@/services/contextMenu";
-import { openPlaylistPicker } from "@/services/playlistPicker";
+import { openPlaylistPicker, useCanAddToPlaylist } from "@/services/playlistPicker";
 import { copyText } from "@/services/clipboard";
 import { formatDuration, trackArtist, trackTitle } from "@/types/player";
 import type { UnifiedTrack } from "@/types/plugin";
 
 const player = usePlayerStore();
 const library = useLibraryStore();
-const plugins = usePluginsStore();
 const trackMeta = useTrackMetaStore();
 
 const bodyRef = ref<HTMLElement | null>(null);
@@ -26,11 +24,8 @@ useAutoCenter({
   isActive: () => player.showQueue,
 });
 
-const canAddToPlaylist = computed(
-  () =>
-    library.playlists.length > 0 ||
-    plugins.records.some((r) => r.enabled && plugins.hasCapability(r, "myPlaylists")),
-);
+/** 与歌曲列表 / 播放条共用同一判定（演示模式下入口整体隐藏） */
+const canAddToPlaylist = useCanAddToPlaylist();
 
 /** 队列行右键菜单：添加到歌单 / 添加到我喜欢 / 移除 / 添加到播放队列 */
 function openItemMenu(track: UnifiedTrack, uid: string, event: MouseEvent) {
