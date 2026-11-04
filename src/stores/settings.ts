@@ -33,6 +33,136 @@ export type CloseBehavior = "tray" | "minimize" | "quit";
 /** 桌面歌词外观：无底色纯文字 + 描边投影 / 歌曲卡片（封面模糊底 + 歌曲信息） */
 export type DesktopLyricsStyle = "plain" | "glass";
 
+/* ------------------------------ 听完自动加歌单 ------------------------------ */
+
+/** 自动加歌单的方式：固定进某个歌单 / 按语种与类型自动分类 */
+export type AutoPlaylistMode = "fixed" | "auto";
+
+/** 自动分类时的语种判定结果 */
+export type AutoPlaylistLanguage = "english" | "chinese" | "japanese" | "korean" | "other";
+
+/** 语种选项（设置页展示顺序即此顺序） */
+export const AUTO_PLAYLIST_LANGUAGES: ReadonlyArray<{
+  value: AutoPlaylistLanguage;
+  label: string;
+}> = [
+  { value: "english", label: "英语" },
+  { value: "chinese", label: "华语" },
+  { value: "japanese", label: "日语" },
+  { value: "korean", label: "韩语" },
+  { value: "other", label: "其他" },
+];
+
+/**
+ * 自动加歌单的目标歌单。
+ *
+ * - `local`：曲库里的本地歌单（数字主键）；
+ * - `remote`：某个插件来源的平台个人歌单。平台歌单 id 只在同一来源内有效，
+ *   所以它只能接收同来源的曲目（跨源添加没有意义）。
+ *
+ * `name` 存一份展示名：平台未登录 / 离线拉不到歌单列表时，设置页仍能显示
+ * 用户当初选的是哪个歌单，而不是退回「不自动添加」。
+ */
+export type AutoPlaylistTarget =
+  | { kind: "local"; id: number; name: string }
+  | { kind: "remote"; sourceId: string; id: string; name: string };
+
+/** 目标歌单的唯一键：写进 auto_playlist_done.playlist_ref，也用于下拉框去重 */
+export function autoPlaylistTargetKey(target: AutoPlaylistTarget | null): string {
+  if (!target) return "";
+  return target.kind === "local" ? `local:${target.id}` : `${target.sourceId}:${target.id}`;
+}
+
+/**
+ * 听完自动加歌单（实验性）配置。
+ *
+ * 目标为 null 表示「未选择」，语义是「这类歌曲不自动添加」；
+ * 自动分类模式下 Vocaloid 优先于语种（识别为 Vocaloid 就只进类型歌单）。
+ */
+export interface AutoPlaylistConfig {
+  enabled: boolean;
+  mode: AutoPlaylistMode;
+  /** 固定模式的目标歌单 */
+  fixedTarget: AutoPlaylistTarget | null;
+  /** 自动分类：各语种对应的歌单 */
+  languageTargets: Record<AutoPlaylistLanguage, AutoPlaylistTarget | null>;
+  /** 自动分类：Vocaloid 对应的歌单 */
+  vocaloidTarget: AutoPlaylistTarget | null;
+  /** Vocaloid 自定义关键词：追加在内置词表之外，忽略大小写、按子串匹配 */
+  vocaloidKeywords: string[];
+}
+
+export const DEFAULT_AUTO_PLAYLIST: AutoPlaylistConfig = {
+  enabled: false,
+  mode: "fixed",
+  fixedTarget: null,
+  languageTargets: { english: null, chinese: null, japanese: null, korean: null, other: null },
+  vocaloidTarget: null,
+  vocaloidKeywords: [],
+};
+
+/** 自定义关键词上限：条数与单条长度都收一下，避免整段歌词被当成词表 */
+const MAX_VOCALOID_KEYWORDS = 50;
+const MAX_VOCALOID_KEYWORD_LENGTH = 40;
+
+/** 单个目标歌单收敛：字段不全或 id 非法一律视为「未选择」 */
+function normalizeTarget(input: unknown): AutoPlaylistTarget | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Record<string, unknown>;
+  const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  if (raw.kind === "remote") {
+    const sourceId = typeof raw.sourceId === "string" ? raw.sourceId.trim() : "";
+    const id = typeof raw.id === "string" ? raw.id.trim() : "";
+    return sourceId && id ? { kind: "remote", sourceId, id, name } : null;
+  }
+  const num = Math.trunc(Number(raw.id));
+  return Number.isFinite(num) && num > 0 ? { kind: "local", id: num, name } : null;
+}
+
+/** 关键词表收敛：去首尾空白、忽略大小写去重、丢弃超长项 */
+function normalizeKeywords(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of input) {
+    const text = String(item ?? "").trim().slice(0, MAX_VOCALOID_KEYWORD_LENGTH);
+    if (!text) continue;
+    const lower = text.toLowerCase();
+    if (seen.has(lower)) continue;
+    seen.add(lower);
+    result.push(text);
+    if (result.length >= MAX_VOCALOID_KEYWORDS) break;
+  }
+  return result;
+}
+
+/** 把持久化 / 手改数据库的值收敛成合法配置（兼容只存数字 id 的旧配置） */
+function normalizeAutoPlaylist(value: unknown): AutoPlaylistConfig {
+  const raw = (value ?? {}) as Record<string, unknown>;
+  const legacy = (input: unknown): AutoPlaylistTarget | null => {
+    const num = Math.trunc(Number(input));
+    return Number.isFinite(num) && num > 0 ? { kind: "local", id: num, name: "" } : null;
+  };
+  const languages = (raw.languageTargets ?? {}) as Record<string, unknown>;
+  const legacyLanguages = (raw.languagePlaylists ?? {}) as Record<string, unknown>;
+  const language = (key: AutoPlaylistLanguage): AutoPlaylistTarget | null =>
+    normalizeTarget(languages[key]) ?? legacy(legacyLanguages[key]);
+  return {
+    enabled: Boolean(raw.enabled),
+    mode: raw.mode === "auto" ? "auto" : "fixed",
+    fixedTarget: normalizeTarget(raw.fixedTarget) ?? legacy(raw.fixedPlaylistId),
+    languageTargets: {
+      english: language("english"),
+      chinese: language("chinese"),
+      japanese: language("japanese"),
+      korean: language("korean"),
+      other: language("other"),
+    },
+    vocaloidTarget: normalizeTarget(raw.vocaloidTarget) ?? legacy(raw.vocaloidPlaylistId),
+    vocaloidKeywords: normalizeKeywords(raw.vocaloidKeywords),
+  };
+}
+
 /** 桌面歌词字号范围（px）：下限保证小屏看得清，上限与歌词窗口固定高度对齐 */
 export const DESKTOP_LYRICS_FONT_MIN = 20;
 export const DESKTOP_LYRICS_FONT_MAX = 36;
@@ -102,6 +232,14 @@ export const useSettingsStore = defineStore("settings", () => {
    * 已有录音数据不会被删除。
    */
   const studioEnabled = ref(false);
+  /**
+   * 听完自动加歌单（实验性）：歌曲自然播完后按配置归入本地歌单。
+   * 已处理过的曲目记录在 auto_playlist_done 表里，不会重复添加。
+   */
+  const autoPlaylist = ref<AutoPlaylistConfig>({
+    ...DEFAULT_AUTO_PLAYLIST,
+    languageTargets: { ...DEFAULT_AUTO_PLAYLIST.languageTargets },
+  });
   /**
    * 演示模式（录屏 / 截图用）：打开后界面上的播放源名称统一显示成通用名，
    * 歌单 / 平台歌单的入口整体隐藏。只影响显示，不动数据。
@@ -253,6 +391,9 @@ export const useSettingsStore = defineStore("settings", () => {
     theme.value = await getSetting<ThemePreference>("settings.theme", "system");
     onboardingDone.value = await getSetting<boolean>("settings.onboardingDone", false);
     studioEnabled.value = await getSetting<boolean>("settings.studioEnabled", false);
+    autoPlaylist.value = normalizeAutoPlaylist(
+      await getSetting<unknown>("settings.autoPlaylist", null),
+    );
     demoMode.value = await getSetting<boolean>("settings.demoMode", false);
     startupPage.value = normalizeStartupPage(
       await getSetting<string>("settings.startupPage", "recommend"),
@@ -450,6 +591,28 @@ export const useSettingsStore = defineStore("settings", () => {
     await setSetting("settings.studioEnabled", value);
   }
 
+  /**
+   * 更新自动歌单配置（按字段合并）。
+   *
+   * 只写配置本身：判定逻辑在 services/autoPlaylist，删掉歌单后旧目标会自然失效
+   * （找不到歌单就不添加，也不记录），不需要额外的清理。
+   */
+  async function setAutoPlaylist(
+    patch: Partial<Omit<AutoPlaylistConfig, "languageTargets">> & {
+      languageTargets?: Partial<Record<AutoPlaylistLanguage, AutoPlaylistTarget | null>>;
+    },
+  ): Promise<void> {
+    autoPlaylist.value = normalizeAutoPlaylist({
+      ...autoPlaylist.value,
+      ...patch,
+      languageTargets: {
+        ...autoPlaylist.value.languageTargets,
+        ...(patch.languageTargets ?? {}),
+      },
+    });
+    await setSetting("settings.autoPlaylist", autoPlaylist.value);
+  }
+
   /** 开关演示模式：同步给 demoMode 服务，界面各处据此隐藏来源名与歌单入口 */
   async function setDemoMode(value: boolean): Promise<void> {
     setDemoModeState(value);
@@ -640,6 +803,7 @@ export const useSettingsStore = defineStore("settings", () => {
     historyEnabled,
     onboardingDone,
     studioEnabled,
+    autoPlaylist,
     demoMode,
     startupPage,
     marketSources,
@@ -685,6 +849,7 @@ export const useSettingsStore = defineStore("settings", () => {
     setMarketSources,
     setOnboardingDone,
     setStudioEnabled,
+    setAutoPlaylist,
     setDemoMode,
     setStartupPage,
     setGithubMirror,

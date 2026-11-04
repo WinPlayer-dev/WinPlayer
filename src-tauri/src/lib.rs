@@ -73,6 +73,18 @@ fn db_migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/007_cloud_sync.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 8,
+            description: "auto playlist processed log",
+            sql: include_str!("../migrations/008_auto_playlist.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 9,
+            description: "auto playlist target ref",
+            sql: include_str!("../migrations/009_auto_playlist_target.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

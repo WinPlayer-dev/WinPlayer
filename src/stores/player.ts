@@ -5,6 +5,7 @@ import { computed, ref, watch } from "vue";
 import { getAudioEngine } from "@/services/audio";
 import { isThrottled } from "@/services/backgroundMode";
 import { findLyricIndex, mergeTranslation, parseLrc } from "@/services/lrc";
+import { handleTrackFinished } from "@/services/autoPlaylist";
 import { RECORDING_SOURCE_ID, recordingPlayPath } from "@/services/recorder";
 import { getSetting, setSetting } from "@/services/db";
 import {
@@ -72,6 +73,15 @@ export const usePlayerStore = defineStore("player", () => {
   const lyrics = ref<LyricLine[]>([]);
   const lyricsLoading = ref(false);
   const lyricIndex = computed(() => findLyricIndex(lyrics.value, currentTime.value * 1000));
+  /**
+   * 当前曲目的歌词原文（undefined = 还没取过 / 正在取）。
+   *
+   * 除了给「听完自动加歌单」判断语种复用，也避免播完时为了判断再请求一次歌词服务。
+   * 取到的结果即使是空串也会写进来，表示「这首歌确认没有歌词」。
+   */
+  let lyricText: string | undefined;
+  /** 歌词请求序号：只接受最后一次请求写入的原文 */
+  let lyricToken = 0;
 
   // UI 状态（队列/歌词面板）
   const showQueue = ref(false);
@@ -253,10 +263,17 @@ export const usePlayerStore = defineStore("player", () => {
     // 「播完当前曲目停止」：引擎在这里已经完成衔接，硬切回上一首的结尾不现实
     // （crossfade 时双流已经在混音）。先让元数据切到新曲再暂停，避免界面停在
     // 上一首上；紧接着清掉播放链 / 预载槽，防止它继续往下播。
+    // 衔接前先记下刚播完的那首：handleAdvanced 会把 currentTrack 换成下一首，
+    // 而「听完自动加歌单」要的是上一首。
+    const finished = currentTrack.value;
+    // 歌词原文也要在切曲前取走：handleAdvanced 会为新曲重新取词并清空缓存
+    const finishedLyric = lyricText;
     const stop = notifyTrackFinished();
     // 单曲循环只允许衔接到当前曲目本身：先记下当前曲目，衔接回来后校验
     const expected = mode.value === "loop-one" ? currentIndex.value : null;
     handleAdvanced(url, index);
+    // 引擎衔接成功才走到这里，说明上一首是自然播完的：交给「听完自动加歌单」
+    void handleTrackFinished(finished, finishedLyric);
     if (stop) {
       engine.pause();
       resetPreload(true);
@@ -963,6 +980,8 @@ export const usePlayerStore = defineStore("player", () => {
   }
 
   function handleEnded(): void {
+    // 自然播完（预载未就绪时走这条回退路径）：同样是「听完一首」
+    void handleTrackFinished(currentTrack.value, lyricText);
     if (mode.value === "loop-one") {
       // 原生引擎解码线程 emit ended 后即退出，seek(0) 无法复活会话，
       // 必须重新走 playAt 完整 load 新会话
@@ -1101,6 +1120,7 @@ export const usePlayerStore = defineStore("player", () => {
     engine.stop();
     playing.value = false;
     lyrics.value = [];
+    lyricText = undefined;
     persistQueue();
   }
 
@@ -1139,12 +1159,16 @@ export const usePlayerStore = defineStore("player", () => {
   /* ------------------------------ 歌词 ------------------------------ */
 
   async function fetchLyrics(track: UnifiedTrack): Promise<void> {
+    // 连点切歌时只认最后一次请求的结果（避免旧请求把新曲的歌词原文覆盖掉）
+    const token = ++lyricToken;
     // 录音作品没有歌词：别拿标题去别的播放源里瞎搜
     if (track.sourceId === RECORDING_SOURCE_ID) {
       lyrics.value = [];
       lyricsLoading.value = false;
+      lyricText = "";
       return;
     }
+    let text = "";
     lyricsLoading.value = true;
     lyrics.value = [];
     try {
@@ -1152,15 +1176,18 @@ export const usePlayerStore = defineStore("player", () => {
       const localLrc = await downloads.readLyrics(track);
       if (localLrc) {
         lyrics.value = parseLrc(localLrc);
+        text = localLrc;
         return;
       }
       const result = await plugins.getLyrics(track);
       if (result?.lrc) {
         const lines = parseLrc(result.lrc);
         lyrics.value = mergeTranslation(lines, result.translation);
+        text = result.lrc;
       }
     } finally {
       lyricsLoading.value = false;
+      if (token === lyricToken) lyricText = text;
     }
   }
 
