@@ -172,7 +172,7 @@ function rescanWebdav(): void {
         :class="{ disabled: !card.enabled }"
         @click="openSource(card.def.id)"
       >
-        <span class="builtin-icon" :style="{ background: card.def.accent }">
+        <span class="builtin-icon" aria-hidden="true">
           <span class="wp-icon">{{ card.def.icon }}</span>
         </span>
         <span class="builtin-text">
@@ -389,20 +389,26 @@ function rescanWebdav(): void {
   opacity: 0.6;
 }
 
+/* 停用态图标同步降色（没有底色可去，只能靠颜色区分） */
+.builtin-item.disabled .builtin-icon {
+  color: var(--wp-text-tertiary);
+}
+
+/* 无底色：直接用 Fluent 图标字体，颜色跟随主题文字色（暗色主题下自动变白） */
 .builtin-icon {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* 固定列宽，保证图标与右侧文字的对齐（移动端 .builtin-state 的缩进也按此推算） */
   width: 44px;
   height: 44px;
-  border-radius: 12px;
   flex: none;
-  color: #fff;
+  color: var(--wp-text-primary);
 }
 
 .builtin-icon .wp-icon {
-  font-size: 22px;
-  color: #fff;
+  font-size: 24px;
+  color: inherit;
 }
 
 .builtin-text {
