@@ -11,6 +11,7 @@ import {
 import { useIsAndroid, useIsMobile, useIsWindows } from "@/composables/useIsMobile";
 import { resetWindowState } from "@/services/windowState";
 import { toast } from "@/services/toast";
+import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 
@@ -132,13 +133,21 @@ async function resetWindow(): Promise<void> {
 function replayOnboarding(): void {
   void router.push({ name: "welcome", query: { from: "settings" } });
 }
+
+/** 跳到「关于 › 更新」并高亮那一组：自动检查关掉后，手动检查在那边 */
+function goAboutUpdate(): void {
+  void router.push({ query: { tab: "about", focus: "about.update.check" } });
+}
+
+function onDemoModeToggle(event: { IsOn: boolean }): void {
+  void settings.setDemoMode(Boolean(event?.IsOn));
+}
 </script>
 
 <template>
   <div>
-    <!-- 启动：冷启动后直接进入哪个页面 -->
-    <section class="settings-section">
-      <h2 class="settings-section-title">启动</h2>
+    <!-- 启动与引导：冷启动后进哪个页面 + 重看欢迎引导 -->
+    <SettingsSection id="general-startup" title="启动与引导">
       <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">打开时页面</div>
@@ -157,11 +166,7 @@ function replayOnboarding(): void {
           "
         />
       </WpCard>
-    </section>
 
-    <!-- 新手引导：重新进入欢迎页（不改动已装插件） -->
-    <section class="settings-section">
-      <h2 class="settings-section-title">新手引导</h2>
       <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">欢迎引导</div>
@@ -171,11 +176,10 @@ function replayOnboarding(): void {
         </div>
         <WpButton variant="standard" class="small" @click="replayOnboarding">重新查看</WpButton>
       </WpCard>
-    </section>
+    </SettingsSection>
 
     <!-- 触感反馈（仅移动端） -->
-    <section v-if="isMobile" class="settings-section">
-      <h2 class="settings-section-title">触感反馈</h2>
+    <SettingsSection v-if="isMobile" id="general-feedback" title="触感反馈">
       <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">震动反馈</div>
@@ -185,13 +189,15 @@ function replayOnboarding(): void {
         </div>
         <ToggleSwitch :IsOn="settings.hapticsEnabled" @Toggled="onHapticsToggle" />
       </WpCard>
-    </section>
+    </SettingsSection>
 
-    <!-- 窗口（仅桌面端：移动端窗口由系统全屏托管） -->
-    <section v-if="!isMobile" class="settings-section">
-      <h2 class="settings-section-title">窗口</h2>
-
-      <WpCard variant="row">
+    <!-- 窗口与系统（桌面端才有窗口；SMTC 仅 Windows 提供） -->
+    <SettingsSection
+      v-if="!isMobile || isWindows"
+      id="general-window"
+      title="窗口与系统"
+    >
+      <WpCard v-if="!isMobile" variant="row">
         <div class="card-content">
           <div class="card-header">记住窗口大小与位置</div>
           <div class="card-description">
@@ -203,13 +209,8 @@ function replayOnboarding(): void {
           <ToggleSwitch :IsOn="settings.rememberWindowState" @Toggled="onRememberWindowToggle" />
         </div>
       </WpCard>
-    </section>
 
-    <!-- 系统集成（SMTC 仅 Windows 提供） -->
-    <section v-if="isWindows" class="settings-section">
-      <h2 class="settings-section-title">系统集成</h2>
-
-      <WpCard variant="row">
+      <WpCard v-if="isWindows" variant="row">
         <div class="card-content">
           <div class="card-header">关闭按钮行为</div>
           <div class="card-description">
@@ -226,7 +227,7 @@ function replayOnboarding(): void {
         />
       </WpCard>
 
-      <WpCard variant="row">
+      <WpCard v-if="isWindows" variant="row">
         <div class="card-content">
           <div class="card-header">后台优化</div>
           <div class="card-description">
@@ -236,7 +237,7 @@ function replayOnboarding(): void {
         <ToggleSwitch :IsOn="settings.backgroundOptimize" @Toggled="onOptimizeToggle" />
       </WpCard>
 
-      <WpCard variant="row">
+      <WpCard v-if="isWindows" variant="row">
         <div class="card-content">
           <div class="card-header">系统媒体传输控件（SMTC）</div>
           <div class="card-description">
@@ -245,11 +246,10 @@ function replayOnboarding(): void {
         </div>
         <ToggleSwitch :IsOn="settings.smtcEnabled" @Toggled="onSmtcToggle" />
       </WpCard>
-    </section>
+    </SettingsSection>
 
     <!-- 车载模式：依赖媒体控件（Windows 的 SMTC / 安卓的媒体通知） -->
-    <section v-if="isWindows || isAndroid" class="settings-section">
-      <h2 class="settings-section-title">车载模式</h2>
+    <SettingsSection v-if="isWindows || isAndroid" id="general-car" title="车载模式">
       <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">歌词显示在媒体控件上</div>
@@ -259,12 +259,10 @@ function replayOnboarding(): void {
         </div>
         <ToggleSwitch :IsOn="settings.carMode" @Toggled="onCarModeToggle" />
       </WpCard>
-    </section>
+    </SettingsSection>
 
     <!-- 搜索 -->
-    <section class="settings-section">
-      <h2 class="settings-section-title">搜索</h2>
-
+    <SettingsSection id="general-search" title="搜索">
       <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">聚合搜索</div>
@@ -274,12 +272,10 @@ function replayOnboarding(): void {
         </div>
         <ToggleSwitch :IsOn="settings.aggregateSearch" @Toggled="onAggregateSearchToggle" />
       </WpCard>
-    </section>
+    </SettingsSection>
 
-    <!-- 隐私 -->
-    <section class="settings-section">
-      <h2 class="settings-section-title">隐私</h2>
-
+    <!-- 隐私：播放历史 + 演示模式（录屏/截图时隐藏来源名与歌单） -->
+    <SettingsSection id="general-privacy" title="隐私">
       <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">记录播放历史</div>
@@ -289,17 +285,28 @@ function replayOnboarding(): void {
         </div>
         <ToggleSwitch :IsOn="settings.historyEnabled" @Toggled="onHistoryToggle" />
       </WpCard>
-    </section>
 
-    <!-- 更新 -->
-    <section class="settings-section">
-      <h2 class="settings-section-title">更新</h2>
+      <WpCard variant="row">
+        <div class="card-content">
+          <div class="card-header">隐藏来源名与歌单</div>
+          <div class="card-description">
+            录屏 / 截图时使用：播放源名称统一显示为「在线音乐」，侧边栏与「我的」页里的歌单、平台歌单入口一并隐藏。
+            只影响显示，不会删除歌单，也不改变插件的启用状态
+          </div>
+        </div>
+        <ToggleSwitch :IsOn="settings.demoMode" @Toggled="onDemoModeToggle" />
+      </WpCard>
+    </SettingsSection>
 
+    <!-- 更新：只放「自动检查」相关，手动检查在「关于」页 -->
+    <SettingsSection id="general-update" title="更新">
       <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">自动检查更新</div>
           <div class="card-description">
-            启动时静默检查新版本，有更新时提示；关闭后仍可在「关于」页手动检查
+            启动时静默检查新版本，有更新时提示；关闭后仍可在
+            <button class="inline-link" type="button" @click="goAboutUpdate">「关于」页</button>
+            手动检查
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.autoCheckUpdate" @Toggled="onAutoCheckToggle" />
@@ -332,7 +339,7 @@ function replayOnboarding(): void {
         </div>
         <ToggleSwitch :IsOn="settings.updateIncludePrerelease" @Toggled="onPrereleaseToggle" />
       </WpCard>
-    </section>
+    </SettingsSection>
   </div>
 </template>
 
@@ -342,5 +349,19 @@ function replayOnboarding(): void {
   display: flex;
   align-items: center;
   gap: var(--space-sm, 8px);
+}
+
+/* 描述里的行内跳转链接：不换行、不撑高，看起来像正文的一部分 */
+.inline-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: var(--wp-accent);
+  cursor: pointer;
+}
+
+.inline-link:hover {
+  text-decoration: underline;
 }
 </style>

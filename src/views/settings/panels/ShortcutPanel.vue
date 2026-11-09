@@ -14,6 +14,7 @@ import { ToggleSwitch } from "@/components/winui";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { bindingFromEvent, formatBinding } from "@/services/shortcuts";
 import { useShortcutsStore } from "@/stores/shortcuts";
+import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import {
   GLOBAL_SHORTCUT_ACTIONS,
   SHORTCUT_ACTIONS,
@@ -176,8 +177,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div>
-    <section class="settings-section">
-      <h2 class="settings-section-title">快捷键</h2>
+    <SettingsSection id="shortcut-app" title="快捷键">
       <p class="shortcut-hint">
         点击右侧按键框后按下组合键即可录制；Esc 取消，Backspace / Delete 清除。仅窗口在前台时生效。
       </p>
@@ -219,11 +219,10 @@ onBeforeUnmount(() => {
       <div class="shortcut-actions">
         <WpButton variant="standard" type="button" @click="resetDefaults">恢复默认</WpButton>
       </div>
-    </section>
+    </SettingsSection>
 
     <!-- 系统级全局快捷键（仅桌面端）：任意应用中生效 -->
-    <section v-if="!isMobile" class="settings-section">
-      <h2 class="settings-section-title">全局快捷键</h2>
+    <SettingsSection v-if="!isMobile" id="shortcut-global" title="全局快捷键">
       <p class="shortcut-hint">
         由系统注册的热键，窗口在后台或托盘中也生效；组合键必须带 Ctrl / Alt / Shift / Win，被其他程序占用时会提示「注册失败」。
       </p>
@@ -284,7 +283,7 @@ onBeforeUnmount(() => {
       <div class="shortcut-actions">
         <WpButton variant="standard" type="button" @click="resetGlobalDefaults">恢复默认</WpButton>
       </div>
-    </section>
+    </SettingsSection>
   </div>
 </template>
 

@@ -17,6 +17,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { useUpdaterStore } from "@/stores/updater";
 import { toast } from "@/services/toast";
 import AppMark from "@/components/brand/AppMark.vue";
+import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 
@@ -173,7 +174,8 @@ function restoreIgnored(): void {
 <template>
   <div class="about-settings" :class="{ mobile: isMobile }">
     <!-- 品牌展示：图标展示框 + 名称 + 版本/平台 + 入口 + 运行信息 -->
-    <section class="settings-section">
+    <!-- 这一组没有 h2 标题（大标题就是应用名），所以直接用原生 section 挂锚点 -->
+    <section class="settings-section" data-section-id="about-hero">
       <div class="about-hero">
         <div class="hero-mark-wrap">
           <span class="hero-glow" aria-hidden="true" />
@@ -218,9 +220,8 @@ function restoreIgnored(): void {
       </div>
     </section>
 
-    <!-- 自动更新 -->
-    <section class="settings-section">
-      <h2 class="settings-section-title">更新</h2>
+    <!-- 自动更新：手动检查入口（自动检查的开关在「通用 › 更新」） -->
+    <SettingsSection id="about-update" title="更新">
       <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">软件更新</div>
@@ -237,11 +238,10 @@ function restoreIgnored(): void {
           <WpButton variant="standard" class="small" @click="openReleases">Release 页面</WpButton>
         </div>
       </WpCard>
-    </section>
+    </SettingsSection>
 
     <!-- 开源与致谢 -->
-    <section class="settings-section">
-      <h2 class="settings-section-title">开源与致谢</h2>
+    <SettingsSection id="about-notices" title="开源与致谢">
       <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">第三方组件</div>
@@ -252,7 +252,7 @@ function restoreIgnored(): void {
         </div>
         <WpButton variant="standard" class="small notices-button" @click="openNotices">查看完整声明</WpButton>
       </WpCard>
-    </section>
+    </SettingsSection>
 
     <p class="about-footer">© {{ year }} WinPlayer · MIT License</p>
   </div>

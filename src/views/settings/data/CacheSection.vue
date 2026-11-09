@@ -5,6 +5,7 @@ import { ComboBox } from "@/components/winui";
 import { toast } from "@/services/toast";
 import { clearDataCache, dataCacheSize } from "@/services/cache";
 import { useSettingsStore, type CachePolicy } from "@/stores/settings";
+import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 
@@ -97,35 +98,31 @@ onMounted(() => {
 </script>
 
 <template>
-  <div>
-    <!-- 存储与缓存 -->
-    <section class="settings-section">
-      <h2 class="settings-section-title">存储与缓存</h2>
-      <WpCard variant="row">
-        <div class="card-content">
-          <div class="card-header">缓存项</div>
-          <div class="card-description">
-            选择需要缓存的内容（页面数据 / 封面图片）；切换后立即清除被关闭类型的缓存。
-          </div>
+  <SettingsSection id="data-cache" title="存储与缓存">
+    <WpCard variant="row">
+      <div class="card-content">
+        <div class="card-header">缓存项</div>
+        <div class="card-description">
+          选择需要缓存的内容（页面数据 / 封面图片）；切换后立即清除被关闭类型的缓存。
         </div>
-        <ComboBox
-          class="card-control"
-          :ItemsSource="cacheLabels"
-          :SelectedIndex="cacheIndex"
-          @SelectionChanged="onCachePolicyChange"
-        />
-      </WpCard>
-      <WpCard variant="row">
-        <div class="card-content">
-          <div class="card-header">清除缓存</div>
-          <div class="card-description">
-            当前占用：{{ cacheSummary }}。清除后将在下次访问时重新下载。
-          </div>
+      </div>
+      <ComboBox
+        class="card-control"
+        :ItemsSource="cacheLabels"
+        :SelectedIndex="cacheIndex"
+        @SelectionChanged="onCachePolicyChange"
+      />
+    </WpCard>
+    <WpCard variant="row">
+      <div class="card-content">
+        <div class="card-header">清除缓存</div>
+        <div class="card-description">
+          当前占用：{{ cacheSummary }}。清除后将在下次访问时重新下载。
         </div>
-        <WpButton variant="standard" class="small danger" :disabled="cacheLoading" @click="clearCache">
-          清除缓存
-        </WpButton>
-      </WpCard>
-    </section>
-  </div>
+      </div>
+      <WpButton variant="standard" class="small danger" :disabled="cacheLoading" @click="clearCache">
+        清除缓存
+      </WpButton>
+    </WpCard>
+  </SettingsSection>
 </template>

@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { ComboBox, TextBox, ToggleSwitch } from "@/components/winui";
 import { useSettingsStore, type ThemePreference } from "@/stores/settings";
 import type { WindowMaterial } from "@/services/windowMaterial";
+import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 
 const settings = useSettingsStore();
@@ -97,9 +98,8 @@ onBeforeUnmount(() => window.clearTimeout(fontDebounce));
 
 <template>
   <div>
-    <!-- 外观 -->
-    <section class="settings-section">
-      <h2 class="settings-section-title">外观</h2>
+    <!-- 配色与材质 -->
+    <SettingsSection id="appearance-colors" title="配色与材质">
       <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">配色模式</div>
@@ -155,11 +155,10 @@ onBeforeUnmount(() => window.clearTimeout(fontDebounce));
         </div>
         <ToggleSwitch :IsOn="settings.coverNaturalRatio" @Toggled="onCoverNaturalToggle" />
       </WpCard>
-    </section>
+    </SettingsSection>
 
     <!-- 字体 -->
-    <section class="settings-section">
-      <h2 class="settings-section-title">字体</h2>
+    <SettingsSection id="appearance-font" title="字体">
       <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">全局字体</div>
@@ -175,7 +174,7 @@ onBeforeUnmount(() => window.clearTimeout(fontDebounce));
         />
         <button class="font-reset" type="button" @click="resetFont">恢复默认</button>
       </WpCard>
-    </section>
+    </SettingsSection>
   </div>
 </template>
 

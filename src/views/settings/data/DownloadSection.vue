@@ -17,6 +17,7 @@ import {
 } from "@/stores/settings";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useIsMobile } from "@/composables/useIsMobile";
+import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 
@@ -120,102 +121,90 @@ function openOffline(): void {
 </script>
 
 <template>
-  <div>
-    <!-- 存储位置 -->
-    <section class="settings-section">
-      <h2 class="settings-section-title">存储位置</h2>
-      <WpCard variant="row">
-        <div class="card-content">
-          <div class="card-header">下载目录</div>
-          <div class="card-description">
-            <template v-if="isMobile">
-              保存在应用私有目录（<span class="dir-path">{{ resolvedDir }}</span>），
-              可在「离线音乐」页导出。
-            </template>
-            <template v-else>
-              下载的音频与歌词存放位置：<span class="dir-path">{{ resolvedDir }}</span>。
-              修改目录不影响已下载的文件。
-            </template>
-          </div>
+  <SettingsSection id="data-download" title="下载与离线">
+    <WpCard variant="row">
+      <div class="card-content">
+        <div class="card-header">下载目录</div>
+        <div class="card-description">
+          <template v-if="isMobile">
+            保存在应用私有目录（<span class="dir-path">{{ resolvedDir }}</span>），
+            可在「离线音乐」页导出。
+          </template>
+          <template v-else>
+            下载的音频与歌词存放位置：<span class="dir-path">{{ resolvedDir }}</span>。
+            修改目录不影响已下载的文件。
+          </template>
         </div>
-        <div v-if="!isMobile" class="dir-actions">
-          <WpButton variant="standard" class="small" @click="chooseDir">
-            <span class="wp-icon">&#xF42F;</span>选择目录
-          </WpButton>
-          <WpButton variant="standard"
-            v-if="settings.downloadDir.trim()"
-            class="small"
-            @click="resetDir"
-          >
-            恢复默认
-          </WpButton>
-        </div>
-      </WpCard>
-    </section>
-
-    <!-- 文件名 -->
-    <section class="settings-section">
-      <h2 class="settings-section-title">文件名</h2>
-      <WpCard variant="column">
-        <div class="card-content">
-          <div class="card-header">文件名模板</div>
-          <div class="card-description">
-            用变量组合文件名，<code>/</code> 可建立子目录（如
-            <code>{artist}/{album}/{name}</code>）；非法字符自动移除。
-          </div>
-        </div>
-        <div class="template-row">
-          <TextBox
-            class="template-input"
-            :Text="templateInput"
-            :PlaceholderText="DEFAULT_DOWNLOAD_NAME_TEMPLATE"
-            @update:Text="(value: unknown) => (templateInput = String(value ?? ''))"
-          />
-          <WpButton variant="standard" class="small" @click="resetTemplate">恢复默认</WpButton>
-        </div>
-        <div class="template-vars">
-          <span class="vars-label">可用变量</span>
-          <button
-            v-for="variable in DOWNLOAD_TEMPLATE_VARS"
-            :key="variable"
-            class="var-chip"
-            type="button"
-            @click="templateInput = `${templateInput}${variable}`"
-          >
-            {{ variable }}
-          </button>
-        </div>
-        <div class="template-preview">
-          <span class="preview-label">预览</span>
-          <span class="preview-value">{{ previewName }}</span>
-        </div>
-      </WpCard>
-    </section>
-
-    <!-- 下载内容 -->
-    <section class="settings-section">
-      <h2 class="settings-section-title">下载内容</h2>
-      <WpCard variant="row">
-        <div class="card-content">
-          <div class="card-header">写入歌曲标签</div>
-          <div class="card-description">
-            下载时把标题 / 歌手 / 专辑 / 封面 / 歌词写进音频文件，同时保存同名
-            <code>.lrc</code>。离线曲库直接读文件，换目录、换设备都还在；关闭后元数据只存在数据库里。
-          </div>
-        </div>
-        <ToggleSwitch :IsOn="settings.downloadWriteTags" @Toggled="onWriteTagsToggle" />
-      </WpCard>
-      <WpCard variant="row">
-        <div class="card-content">
-          <div class="card-header">离线音乐</div>
-          <div class="card-description">查看已下载的曲库、导出文件或定位到文件夹。</div>
-        </div>
-        <WpButton variant="standard" class="small" @click="openOffline">
-          <span class="wp-icon">&#xF151;</span>打开
+      </div>
+      <div v-if="!isMobile" class="dir-actions">
+        <WpButton variant="standard" class="small" @click="chooseDir">
+          <span class="wp-icon">&#xF42F;</span>选择目录
         </WpButton>
-      </WpCard>
-    </section>
-  </div>
+        <WpButton variant="standard"
+          v-if="settings.downloadDir.trim()"
+          class="small"
+          @click="resetDir"
+        >
+          恢复默认
+        </WpButton>
+      </div>
+    </WpCard>
+
+    <WpCard variant="column">
+      <div class="card-content">
+        <div class="card-header">文件名模板</div>
+        <div class="card-description">
+          用变量组合文件名，<code>/</code> 可建立子目录（如
+          <code>{artist}/{album}/{name}</code>）；非法字符自动移除。
+        </div>
+      </div>
+      <div class="template-row">
+        <TextBox
+          class="template-input"
+          :Text="templateInput"
+          :PlaceholderText="DEFAULT_DOWNLOAD_NAME_TEMPLATE"
+          @update:Text="(value: unknown) => (templateInput = String(value ?? ''))"
+        />
+        <WpButton variant="standard" class="small" @click="resetTemplate">恢复默认</WpButton>
+      </div>
+      <div class="template-vars">
+        <span class="vars-label">可用变量</span>
+        <button
+          v-for="variable in DOWNLOAD_TEMPLATE_VARS"
+          :key="variable"
+          class="var-chip"
+          type="button"
+          @click="templateInput = `${templateInput}${variable}`"
+        >
+          {{ variable }}
+        </button>
+      </div>
+      <div class="template-preview">
+        <span class="preview-label">预览</span>
+        <span class="preview-value">{{ previewName }}</span>
+      </div>
+    </WpCard>
+
+    <WpCard variant="row">
+      <div class="card-content">
+        <div class="card-header">写入歌曲标签</div>
+        <div class="card-description">
+          下载时把标题 / 歌手 / 专辑 / 封面 / 歌词写进音频文件，同时保存同名
+          <code>.lrc</code>。离线曲库直接读文件，换目录、换设备都还在；关闭后元数据只存在数据库里。
+        </div>
+      </div>
+      <ToggleSwitch :IsOn="settings.downloadWriteTags" @Toggled="onWriteTagsToggle" />
+    </WpCard>
+    <WpCard variant="row">
+      <div class="card-content">
+        <div class="card-header">离线音乐</div>
+        <div class="card-description">查看已下载的曲库、导出文件或定位到文件夹。</div>
+      </div>
+      <WpButton variant="standard" class="small" @click="openOffline">
+        <span class="wp-icon">&#xF151;</span>打开
+      </WpButton>
+    </WpCard>
+  </SettingsSection>
 </template>
 
 <style scoped>

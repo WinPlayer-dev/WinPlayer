@@ -1,24 +1,22 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { ComboBox, Slider, TextBox, ToggleSwitch } from "@/components/winui";
-import {
-  DESKTOP_LYRICS_FONT_MAX,
-  DESKTOP_LYRICS_FONT_MIN,
-  DEFAULT_SOURCE_SEARCH_FORMAT,
-  useSettingsStore,
-} from "@/stores/settings";
+/**
+ * 设置 → 播放 → 来源偏好。
+ *
+ * 歌曲信息 / 播放 / 歌词 / 头像四类来源各一个下拉框，外加共用的「搜索格式」。
+ * 拆分说明：本文件原本是整张「播放」页（526 行），无缝播放 / 桌面歌词 / 输出设备 /
+ * 音效已各自拆成独立 section 文件，这里的下拉框逻辑与选项数组保持同文件
+ * （ComboBox 只回传 label，必须靠同文件的 options 反查 value）。
+ */
+import { computed } from "vue";
+import { ComboBox, TextBox } from "@/components/winui";
+import { DEFAULT_SOURCE_SEARCH_FORMAT, useSettingsStore } from "@/stores/settings";
 import { usePluginsStore } from "@/stores/plugins";
-import { useIsMobile } from "@/composables/useIsMobile";
-import { getAudioEngine } from "@/services/audio";
-import { EQ_FREQS, EQ_PRESETS, formatEqFreq } from "@/constants/eqPresets";
 import type { PluginCapability } from "@/types/plugin";
+import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpCard from "@/components/theme/WpCard.vue";
-import WpButton from "@/components/theme/WpButton.vue";
 
 const settings = useSettingsStore();
 const pluginsStore = usePluginsStore();
-
-/* ------------------------------ 来源偏好 ------------------------------ */
 
 interface SourceKindConfig {
   key: "trackSourceId" | "playSourceId" | "lyricsSourceId" | "avatarSourceId";
@@ -113,414 +111,43 @@ const showSearchFormat = computed(() => Boolean(settings.playSourceId || setting
 function onFormatChange(value: unknown): void {
   void settings.setSourceSearchFormat(String(value ?? ""));
 }
-
-/* ------------------------------ 音效（均衡器） ------------------------------ */
-
-const EQ_CUSTOM_LABEL = "自定义";
-
-/** 预设下拉框选项：内置预设 + 「自定义」（仅作手动状态的展示项） */
-const eqPresetLabels = [...EQ_PRESETS.map((preset) => preset.name), EQ_CUSTOM_LABEL];
-
-const eqPresetIndex = computed(() => {
-  const index = EQ_PRESETS.findIndex((preset) => preset.id === settings.eqPreset);
-  return index >= 0 ? index : eqPresetLabels.length - 1;
-});
-
-function onEqToggle(event: { IsOn: boolean }): void {
-  void settings.setEqEnabled(Boolean(event?.IsOn));
-}
-
-/* ------------------------------ 无缝播放 ------------------------------ */
-
-const isMobile = useIsMobile();
-
-function onCrossfadeToggle(event: { IsOn: boolean }): void {
-  void settings.setCrossfadeEnabled(Boolean(event?.IsOn));
-}
-
-/* ------------------------------ 输出设备 ------------------------------ */
-
-/** 「系统默认」伪选项（空串持久化，交由系统选择默认设备） */
-const DEFAULT_OUTPUT_LABEL = "系统默认";
-
-const outputDevices = ref<string[]>([]);
-const devicesLoading = ref(false);
-
-const outputDeviceLabels = computed(() => [DEFAULT_OUTPUT_LABEL, ...outputDevices.value]);
-
-/** 当前选中项索引：设备已拔出（不在列表中）时回落到「系统默认」 */
-const outputDeviceIndex = computed(() => {
-  const index = outputDevices.value.indexOf(settings.outputDevice);
-  return index >= 0 ? index + 1 : 0;
-});
-
-async function loadOutputDevices(): Promise<void> {
-  devicesLoading.value = true;
-  try {
-    outputDevices.value = await getAudioEngine().listOutputDevices();
-  } finally {
-    devicesLoading.value = false;
-  }
-}
-
-function onOutputDeviceChange(_sender: unknown, payload?: { AddedItems?: unknown[] }): void {
-  const label = String(payload?.AddedItems?.[0] ?? "");
-  const value = label === DEFAULT_OUTPUT_LABEL ? "" : label;
-  if (value !== settings.outputDevice) void settings.setOutputDevice(value);
-}
-
-/* ------------------------------ 桌面歌词 ------------------------------ */
-
-/** 外观下拉：与 settings.desktopLyricsStyle 一一对应 */
-const LYRICS_STYLE_LABELS = ["纯文字", "歌曲卡片"];
-
-const lyricsStyleIndex = computed(() => (settings.desktopLyricsStyle === "glass" ? 1 : 0));
-
-function onLyricsStyleChange(_sender: unknown, payload?: { AddedItems?: unknown[] }): void {
-  const label = String(payload?.AddedItems?.[0] ?? "");
-  void settings.setDesktopLyricsStyle(label === "歌曲卡片" ? "glass" : "plain");
-}
-
-function onDesktopLyricsToggle(event: { IsOn: boolean }): void {
-  void settings.setDesktopLyricsEnabled(Boolean(event?.IsOn));
-}
-
-function onLyricsLockToggle(event: { IsOn: boolean }): void {
-  void settings.setDesktopLyricsLocked(Boolean(event?.IsOn));
-}
-
-function onLyricsFontInput(value: number): void {
-  void settings.setDesktopLyricsFontSize(value);
-}
-
-onMounted(() => {
-  void loadOutputDevices();
-});
-
-function onEqPresetChange(_sender: unknown, payload?: { AddedItems?: unknown[] }): void {
-  const label = String(payload?.AddedItems?.[0] ?? "");
-  if (label === EQ_CUSTOM_LABEL) return; // 自定义由手动拖动滑杆产生
-  const preset = EQ_PRESETS.find((entry) => entry.name === label);
-  if (preset && preset.id !== settings.eqPreset) void settings.setEqPreset(preset.id);
-}
-
-function onEqSliderInput(index: number, value: number): void {
-  const gains = [...settings.eqGains];
-  gains[index] = value;
-  void settings.setEqGains(gains);
-}
-
-/**
- * 均衡器滑杆行数据：每段预构造好带类型的 update:Value 处理器。
- * 模板内联箭头无法标注参数类型，与上方 sourceRows 采用相同的柯里化模式。
- */
-const eqBands = computed(() =>
-  EQ_FREQS.map((freq, index) => ({
-    freq,
-    index,
-    onValue: (value: number): void => onEqSliderInput(index, value),
-  })),
-);
-
-function formatGain(gain: number | undefined): string {
-  const value = gain ?? 0;
-  return `${value > 0 ? "+" : ""}${value}dB`;
-}
 </script>
 
 <template>
-  <div>
-    <!-- 来源偏好 -->
-    <section class="settings-section">
-      <h2 class="settings-section-title">来源偏好</h2>
-      <WpCard variant="row" v-for="{ kind, options, onSelect } in sourceRows" :key="kind.key" >
-        <div class="card-content">
-          <div class="card-header">{{ kind.title }}</div>
-          <div class="card-description">{{ kind.description }}</div>
+  <SettingsSection id="playback-source" title="来源偏好">
+    <WpCard variant="row" v-for="{ kind, options, onSelect } in sourceRows" :key="kind.key">
+      <div class="card-content">
+        <div class="card-header">{{ kind.title }}</div>
+        <div class="card-description">{{ kind.description }}</div>
+      </div>
+      <ComboBox
+        class="card-control"
+        :ItemsSource="options.map((option) => option.label)"
+        :SelectedIndex="sourceIndex(settings[kind.key], options)"
+        @SelectionChanged="onSelect"
+      />
+    </WpCard>
+
+    <WpCard variant="column" v-if="showSearchFormat">
+      <div class="card-content">
+        <div class="card-header">搜索格式</div>
+        <div class="card-description">
+          播放源、歌词源重新搜曲的关键词格式，支持 {歌曲名}、{歌手名}、{专辑名}、{别名}；
+          留空使用默认「{{ DEFAULT_SOURCE_SEARCH_FORMAT }}」。
         </div>
-        <ComboBox
-          class="card-control"
-          :ItemsSource="options.map((option) => option.label)"
-          :SelectedIndex="sourceIndex(settings[kind.key], options)"
-          @SelectionChanged="onSelect"
-        />
-      </WpCard>
-
-      <WpCard variant="column" v-if="showSearchFormat" >
-        <div class="card-content">
-          <div class="card-header">搜索格式</div>
-          <div class="card-description">
-            播放源、歌词源重新搜曲的关键词格式，支持 {歌曲名}、{歌手名}、{专辑名}、{别名}；
-            留空使用默认「{{ DEFAULT_SOURCE_SEARCH_FORMAT }}」。
-          </div>
-        </div>
-        <TextBox
-          class="format-input"
-          :Text="settings.sourceSearchFormat"
-          :PlaceholderText="DEFAULT_SOURCE_SEARCH_FORMAT"
-          @update:Text="onFormatChange"
-        />
-      </WpCard>
-    </section>
-
-    <!-- 无缝播放 -->
-    <section class="settings-section">
-      <h2 class="settings-section-title">无缝播放</h2>
-      <template v-if="!isMobile">
-        <WpCard variant="row" >
-          <div class="card-content">
-            <div class="card-header">横向淡入淡出（Crossfade）</div>
-            <div class="card-description">
-              自动切歌前 6 秒开始淡出淡入，手动切歌不适用
-            </div>
-          </div>
-          <ToggleSwitch :IsOn="settings.crossfadeEnabled" @Toggled="onCrossfadeToggle" />
-        </WpCard>
-        <WpCard variant="row" >
-          <div class="card-content">
-            <div class="card-header">无缝衔接（Gapless）</div>
-            <div class="card-description">始终开启：关闭淡入淡出后，自动切歌零间隙接续下一曲</div>
-          </div>
-        </WpCard>
-      </template>
-      <WpCard variant="row" v-else >
-        <div class="card-content">
-          <div class="card-header">无缝衔接（Gapless）</div>
-          <div class="card-description">移动端自动切歌无缝衔接，不支持混音过渡</div>
-        </div>
-      </WpCard>
-    </section>
-
-    <!-- 桌面歌词（独立置顶窗口，仅桌面端） -->
-    <section v-if="!isMobile" class="settings-section">
-      <h2 class="settings-section-title">桌面歌词</h2>
-      <WpCard variant="row">
-        <div class="card-content">
-          <div class="card-header">显示桌面歌词</div>
-          <div class="card-description">
-            在桌面上显示一个置顶歌词窗，可拖动到任意位置（位置会被记住），不占任务栏
-          </div>
-        </div>
-        <ToggleSwitch :IsOn="settings.desktopLyricsEnabled" @Toggled="onDesktopLyricsToggle" />
-      </WpCard>
-
-      <template v-if="settings.desktopLyricsEnabled">
-        <WpCard variant="row">
-          <div class="card-content">
-            <div class="card-header">外观</div>
-            <div class="card-description">
-              纯文字用描边投影，压在亮壁纸上也看得清；歌曲卡片带歌曲信息与封面模糊底色
-            </div>
-          </div>
-          <ComboBox
-            class="card-control"
-            :ItemsSource="LYRICS_STYLE_LABELS"
-            :SelectedIndex="lyricsStyleIndex"
-            @SelectionChanged="onLyricsStyleChange"
-          />
-        </WpCard>
-
-        <WpCard variant="column">
-          <div class="card-content">
-            <div class="card-header">字号</div>
-            <div class="card-description">当前行字号，上下句按比例缩小</div>
-          </div>
-          <div class="lyrics-font-row">
-            <Slider
-              class="lyrics-font-slider"
-              :Value="settings.desktopLyricsFontSize"
-              :Minimum="DESKTOP_LYRICS_FONT_MIN"
-              :Maximum="DESKTOP_LYRICS_FONT_MAX"
-              :StepFrequency="2"
-              :SmallChange="2"
-              :LargeChange="4"
-              :IsThumbToolTipEnabled="false"
-              @update:Value="onLyricsFontInput"
-            />
-            <span class="lyrics-font-value">{{ settings.desktopLyricsFontSize }}px</span>
-          </div>
-        </WpCard>
-
-        <WpCard variant="row">
-          <div class="card-content">
-            <div class="card-header">锁定（鼠标穿透）</div>
-            <div class="card-description">
-              锁定后点击直接落到下面的窗口，歌词不再挡住操作；解锁请回到这里或播放条「更多」
-            </div>
-          </div>
-          <ToggleSwitch :IsOn="settings.desktopLyricsLocked" @Toggled="onLyricsLockToggle" />
-        </WpCard>
-      </template>
-    </section>
-
-    <!-- 输出设备（仅桌面端可枚举选择） -->
-    <section v-if="!isMobile" class="settings-section">
-      <h2 class="settings-section-title">输出设备</h2>
-      <WpCard variant="row" >
-        <div class="card-content">
-          <div class="card-header">音频输出</div>
-          <div class="card-description">
-            选择声音输出设备，切换后立即在新设备上继续播放；插入新设备后点「刷新」
-          </div>
-        </div>
-        <div class="card-control output-device-control">
-          <ComboBox
-            :ItemsSource="outputDeviceLabels"
-            :SelectedIndex="outputDeviceIndex"
-            @SelectionChanged="onOutputDeviceChange"
-          />
-          <WpButton
-            variant="standard"
-            class="small"
-            :disabled="devicesLoading"
-            @click="loadOutputDevices"
-          >
-            {{ devicesLoading ? "刷新中…" : "刷新" }}
-          </WpButton>
-        </div>
-      </WpCard>
-    </section>
-
-    <!-- 音效（均衡器） -->
-    <section class="settings-section">
-      <h2 class="settings-section-title">音效</h2>
-      <WpCard variant="row" >
-        <div class="card-content">
-          <div class="card-header">均衡器</div>
-          <div class="card-description">
-            10 段均衡（31Hz ~ 16kHz），播放时实时调整音色；关闭后输出原声
-          </div>
-        </div>
-        <ToggleSwitch :IsOn="settings.eqEnabled" @Toggled="onEqToggle" />
-      </WpCard>
-
-      <template v-if="settings.eqEnabled">
-        <WpCard variant="row" >
-          <div class="card-content">
-            <div class="card-header">预设</div>
-            <div class="card-description">快速套用常见音色，手动拖动滑杆后变为「自定义」</div>
-          </div>
-          <ComboBox
-            class="card-control"
-            :ItemsSource="eqPresetLabels"
-            :SelectedIndex="eqPresetIndex"
-            @SelectionChanged="onEqPresetChange"
-          />
-        </WpCard>
-
-        <WpCard variant="column" >
-          <div class="eq-sliders-row">
-            <div v-for="band in eqBands" :key="band.freq" class="eq-band">
-              <span class="eq-gain">{{ formatGain(settings.eqGains[band.index]) }}</span>
-              <div class="eq-slider-wrap">
-                <Slider
-                  class="eq-slider"
-                  Orientation="Vertical"
-                  :Value="settings.eqGains[band.index] ?? 0"
-                  :Minimum="-12"
-                  :Maximum="12"
-                  :StepFrequency="1"
-                  :SmallChange="1"
-                  :LargeChange="3"
-                  :IsThumbToolTipEnabled="false"
-                  @update:Value="band.onValue"
-                />
-              </div>
-              <span class="eq-freq">{{ formatEqFreq(band.freq) }}</span>
-            </div>
-          </div>
-          <div class="eq-actions">
-            <WpButton variant="standard" class="small" @click="settings.resetEq()">重置</WpButton>
-          </div>
-        </WpCard>
-      </template>
-    </section>
-  </div>
+      </div>
+      <TextBox
+        class="format-input"
+        :Text="settings.sourceSearchFormat"
+        :PlaceholderText="DEFAULT_SOURCE_SEARCH_FORMAT"
+        @update:Text="onFormatChange"
+      />
+    </WpCard>
+  </SettingsSection>
 </template>
 
 <style scoped>
 .format-input {
   width: 100%;
-}
-
-/* 输出设备：下拉框 + 刷新按钮同排 */
-.output-device-control {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  width: min(380px, 42vw);
-}
-
-.output-device-control :deep(.wp-combo-box) {
-  flex: 1;
-  min-width: 0;
-}
-
-/* 桌面歌词字号：滑杆 + 数值 */
-.lyrics-font-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-lg);
-  width: 100%;
-}
-
-.lyrics-font-slider {
-  flex: 1;
-  min-width: 0;
-}
-
-.lyrics-font-value {
-  flex: none;
-  min-width: 48px;
-  text-align: right;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: var(--wp-text-secondary);
-}
-
-/* 均衡器：10 段竖向滑杆 */
-.eq-sliders-row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-md);
-  width: 100%;
-  overflow-x: auto;
-  padding: var(--space-sm) 0;
-}
-
-.eq-band {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-sm);
-  min-width: 40px;
-}
-
-.eq-gain {
-  font-size: 11px;
-  color: var(--wp-text-secondary);
-  min-height: 14px;
-}
-
-/* 竖向滑杆：容器固定尺寸，Slider 撑满（覆盖组件默认的横向尺寸） */
-.eq-slider-wrap {
-  flex: none;
-  width: 32px;
-  height: 140px;
-}
-
-.eq-band .eq-slider {
-  width: 100%;
-  height: 100%;
-}
-
-.eq-freq {
-  font-size: 11px;
-  color: var(--wp-text-tertiary);
-}
-
-.eq-actions {
-  display: flex;
-  justify-content: flex-end;
 }
 </style>

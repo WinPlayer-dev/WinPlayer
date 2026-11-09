@@ -12,6 +12,7 @@
  */
 import { computed, onMounted, ref } from "vue";
 import { ContentDialog, TextBox } from "@/components/winui";
+import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 import { useCloudStore } from "@/stores/cloud";
@@ -194,8 +195,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="settings-section">
-    <h2 class="settings-section-title">同步</h2>
+  <SettingsSection id="data-cloud" title="同步">
 
     <!-- 服务器 -->
     <WpCard class="settings-card column cloud-card">
@@ -360,7 +360,7 @@ onMounted(async () => {
         你的喜欢、歌单与云端曲库都不会被删除。
       </p>
     </ContentDialog>
-  </section>
+  </SettingsSection>
 </template>
 
 <style scoped>

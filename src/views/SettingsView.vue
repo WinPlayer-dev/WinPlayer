@@ -1,73 +1,116 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch, type Component } from "vue";
+/**
+ * 设置页容器。
+ *
+ * 结构：页头（标题 + 搜索）→ 桌面左侧分类导航 / 移动端分类按钮 → 分组 chips → 分类内容。
+ *
+ * 三条约定：
+ * 1. 分类与分组元数据都在 `settings/categories.ts` 与 `settings/settingsIndex.ts`，
+ *    这里只做映射与编排，不再内联一堆配置。
+ * 2. 深链统一走 `?tab=`；旧 key（storage / download / backup / cloud / style）由
+ *    `resolveTab` 翻译成新分类 + 落地分组，老书签不会断。
+ * 3. 设置搜索按 `?tab=` + `?focus=` 跳转，focus 用一次就消费掉，避免刷新重复高亮。
+ */
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useIsMobile } from "@/composables/useIsMobile";
-import GeneralSettings from "@/views/settings/panels/GeneralPanel.vue";
-import StyleSettings from "@/views/settings/appearance/ColorsSection.vue";
-import PlaybackSettings from "@/views/settings/playback/SourcePreferenceSection.vue";
-import ExperimentalSettings from "@/views/settings/experimental/AutoPlaylistSection.vue";
-import KeymapSettings from "@/views/settings/panels/ShortcutPanel.vue";
-import PluginSettings from "@/views/settings/panels/PluginsPanel.vue";
-import StorageSettings from "@/views/settings/data/CacheSection.vue";
-import DownloadSettings from "@/views/settings/data/DownloadSection.vue";
-import BackupSettings from "@/views/settings/data/BackupSection.vue";
-import CloudSettings from "@/views/settings/data/CloudSection.vue";
-import AboutSettings from "@/views/settings/panels/AboutPanel.vue";
+import { toast } from "@/services/toast";
+import {
+  CATEGORIES,
+  MOBILE_CATEGORIES,
+  resolveTab,
+  type SettingsCategory,
+  type SettingsCategoryKey,
+} from "@/views/settings/categories";
+import {
+  SECTION_BY_ITEM_ID,
+  SETTINGS_SECTIONS,
+  type SettingsItem,
+} from "@/views/settings/settingsIndex";
+import GeneralPanel from "@/views/settings/panels/GeneralPanel.vue";
+import ShortcutPanel from "@/views/settings/panels/ShortcutPanel.vue";
+import AppearancePanel from "@/views/settings/panels/AppearancePanel.vue";
+import PlaybackPanel from "@/views/settings/panels/PlaybackPanel.vue";
+import PluginsPanel from "@/views/settings/panels/PluginsPanel.vue";
+import DataPanel from "@/views/settings/panels/DataPanel.vue";
+import ExperimentalPanel from "@/views/settings/panels/ExperimentalPanel.vue";
+import AboutPanel from "@/views/settings/panels/AboutPanel.vue";
+import SettingsSearchBox from "@/views/settings/components/SettingsSearchBox.vue";
+import SettingsSectionNav from "@/views/settings/components/SettingsSectionNav.vue";
+import CategoryPickerSheet from "@/views/settings/components/CategoryPickerSheet.vue";
 
 const route = useRoute();
 const router = useRouter();
 const isMobile = useIsMobile();
 
-/* ------------------------------ 分类定义 ------------------------------ */
+/** 页面根节点（也是滚动容器），锚点跳转与 scroll-spy 都以它为基准 */
+const pageRef = ref<HTMLElement | null>(null);
 
-interface SettingsCategory {
-  key: string;
-  label: string;
-  /** Fluent UI System Icons 码点（.wp-icon 字体族，24 Regular） */
-  icon: string;
-  component: Component;
-}
+/** 分类 key → 面板组件（元数据里不含组件，避免索引模块拖进整棵组件树） */
+const PANELS: Record<SettingsCategoryKey, Component> = {
+  general: GeneralPanel,
+  shortcut: ShortcutPanel,
+  appearance: AppearancePanel,
+  playback: PlaybackPanel,
+  plugins: PluginsPanel,
+  data: DataPanel,
+  experimental: ExperimentalPanel,
+  about: AboutPanel,
+};
 
-const CATEGORIES: SettingsCategory[] = [
-  { key: "general", label: "通用", icon: "&#xF6AA;", component: GeneralSettings }, // ic_fluent_settings_24_regular
-  { key: "style", label: "样式", icon: "&#xF2F6;", component: StyleSettings }, // ic_fluent_color_24_regular（调色板）
-  { key: "playback", label: "播放", icon: "&#xE855;", component: PlaybackSettings }, // ic_fluent_music_note_2_24_regular
-  { key: "shortcut", label: "快捷键", icon: "&#xF4B9;", component: KeymapSettings }, // ic_fluent_keyboard_24_regular
-  { key: "plugins", label: "插件", icon: "&#xE9EA;", component: PluginSettings }, // ic_fluent_puzzle_piece_24_regular
-  { key: "storage", label: "存储", icon: "&#xE467;", component: StorageSettings }, // ic_fluent_database_24_regular
-  { key: "download", label: "下载与离线", icon: "&#xE38E;", component: DownloadSettings }, // ic_fluent_cloud_arrow_down_24_regular
-  { key: "backup", label: "备份与还原", icon: "&#xF2CD;", component: BackupSettings }, // ic_fluent_arrow_sync_24_regular（迁移/同步）
-  { key: "cloud", label: "同步", icon: "&#xF2E5;", component: CloudSettings }, // ic_fluent_cloud_24_regular
-  // 实验性：主题皮肤、录音棚等还没"毕业"的功能都收在这里，放在「关于」之前
-  { key: "experimental", label: "实验性", icon: "&#xF1D8;", component: ExperimentalSettings }, // ic_fluent_beaker_24_regular（烧瓶）
-  { key: "about", label: "关于", icon: "&#xF4A4;", component: AboutSettings }, // ic_fluent_info_24_regular
-];
-
-/** 移动端无物理键盘，隐藏快捷键分类 */
-const categories = computed<SettingsCategory[]>(() =>
-  isMobile ? CATEGORIES.filter((category) => category.key !== "shortcut") : CATEGORIES,
+/** 移动端无物理键盘，隐藏「快捷键」 */
+const categories = computed<readonly SettingsCategory[]>(() =>
+  isMobile ? MOBILE_CATEGORIES : CATEGORIES,
 );
 
-/**
- * 当前选中分类：以路由 query ?tab= 为准（便于其他页面深链到指定分类，
- * 刷新 / 返回后也停留在原分类）；非法或缺省时回退到第一个分类。
- */
-const activeTab = computed(() => {
-  const tab = String(route.query.tab ?? "");
+/* ------------------------------ 分类切换 ------------------------------ */
+
+/** 旧别名要落到的分组（`?tab=cloud` → data-cloud）；换分类时用一次就清 */
+const pendingSection = ref<string | null>(null);
+
+const activeTab = computed<SettingsCategoryKey>(() => {
   const list = categories.value;
-  return list.some((category) => category.key === tab) ? tab : list[0].key;
+  const resolved = resolveTab(String(route.query.tab ?? ""));
+  if (resolved && list.some((category) => category.key === resolved.category)) {
+    return resolved.category;
+  }
+  return list[0].key;
 });
 
 const activeCategory = computed(
   () => categories.value.find((category) => category.key === activeTab.value) ?? categories.value[0],
 );
 
-function selectTab(key: string): void {
+const sections = computed(() => SETTINGS_SECTIONS[activeTab.value] ?? []);
+
+/*
+ * 旧别名的落地分组。
+ *
+ * 这个监听必须早于下面的 activeTab 监听注册：前者要在 query 被规范化成新 key
+ * 之前把落地分组记下来，否则 ?tab=cloud 的信息就丢了。
+ */
+watch(
+  () => route.query.tab,
+  (raw) => {
+    const resolved = resolveTab(String(raw ?? ""));
+    if (!resolved?.sectionId) return;
+    // 已经在同一个分类里（从别处跳到 ?tab=backup 而当前就是「数据」）：
+    // activeTab 不会变化，要靠这里直接滚过去
+    if (resolved.category === activeTab.value && pageRef.value) {
+      void scrollToSection(resolved.sectionId);
+      return;
+    }
+    pendingSection.value = resolved.sectionId;
+  },
+  { immediate: true },
+);
+
+function selectTab(key: SettingsCategoryKey): void {
   if (key === activeTab.value) return;
-  void router.replace({ query: { ...route.query, tab: key } });
+  void router.replace({ query: { tab: key } });
 }
 
-// 兜底：query 里没有合法 tab 时补写一份，保证地址栏始终反映当前分类
+// 兜底：query 里没有合法 tab（或是旧别名）时补写一份，保证地址栏反映当前分类
 watch(
   activeTab,
   (tab) => {
@@ -76,35 +119,93 @@ watch(
   { immediate: true },
 );
 
-/* ------------------------------ 移动端顶部 Tab 跟随选中项 ------------------------------ */
+/* ------------------------------ 滚动与锚点 ------------------------------ */
 
 /**
- * 顶部横向分类 Tab：让当前分类自动滚到可视区中间。
+ * 吸顶栏（chips）在视口里占掉的高度。
  *
- * 这个容器是 overflow-x: auto 的横向滚动条，分类多达 8 个（移动端隐藏「快捷键」
- * 后仍有 8 个），「下载与离线」「备份与还原」「关于」默认都在屏幕外。
- * 从别的页面深链进来（?tab=about）或点了靠后的分类后，高亮项会停在屏幕外，
- * 用户看不到「我现在在哪一栏」，只能盲滑去找。
- *
- * 用 scrollIntoView({ inline: "center" }) 而不是手工算 scrollLeft：
- * 浏览器会把滚动限制在容器自身（block 方向指定 nearest，不会带动整页），
- * 且天然处理宽窄不一的胶囊宽度。
+ * chips 用负 top 吸顶，粘住时正好顶到视口最上沿，所以占用高度就是它的实际高度。
+ * 直接量 DOM，桌面 / 移动、字体缩放都不用改常量。
  */
-const tabsRef = ref<HTMLElement | null>(null);
-
-async function scrollActiveTabIntoView(): Promise<void> {
-  if (!isMobile) return;
-  await nextTick();
-  const active = tabsRef.value?.querySelector<HTMLElement>(".settings-tab-item.active");
-  active?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+function stickyOffset(): number {
+  const chips = pageRef.value?.querySelector<HTMLElement>(".settings-chips");
+  return chips ? chips.offsetHeight : 0;
 }
 
-onMounted(() => void scrollActiveTabIntoView());
+/**
+ * 平滑滚到某个分组；返回是否找到（平台差异可能让分组不存在）。
+ *
+ * 刻意不用 `element.scrollIntoView({ behavior: "smooth" })`：在本项目的 WebView
+ * 里实测完全不滚（instant 版有效），而且它还会打断正在进行中的容器滚动动画，
+ * 表现为「点了标签没反应」。改成自己算偏移 + 容器 scrollTo，行为可控。
+ */
+async function scrollToSection(id: string, flash = false): Promise<boolean> {
+  await nextTick();
+  const container = pageRef.value;
+  const element = container?.querySelector<HTMLElement>(`[data-section-id="${id}"]`);
+  if (!container || !element) return false;
 
-// 切换分类后同样跟随：否则从「通用」点到「关于」，高亮项仍在屏幕外
-watch(activeTab, () => void scrollActiveTabIntoView());
+  const top =
+    element.getBoundingClientRect().top -
+    container.getBoundingClientRect().top +
+    container.scrollTop -
+    stickyOffset();
+  const max = container.scrollHeight - container.clientHeight;
+  container.scrollTo({ top: Math.min(Math.max(top, 0), max), behavior: "smooth" });
 
-/* ------------------------------ 滑动选中药丸（与 SideNav 一致） ------------------------------ */
+  if (flash) {
+    element.classList.add("settings-flash");
+    window.setTimeout(() => element.classList.remove("settings-flash"), 1400);
+  }
+  return true;
+}
+
+async function applyPendingSection(): Promise<void> {
+  const target = pendingSection.value;
+  pendingSection.value = null;
+  if (target && (await scrollToSection(target))) return;
+  pageRef.value?.scrollTo({ top: 0 });
+}
+
+watch(activeTab, async () => {
+  await nextTick();
+  if (!isMobile) updatePill();
+  // 搜索跳转带来的 tab 变化交给 focus 流程接管，别在这里先把页面滚回顶部
+  if (route.query.focus) return;
+  await applyPendingSection();
+});
+
+/** `?focus=` 跳转：滚到所属分组并短暂高亮，然后把这个参数消费掉 */
+watch(
+  () => route.query.focus,
+  async (focus) => {
+    if (!focus) return;
+    const key = String(focus);
+    const sectionId = SECTION_BY_ITEM_ID.get(key) ?? key;
+    await nextTick();
+    await nextTick();
+    const found = await scrollToSection(sectionId, true);
+    if (!found) toast("该项在当前平台不可用，已跳到分类顶部", "info");
+    void router.replace({ query: { ...route.query, focus: undefined } });
+  },
+);
+
+/** 搜索结果点击：同分类直接滚（避免 query 未变化导致 watcher 不触发），跨分类走 query */
+function onSearchSelect(item: SettingsItem): void {
+  if (item.category === activeTab.value) {
+    void scrollToSection(item.sectionId, true);
+    return;
+  }
+  void router.replace({ query: { ...route.query, tab: item.category, focus: item.id } });
+}
+
+/* ------------------------------ 分组 chips ------------------------------ */
+
+function onSectionPick(id: string): void {
+  void scrollToSection(id);
+}
+
+/* ------------------------------ 桌面端滑动药丸 ------------------------------ */
 
 const navPill = ref({ top: 0, visible: false });
 const pillsReady = ref(false);
@@ -133,25 +234,80 @@ function markPillsReady(): void {
   pillsReady.value = true;
 }
 
-onMounted(() => {
-  void nextTick(() => {
-    updatePill();
-    requestAnimationFrame(markPillsReady);
-    window.setTimeout(markPillsReady, 320);
-  });
-});
+let navObserver: ResizeObserver | null = null;
 
-watch(activeTab, async () => {
+function onViewportResize(): void {
   if (isMobile) return;
+  updatePill();
+}
+
+/* ------------------------------ 移动端分类面板 ------------------------------ */
+
+const pickerRef = ref<InstanceType<typeof CategoryPickerSheet> | null>(null);
+
+function openCategoryPicker(): void {
+  void pickerRef.value?.open();
+}
+
+/* ------------------------------ 生命周期 ------------------------------ */
+
+onMounted(async () => {
+  window.addEventListener("resize", onViewportResize);
+  const nav = document.querySelector(".settings-nav");
+  if (nav && typeof ResizeObserver !== "undefined") {
+    navObserver = new ResizeObserver(() => updatePill());
+    navObserver.observe(nav);
+  }
+
   await nextTick();
   updatePill();
+  requestAnimationFrame(markPillsReady);
+  window.setTimeout(markPillsReady, 320);
+
+  // 直接深链进来（?tab=cloud / ?focus=…）时的首次定位
+  if (!route.query.focus) await applyPendingSection();
 });
+
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", onViewportResize);
+  navObserver?.disconnect();
+  navObserver = null;
+});
+
+/* ------------------------------ 开发期索引校验 ------------------------------ */
+
+// 索引里登记了分组、模板里却忘了挂 data-section-id（或反之）时，搜索跳转会静默失效。
+// 生产构建下 import.meta.env.DEV 是常量 false，整段会被摇掉。
+watch(
+  [activeTab, () => route.query.focus],
+  async () => {
+    if (!import.meta.env.DEV) return;
+    await nextTick();
+    await nextTick();
+    const domIds = [...(pageRef.value?.querySelectorAll<HTMLElement>(
+      ".settings-content [data-section-id]",
+    ) ?? [])].map((element) => element.dataset.sectionId ?? "");
+    const metaIds = sections.value.map((section) => section.id);
+    // 只在部分平台渲染的分组（桌面歌词 / 输出设备 / 触感反馈 …）本来就可能缺席，
+    // 不算漂移；漏挂 data-section-id 才算。
+    const missing = sections.value
+      .filter((section) => !section.optional)
+      .map((section) => section.id)
+      .filter((id) => !domIds.includes(id));
+    const extra = domIds.filter((id) => !metaIds.includes(id));
+    if (missing.length || extra.length) {
+      console.warn(`[settings] 索引与 DOM 分组不一致（${activeTab.value}）`, { missing, extra });
+    }
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
-  <div class="wp-page settings-page" :class="{ mobile: isMobile }">
-    <div class="wp-page-header">
+  <div ref="pageRef" class="wp-page settings-page" :class="{ mobile: isMobile }">
+    <div class="wp-page-header settings-header">
       <h1 class="wp-page-title">设置</h1>
+      <SettingsSearchBox :mobile="isMobile" @select="onSearchSelect" />
     </div>
 
     <div class="settings-layout">
@@ -172,25 +328,40 @@ watch(activeTab, async () => {
         </button>
       </nav>
 
-      <!-- 移动端：顶部横向滚动分类 Tab -->
-      <nav v-else ref="tabsRef" class="settings-tabs" aria-label="设置分类">
+      <div class="settings-main">
+        <!-- 移动端：一个按钮 + 底部面板列全（替代原来的横向滚动胶囊） -->
         <button
-          v-for="category in categories"
-          :key="category.key"
-          class="settings-tab-item"
-          :class="{ active: category.key === activeTab }"
+          v-if="isMobile"
           type="button"
-          @click="selectTab(category.key)"
+          class="settings-category-button"
+          aria-label="切换设置分类"
+          @click="openCategoryPicker"
         >
-          <span>{{ category.label }}</span>
+          <span class="wp-icon category-icon" v-html="activeCategory.icon" aria-hidden="true" />
+          <span class="category-label">{{ activeCategory.label }}</span>
+          <span class="category-sub ellipsis">{{ activeCategory.mobileSubtitle }}</span>
+          <span class="category-arrow" aria-hidden="true" />
         </button>
-      </nav>
 
-      <!-- 分类内容 -->
-      <div class="settings-content">
-        <component :is="activeCategory.component" />
+        <SettingsSectionNav
+          :sections="sections"
+          :scroll-root="pageRef"
+          @pick="onSectionPick"
+        />
+
+        <div class="settings-content">
+          <component :is="PANELS[activeTab]" />
+        </div>
       </div>
     </div>
+
+    <CategoryPickerSheet
+      v-if="isMobile"
+      ref="pickerRef"
+      :categories="categories"
+      :active="activeTab"
+      @pick="selectTab"
+    />
   </div>
 </template>
 
@@ -203,10 +374,20 @@ watch(activeTab, async () => {
   max-width: none;
 }
 
+/* 页头：标题左、搜索右；窄屏时搜索换成图标按钮，不占额外高度 */
+.settings-header {
+  gap: var(--space-2xl);
+}
+
 .settings-layout {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2xl);
+}
+
+.settings-main {
+  flex: 1;
+  min-width: 0;
 }
 
 /* ------------------------- 桌面端左侧导航 ------------------------- */
@@ -289,11 +470,7 @@ watch(activeTab, async () => {
   color: var(--wp-accent);
 }
 
-/* ------------------------- 移动端顶部 Tab ------------------------- */
-
-.settings-tabs {
-  display: none;
-}
+/* ------------------------- 移动端分类按钮 ------------------------- */
 
 .settings-page.mobile .settings-layout {
   flex-direction: column;
@@ -301,31 +478,52 @@ watch(activeTab, async () => {
   gap: var(--space-lg);
 }
 
-.settings-page.mobile .settings-tabs {
+.settings-category-button {
   display: flex;
-  gap: var(--space-sm);
-  overflow-x: auto;
-  padding-bottom: 2px;
-  -webkit-overflow-scrolling: touch;
-}
-
-.settings-tab-item {
-  flex: none;
-  height: 32px;
-  padding: 0 16px;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+  height: 44px;
+  padding: 0 var(--space-lg);
   border: 1px solid var(--wp-control-stroke);
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   background: var(--wp-card);
   color: var(--wp-text-primary);
-  font-size: 13px;
+  font-size: 14px;
+  text-align: left;
   cursor: pointer;
 }
 
-.settings-tab-item.active {
-  background: var(--wp-accent);
-  border-color: var(--wp-accent);
-  color: #fff;
+.category-icon {
+  flex: none;
+  font-size: 16px;
+  color: var(--wp-accent);
+}
+
+.category-label {
+  flex: none;
   font-weight: 600;
+}
+
+.category-sub {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--wp-text-tertiary);
+  text-align: right;
+}
+
+/* 用纯 CSS 画下拉箭头：图标字体里 chevron 的码位在 Regular 字重下不稳定，
+   画个旋转的直角边框最省事，也不受主题字体替换影响 */
+.category-arrow {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-left: var(--space-sm);
+  border-right: 1.5px solid var(--wp-text-secondary);
+  border-bottom: 1.5px solid var(--wp-text-secondary);
+  border-radius: 1px;
+  transform: rotate(45deg) translate(-1px, -1px);
 }
 
 .settings-content {

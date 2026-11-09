@@ -5,6 +5,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { OFFICIAL_MARKET_SOURCE } from "@/stores/plugins";
 import { toast } from "@/services/toast";
 import type { MarketSource } from "@/types/plugin";
+import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 
@@ -46,11 +47,8 @@ function saveMirror() {
 </script>
 
 <template>
-  <div>
-    <!-- 插件市场 -->
-    <section class="settings-section">
-      <h2 class="settings-section-title">插件市场</h2>
-      <WpCard variant="row">
+  <SettingsSection id="plugins-market" title="插件市场">
+    <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">GitHub 镜像源</div>
           <div class="card-description">
@@ -111,11 +109,8 @@ function saveMirror() {
           <WpButton variant="standard" class="small" @click="addSource">添加</WpButton>
         </div>
       </WpCard>
-    </section>
-  </div>
-</template>
-
-<style scoped>
+  </SettingsSection>
+</template><style scoped>
 .mirror-edit {
   display: flex;
   gap: var(--space-md);

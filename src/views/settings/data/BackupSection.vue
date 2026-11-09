@@ -8,6 +8,7 @@
  */
 import { computed, ref } from "vue";
 import { ContentDialog, ToggleSwitch } from "@/components/winui";
+import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 import { toast } from "@/services/toast";
@@ -101,10 +102,7 @@ function notifyReload(): void {
 </script>
 
 <template>
-  <div>
-    <section class="settings-section">
-      <h2 class="settings-section-title">备份与还原</h2>
-
+  <SettingsSection id="data-backup" title="备份与还原">
       <WpCard variant="row">
         <div class="card-content">
           <div class="card-header">导出备份</div>
@@ -138,8 +136,6 @@ function notifyReload(): void {
           {{ busy === "import" ? "导入中…" : "选择文件导入" }}
         </WpButton>
       </WpCard>
-    </section>
-
     <ContentDialog
       ref="confirmDialogRef"
       Title="导入备份"
@@ -155,7 +151,7 @@ function notifyReload(): void {
       PrimaryButtonText="知道了"
       DefaultButton="Primary"
     />
-  </div>
+  </SettingsSection>
 </template>
 
 <style scoped>
