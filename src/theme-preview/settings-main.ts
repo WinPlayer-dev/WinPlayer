@@ -11,7 +11,7 @@ import "@/styles/tokens.css";
 import "@/styles/global.css";
 import "@/styles/theme.css";
 import "@/views/settings/settings.css";
-import StyleSettings from "@/views/settings/StyleSettings.vue";
+import StyleSettings from "@/views/settings/appearance/ColorsSection.vue";
 import { installHarnessStubs, mountBuiltinTheme } from "./harness";
 
 installHarnessStubs();

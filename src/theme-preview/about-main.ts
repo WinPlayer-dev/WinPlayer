@@ -17,7 +17,7 @@ import "@/styles/tokens.css";
 import "@/styles/global.css";
 import "@/styles/theme.css";
 import "@/views/settings/settings.css";
-import AboutSettings from "@/views/settings/AboutSettings.vue";
+import AboutSettings from "@/views/settings/panels/AboutPanel.vue";
 import { useSettingsStore } from "@/stores/settings";
 import { useUpdaterStore } from "@/stores/updater";
 import { installHarnessStubs } from "./harness";

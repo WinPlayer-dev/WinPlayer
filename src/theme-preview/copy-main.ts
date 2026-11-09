@@ -6,11 +6,11 @@ import "@/styles/tokens.css";
 import "@/styles/global.css";
 import "@/styles/theme.css";
 import "@/views/settings/settings.css";
-import GeneralSettings from "@/views/settings/GeneralSettings.vue";
-import PlaybackSettings from "@/views/settings/PlaybackSettings.vue";
-import DownloadSettings from "@/views/settings/DownloadSettings.vue";
-import StorageSettings from "@/views/settings/StorageSettings.vue";
-import StyleSettings from "@/views/settings/StyleSettings.vue";
+import GeneralSettings from "@/views/settings/panels/GeneralPanel.vue";
+import PlaybackSettings from "@/views/settings/playback/SourcePreferenceSection.vue";
+import DownloadSettings from "@/views/settings/data/DownloadSection.vue";
+import StorageSettings from "@/views/settings/data/CacheSection.vue";
+import StyleSettings from "@/views/settings/appearance/ColorsSection.vue";
 import { installHarnessStubs } from "./harness";
 
 installHarnessStubs();

@@ -2,17 +2,17 @@
 import { computed, nextTick, onMounted, ref, watch, type Component } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useIsMobile } from "@/composables/useIsMobile";
-import GeneralSettings from "@/views/settings/GeneralSettings.vue";
-import StyleSettings from "@/views/settings/StyleSettings.vue";
-import PlaybackSettings from "@/views/settings/PlaybackSettings.vue";
-import ExperimentalSettings from "@/views/settings/ExperimentalSettings.vue";
-import KeymapSettings from "@/views/settings/KeymapSettings.vue";
-import PluginSettings from "@/views/settings/PluginSettings.vue";
-import StorageSettings from "@/views/settings/StorageSettings.vue";
-import DownloadSettings from "@/views/settings/DownloadSettings.vue";
-import BackupSettings from "@/views/settings/BackupSettings.vue";
-import CloudSettings from "@/views/settings/CloudSettings.vue";
-import AboutSettings from "@/views/settings/AboutSettings.vue";
+import GeneralSettings from "@/views/settings/panels/GeneralPanel.vue";
+import StyleSettings from "@/views/settings/appearance/ColorsSection.vue";
+import PlaybackSettings from "@/views/settings/playback/SourcePreferenceSection.vue";
+import ExperimentalSettings from "@/views/settings/experimental/AutoPlaylistSection.vue";
+import KeymapSettings from "@/views/settings/panels/ShortcutPanel.vue";
+import PluginSettings from "@/views/settings/panels/PluginsPanel.vue";
+import StorageSettings from "@/views/settings/data/CacheSection.vue";
+import DownloadSettings from "@/views/settings/data/DownloadSection.vue";
+import BackupSettings from "@/views/settings/data/BackupSection.vue";
+import CloudSettings from "@/views/settings/data/CloudSection.vue";
+import AboutSettings from "@/views/settings/panels/AboutPanel.vue";
 
 const route = useRoute();
 const router = useRouter();

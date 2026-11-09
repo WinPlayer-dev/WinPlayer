@@ -6,7 +6,7 @@ import "@/styles/tokens.css";
 import "@/styles/global.css";
 import "@/styles/theme.css";
 import "@/views/settings/settings.css";
-import ExperimentalSettings from "@/views/settings/ExperimentalSettings.vue";
+import ExperimentalSettings from "@/views/settings/experimental/AutoPlaylistSection.vue";
 import { installHarnessStubs, mountBuiltinTheme } from "./harness";
 import { useLibraryStore } from "@/stores/library";
 import { useSettingsStore } from "@/stores/settings";
