@@ -1,0 +1,37 @@
+/**
+ * 动效手感：标准 WinUI 曲线 / 弹簧（设置 → 外观 → 动效）。
+ *
+ * 为什么只改这一个文件就够：全站 150 多处 transition / animation 都写成
+ * `transition: <property> var(--duration-*) var(--ease-*)`，缓动统一走这三个令牌。
+ * 开关打开时 stores/settings.ts 的 applySpringMotion() 给 <html> 挂 .spring-motion，
+ * 把令牌整体换成带回弹的曲线，一次性覆盖按钮、卡片、弹层、路由切换、播放条，
+ * 不需要在组件里逐个改；关掉即回落 tokens.css 的 WinUI 标准值。
+ *
+ * 曲线用「单次过冲」（easeOutBack），不用多次衰减振荡：
+ * - 单次过冲 = 快速冲到目标、稍微越过再落回，位移上很有弹性；
+ * - 多次振荡在 opacity 1→0 这种淡出上会来回闪几下，看起来像渲染故障。
+ *
+ * 幅度由 --spring-ease-y 控制（缓动曲线第二个控制点的 y 值，由强度滑杆写入
+ * <html> 的行内变量）：1 = 完全不回弹，1.55 ≈ 冲过头 10%，2.0 ≈ 冲过头 23%。
+ * 这里带兜底值，避免变量尚未写入的首帧解析失败。
+ *
+ * 选择器要写两遍：第二遍的 [data-theme] 是为了在特异性上压过主题样式表里的
+ * `:root[data-theme="light"|"dark"]`（主题可以用 density.easing 自定义曲线，
+ * 但用户显式打开的弹簧开关优先级更高）。
+ *
+ * 有意**不**接弹簧的硬编码缓动（改之前先想清楚为什么）：
+ * - 退出 / 收起动画的加速曲线，例如 ComboBoxBase 的 `wp-combo-box-out`
+ *   cubic-bezier(0.7, 0, 1, 0.5)：带过冲会让元素先往反方向弹一下再消失；
+ * - 无限循环的氛围动画（呼吸、脉冲、旋转），例如 `rec-pulse`、`dot-blink`、
+ *   `spin ... linear`：改成过冲曲线会一直抖、或者转得忽快忽慢；
+ * - 桌面歌词窗口（DesktopLyricsWindow）是独立入口、不加载本文件。
+ * 需要「本来就会过冲」的位移动效，用 --ease-back-out 而不是硬写曲线。
+ */
+html.spring-motion,
+html.spring-motion[data-theme] {
+  --ease-standard: cubic-bezier(0.34, var(--spring-ease-y, 1.55), 0.64, 1);
+  --ease-decelerate: cubic-bezier(0.22, var(--spring-ease-y, 1.55), 0.4, 1);
+  --ease-fast-out-slow-in: cubic-bezier(0.34, var(--spring-ease-y, 1.55), 0.64, 1);
+  /* 本来就会过冲的那条（图标弹跳），关掉时是 1.56，开启后跟随滑杆 */
+  --ease-back-out: cubic-bezier(0.34, var(--spring-ease-y, 1.55), 0.64, 1);
+}

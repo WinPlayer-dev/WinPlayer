@@ -442,7 +442,7 @@ watch(
   z-index: 0;
   pointer-events: none;
   transition:
-    top 300ms cubic-bezier(0.1, 0.9, 0.2, 1),
+    top 300ms var(--ease-decelerate),
     opacity 200ms var(--ease-standard);
 }
 
@@ -457,7 +457,7 @@ watch(
   z-index: 1;
   pointer-events: none;
   transition:
-    top 300ms cubic-bezier(0.1, 0.9, 0.2, 1),
+    top 300ms var(--ease-decelerate),
     opacity 200ms var(--ease-standard);
 }
 

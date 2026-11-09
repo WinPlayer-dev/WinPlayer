@@ -820,7 +820,7 @@ onUnmounted(() => {
 /* 图标切换弹跳（播放/暂停、喜欢红心）：缩放回落，带轻微过冲 */
 .icon-pop-enter-active {
   transition:
-    transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 260ms var(--ease-back-out),
     opacity 180ms var(--ease-standard);
 }
 

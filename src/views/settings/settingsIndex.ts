@@ -47,6 +47,7 @@ export const SETTINGS_SECTIONS: Record<SettingsCategoryKey, SettingsSectionMeta[
     { id: "appearance-colors", category: "appearance", title: "配色与材质" },
     { id: "appearance-theme", category: "appearance", title: "主题" },
     { id: "appearance-font", category: "appearance", title: "字体" },
+    { id: "appearance-motion", category: "appearance", title: "动效" },
   ],
   playback: [
     { id: "playback-source", category: "playback", title: "来源偏好" },
@@ -345,6 +346,24 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     description: "自定义应用字体，填入 CSS font-family 值（可含备选字体）；留空恢复默认，输入即预览",
     aliases: ["字体", "字号", "font", "改字体"],
     keywords: ["font", "family", "typeface"],
+  },
+  {
+    id: "appearance.motion.spring",
+    category: "appearance",
+    sectionId: "appearance-motion",
+    title: "弹簧手感",
+    description: "把全站缓动换成带回弹的曲线：按钮、卡片、弹层、页面切换都会「Q 弹」一下；关闭则回到 WinUI 标准曲线",
+    aliases: ["动效", "动画", "弹性", "回弹", "Q 弹", "灵动", "阻尼"],
+    keywords: ["motion", "animation", "spring", "bounce", "easing", "transition"],
+  },
+  {
+    id: "appearance.motion.strength",
+    category: "appearance",
+    sectionId: "appearance-motion",
+    title: "回弹幅度",
+    description: "到达终点后多冲出去一点再落回；越大幅度越夸张，调好后可在下面直接试手感",
+    aliases: ["弹性强度", "回弹强度", "弹多狠", "动效强度"],
+    keywords: ["strength", "overshoot", "spring", "bounce"],
   },
 
   /* ---------- 播放 ---------- */

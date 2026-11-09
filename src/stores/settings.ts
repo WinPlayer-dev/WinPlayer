@@ -174,6 +174,24 @@ export function normalizeLyricsFontSize(value: unknown): number {
   return Math.min(DESKTOP_LYRICS_FONT_MAX, Math.max(DESKTOP_LYRICS_FONT_MIN, size));
 }
 
+/* ------------------------------ 动效手感 ------------------------------ */
+
+/**
+ * 弹簧回弹幅度：直接就是缓动曲线第二控制点的 y 值（见 styles/motion.css）。
+ * 1 = 严格单调不回弹，数值越大「冲过头再落回」越明显。
+ */
+export const SPRING_STRENGTH_MIN = 1.2;
+export const SPRING_STRENGTH_MAX = 2;
+export const SPRING_STRENGTH_DEFAULT = 1.55;
+
+/** 把持久化 / 用户拖动的强度夹到合法区间，并按 0.05 取整（滑杆步进） */
+export function normalizeSpringStrength(value: unknown): number {
+  const raw = Number(value);
+  if (!Number.isFinite(raw)) return SPRING_STRENGTH_DEFAULT;
+  const clamped = Math.min(SPRING_STRENGTH_MAX, Math.max(SPRING_STRENGTH_MIN, raw));
+  return Math.round(clamped * 20) / 20;
+}
+
 /** 冷启动后直接进入的页面（默认推荐页） */
 export type StartupPage = "recommend" | "liked" | "offline" | "mine";
 
@@ -314,6 +332,10 @@ export const useSettingsStore = defineStore("settings", () => {
   const coverAccent = ref(false);
   /** 是否按封面原始宽高比显示（关闭则所有封面统一裁切为正方形） */
   const coverNaturalRatio = ref(false);
+  /** 弹簧动效：开启后全站缓动换成带回弹的曲线，交互更「Q 弹」 */
+  const springMotion = ref(false);
+  /** 弹簧回弹幅度（缓动曲线第二控制点 y 值，越大冲得越远） */
+  const springStrength = ref(SPRING_STRENGTH_DEFAULT);
   /** 是否记录播放历史（关闭后不再写库，已有数据保留） */
   const historyEnabled = ref(true);
   /** 缓存项策略：歌单（页面数据）/ 图片缓存开关组合 */
@@ -381,11 +403,24 @@ export const useSettingsStore = defineStore("settings", () => {
     document.documentElement.classList.toggle("cover-natural", coverNaturalRatio.value);
   }
 
+  /**
+   * 把「弹簧动效」开关与幅度同步到 <html>：样式见 styles/motion.css。
+   *
+   * 全站 transition 都引用 `--ease-*` 令牌，所以只在根节点挂一个类 + 一个数值变量，
+   * 就能整体换手感，不需要逐个组件改。
+   */
+  function applySpringMotion(): void {
+    const root = document.documentElement;
+    root.classList.toggle("spring-motion", springMotion.value);
+    root.style.setProperty("--spring-ease-y", String(springStrength.value));
+  }
+
   // 首次创建即应用（设置尚未从数据库加载时的默认值）
   applyTheme();
   applyFont();
   applyHaptics();
   applyCoverNaturalRatio();
+  applySpringMotion();
 
   async function load(): Promise<void> {
     theme.value = await getSetting<ThemePreference>("settings.theme", "system");
@@ -440,6 +475,10 @@ export const useSettingsStore = defineStore("settings", () => {
     hapticsEnabled.value = await getSetting<boolean>("settings.hapticsEnabled", true);
     coverAccent.value = await getSetting<boolean>("settings.coverAccent", false);
     coverNaturalRatio.value = await getSetting<boolean>("settings.coverNaturalRatio", false);
+    springMotion.value = await getSetting<boolean>("settings.springMotion", false);
+    springStrength.value = normalizeSpringStrength(
+      await getSetting<number>("settings.springStrength", SPRING_STRENGTH_DEFAULT),
+    );
     historyEnabled.value = await getSetting<boolean>("settings.historyEnabled", true);
     applyHistoryEnabled();
     cachePolicy.value = await getSetting<CachePolicy>("settings.cachePolicy", "both");
@@ -472,6 +511,7 @@ export const useSettingsStore = defineStore("settings", () => {
     applyFont();
     applyHaptics();
     applyCoverNaturalRatio();
+    applySpringMotion();
     // 窗口材质按持久化偏好应用（仅 Windows 桌面实际生效）
     void applyWindowMaterial(windowMaterial.value);
     // 启动时把均衡器配置应用到原生引擎
@@ -557,6 +597,25 @@ export const useSettingsStore = defineStore("settings", () => {
     coverNaturalRatio.value = value;
     applyCoverNaturalRatio();
     await setSetting("settings.coverNaturalRatio", value);
+  }
+
+  /* ------------------------------ 动效手感 ------------------------------ */
+
+  async function setSpringMotion(value: boolean): Promise<void> {
+    springMotion.value = value;
+    applySpringMotion();
+    await setSetting("settings.springMotion", value);
+  }
+
+  /** 滑杆拖动中的实时预览：只改内存与样式，不写库（落库由 setSpringStrength 防抖调用） */
+  function previewSpringStrength(value: number): void {
+    springStrength.value = normalizeSpringStrength(value);
+    applySpringMotion();
+  }
+
+  async function setSpringStrength(value: number): Promise<void> {
+    previewSpringStrength(value);
+    await setSetting("settings.springStrength", springStrength.value);
   }
 
   /* ------------------------------ 播放历史 ------------------------------ */
@@ -800,6 +859,8 @@ export const useSettingsStore = defineStore("settings", () => {
     hapticsEnabled,
     coverAccent,
     coverNaturalRatio,
+    springMotion,
+    springStrength,
     historyEnabled,
     onboardingDone,
     studioEnabled,
@@ -845,6 +906,9 @@ export const useSettingsStore = defineStore("settings", () => {
     setHaptics,
     setCoverAccent,
     setCoverNaturalRatio,
+    setSpringMotion,
+    setSpringStrength,
+    previewSpringStrength,
     setHistoryEnabled,
     setMarketSources,
     setOnboardingDone,

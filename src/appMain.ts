@@ -9,6 +9,7 @@
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import "@/styles/tokens.css";
+import "@/styles/motion.css";
 import "@/styles/global.css";
 import "@/styles/mobile.css";
 import "@/styles/theme.css";

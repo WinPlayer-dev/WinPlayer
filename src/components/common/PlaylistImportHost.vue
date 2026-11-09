@@ -329,7 +329,7 @@ async function doImport(): Promise<void> {
 .progress-fill {
   height: 100%;
   background: var(--wp-accent);
-  transition: width 0.2s ease;
+  transition: width var(--duration-normal) var(--ease-standard);
 }
 
 .progress-text {

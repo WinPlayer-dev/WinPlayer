@@ -46,6 +46,9 @@
   --duration-slow: 350ms;
   --ease-standard: cubic-bezier(0.33, 0, 0.67, 1);
   --ease-decelerate: cubic-bezier(0.1, 0.9, 0.2, 1);
+  /* 自带一次过冲的曲线：用于本来就要「弹」的位移动效（播放/暂停图标切换等），
+     开启弹簧手感后它的过冲幅度会跟随强度滑杆（见 styles/motion.css） */
+  --ease-back-out: cubic-bezier(0.34, 1.56, 0.64, 1);
   /* WinUI ControlFastAnimationDuration / ControlFastOutSlowInKeySpline（缓出） */
   --duration-control-fast: 167ms;
   --ease-fast-out-slow-in: cubic-bezier(0, 0, 0, 1);

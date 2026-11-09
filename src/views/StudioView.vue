@@ -804,7 +804,7 @@ onMounted(() => {
   left: 0;
   right: 0;
   transform: translateY(calc(-15px - var(--lyric-index, 0) * 30px));
-  transition: transform 0.42s cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition: transform 0.42s var(--ease-decelerate);
   will-change: transform;
 }
 
@@ -914,9 +914,9 @@ onMounted(() => {
   background: var(--wp-accent);
   box-shadow: 0 6px 18px color-mix(in srgb, var(--wp-accent) 38%, transparent);
   transition:
-    transform 0.16s ease,
-    background 0.2s ease,
-    box-shadow 0.2s ease;
+    transform var(--duration-control-fast) var(--ease-standard),
+    background var(--duration-normal) var(--ease-standard),
+    box-shadow var(--duration-normal) var(--ease-standard);
 }
 
 .record-button:hover:not(:disabled) {
