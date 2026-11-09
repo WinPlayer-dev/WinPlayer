@@ -48,13 +48,14 @@
 /* ------------------------- 分组 chips（唯一的吸顶栏） ------------------------- */
 
 /*
- * 一条完整的工具条，而不是「浮在内容上的一片玻璃」：
+ * 一条完整的工具条：
  * 1. sticky 的 top 是相对滚动容器的**内容盒**算的，直接写 top: 0 会在顶部留出
  *    页面内边距那一条（滚动的卡片从缝里透出来）。所以用负偏移顶上去，再用等量
  *    的 padding-top 把空间补回来，吸顶时正好从视口最上沿开始整块盖住；
- * 2. 底部一条描边，明确它是与内容分层的头部，不靠阴影糊。
- * 刻意不让分组标题也吸顶：两块半透明底叠在一起会互相抢色，视觉上很割裂，
- * 而「当前在哪一组」已经由 chip 高亮表达了。
+ * 2. 纯色实心底（--wp-base-solid，与页面背景同色且在窗口材质下也不透明），
+ *    没有毛玻璃、没有描边，滚动时内容被整块盖住，也不会出现多余的色带或分割线。
+ * 刻意不让分组标题也吸顶：两块底色叠在一起会互相抢色，而「当前在哪一组」
+ * 已经由 chip 高亮表达了。
  */
 .settings-chips {
   position: sticky;
@@ -64,9 +65,7 @@
   align-items: center;
   gap: var(--space-sm);
   padding: var(--settings-page-pad-top) 0 var(--space-md);
-  background: var(--wp-base);
-  backdrop-filter: blur(14px) saturate(1.1);
-  border-bottom: 1px solid var(--wp-control-stroke-secondary);
+  background: var(--wp-base-solid);
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;

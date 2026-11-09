@@ -64,6 +64,10 @@
 
   /* 背景层级（近似 Mica 分层） */
   --wp-base: #f3f3f3;
+  /* 与 --wp-base 同义的**实色**版本：需要「看起来就是背景」但不能透出下层的内容用。
+     默认跟随 --wp-base（主题改了就跟着改）；窗口材质开启时 --wp-base 变半透明，
+     那两处会把它固定成实色，避免吸顶条透出滚动内容。 */
+  --wp-base-solid: var(--wp-base);
   --wp-layer: rgba(255, 255, 255, 0.7);
   --wp-layer-solid: #fbfbfb;
   --wp-card: rgba(255, 255, 255, 0.7);
@@ -288,9 +292,12 @@
 :root[data-material="mica"][data-theme="light"],
 :root[data-material="acrylic"][data-theme="light"] {
   --wp-base: rgba(243, 243, 243, 0.55);
+  /* 材质下背景是半透明的，实色版本要钉死，否则吸顶条会透出滚动内容 */
+  --wp-base-solid: #f3f3f3;
 }
 
 :root[data-material="mica"][data-theme="dark"],
 :root[data-material="acrylic"][data-theme="dark"] {
   --wp-base: rgba(32, 32, 32, 0.6);
+  --wp-base-solid: #202020;
 }
