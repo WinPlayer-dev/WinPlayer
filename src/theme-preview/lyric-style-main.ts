@@ -21,6 +21,7 @@ import "@/styles/lyrics-style.css";
 import "@/views/settings/settings.css";
 import LyricsStyleSection from "@/views/settings/appearance/LyricsStyleSection.vue";
 import { useSettingsStore, LYRICS_STYLE_DEFAULT } from "@/stores/settings";
+import { useIsMobile } from "@/composables/useIsMobile";
 import { lyricStyleClasses, lyricStyleVars } from "@/services/lyricStyle";
 import { installHarnessStubs } from "./harness";
 
@@ -78,9 +79,14 @@ function LyricBlock(
 const Host = defineComponent({
   setup() {
     const settings = useSettingsStore();
+    const isMobile = useIsMobile();
+
+    // 手机端一定要带 mobile 类：设置页的窄屏规则（卡片换行、控件满宽）全挂在
+    // `.settings-page.mobile` 上，缺了它卡片会 nowrap，控件直接叠在文字上
+    const pageClass = isMobile ? "settings-page mobile" : "settings-page";
 
     return () =>
-      h("div", { class: "settings-page", style: "padding:16px 14px 40px;max-width:520px" }, [
+      h("div", { class: pageClass, style: "padding:16px 14px 40px;max-width:520px" }, [
         h(LyricsStyleSection),
         h("h2", { style: "font-size:16px;margin:8px 0 12px" }, "全屏页对照"),
         h("div", { style: "display:flex;flex-wrap:wrap;gap:16px" }, [

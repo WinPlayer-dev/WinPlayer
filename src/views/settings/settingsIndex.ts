@@ -48,8 +48,8 @@ export const SETTINGS_SECTIONS: Record<SettingsCategoryKey, SettingsSectionMeta[
     { id: "appearance-theme", category: "appearance", title: "主题" },
     // 只影响手机端列表页，桌面端不渲染该分组
     { id: "appearance-layout", category: "appearance", title: "布局", optional: true },
-    // 只影响手机「正在播放」全屏页的歌词，桌面端不渲染该分组
-    { id: "appearance-lyrics", category: "appearance", title: "歌词样式", optional: true },
+    // 手机全屏页与桌面沉浸式正在播放页共用同一份配置
+    { id: "appearance-lyrics", category: "appearance", title: "歌词样式" },
     { id: "appearance-font", category: "appearance", title: "字体" },
     { id: "appearance-motion", category: "appearance", title: "动效" },
   ],
@@ -366,7 +366,7 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     category: "appearance",
     sectionId: "appearance-lyrics",
     title: "实时预览",
-    description: "手机「正在播放」全屏页的歌词效果，调下面任一选项都会立即反映在这里",
+    description: "手机全屏页与桌面正在播放页的歌词效果，调下面任一选项都会立即反映在这里",
     aliases: ["歌词预览", "效果预览", "预览"],
     keywords: ["lyrics", "preview"],
   },
@@ -387,6 +387,25 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     description: "歌词居中或靠左显示；短句适合居中，长句与说唱适合靠左",
     aliases: ["对齐", "居中", "靠左", "左对齐"],
     keywords: ["align", "center", "left"],
+  },
+  {
+    id: "appearance.lyrics.position",
+    category: "appearance",
+    sectionId: "appearance-lyrics",
+    title: "当前行位置",
+    description: "当前正在唱的那一行停在播放页的靠上 / 居中 / 靠下位置；靠下适合回看刚唱过的句子",
+    aliases: ["位置", "歌词位置", "靠上", "靠下", "居中", "垂直位置"],
+    keywords: ["position", "anchor", "top", "bottom", "center"],
+  },
+  {
+    id: "appearance.lyrics.scroll",
+    category: "appearance",
+    sectionId: "appearance-lyrics",
+    title: "歌词滚动",
+    description:
+      "切换歌词行时移动的快慢，以及放大 / 加粗 / 变淡的缓动曲线；速度越快，行切换也越利落",
+    aliases: ["滚动速度", "歌词动画", "动画速度", "滚太快", "滚太慢", "缓动", "缓入缓出", "曲线"],
+    keywords: ["scroll", "animation", "speed", "duration", "smooth", "easing"],
   },
   {
     id: "appearance.lyrics.font",

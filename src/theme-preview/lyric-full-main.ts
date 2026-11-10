@@ -62,12 +62,15 @@ player.queue = [
   },
 ];
 player.currentIndex = 0;
-player.duration = 240000;
+player.duration = 240;
 player.currentTime = 20;
 player.lyrics = LYRICS;
 
-// 让走查页能切几种外观组合再看效果（截图脚本里直接改 store 即可）
+// 让走查页能切几种外观组合再看效果（截图脚本里直接改 store 即可；
+// `__player` 用来喂「超长歌词」「切到某一句」这类极端数据做回归）
 const settings = useSettingsStore();
-(window as unknown as { __settings?: unknown }).__settings = settings;
+const harnessWindow = window as unknown as { __settings?: unknown; __player?: unknown };
+harnessWindow.__settings = settings;
+harnessWindow.__player = player;
 
 app.mount("#app");

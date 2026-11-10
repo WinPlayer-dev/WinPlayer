@@ -57,8 +57,7 @@ watch(
   () => replayDemo(),
 );
 
-onBeforeUnmount(() => window.clearTimeout(saveTimer));
-</script>
+onBeforeUnmount(() => window.clearTimeout(saveTimer));</script>
 
 <template>
   <SettingsSection id="appearance-motion" title="动效">

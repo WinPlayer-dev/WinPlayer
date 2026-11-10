@@ -190,6 +190,20 @@ export function normalizeLyricsFontSize(value: unknown): number {
 export type LyricAlign = "center" | "left";
 
 /**
+ * 当前行在歌词区里的垂直位置：靠上 / 居中 / 靠下。
+ * 屏幕很高或很矮时居中不一定是最好读的 —— 有人习惯当前行靠上，
+ * 下方留出「接下来要唱什么」的预览区域。
+ */
+export type LyricAnchor = "top" | "center" | "bottom";
+
+/**
+ * 歌词动画的缓动曲线。
+ * - `out`：缓出（起步快、收尾慢），轻微按键手感，默认
+ * - `inout`：缓入缓出（两头慢、中间快），更「柔」，适合慢歌
+ */
+export type LyricEasing = "out" | "inout";
+
+/**
  * 歌词字体预设。
  * 只存预设 id，具体 font-family 栈在 `services/lyricStyle.ts` 里映射 ——
  * 这样换字体栈不用迁移数据库，而且 CSS 变量拼接只在一处。
@@ -228,6 +242,12 @@ export interface LyricsStyleConfig {
   glow: number;
   /** 歌词区上下边缘渐隐 */
   maskFade: boolean;
+  /** 当前行在歌词区的垂直位置 */
+  alignY: LyricAnchor;
+  /** 歌词滚动速度倍数（1 = 默认，越大越快） */
+  scrollSpeed: number;
+  /** 歌词动画（滚动、放大、加粗、渐隐）的缓动曲线 */
+  scrollEasing: LyricEasing;
 }
 
 export const LYRICS_STYLE_DEFAULT: LyricsStyleConfig = {
@@ -246,6 +266,9 @@ export const LYRICS_STYLE_DEFAULT: LyricsStyleConfig = {
   showTranslation: true,
   glow: 1,
   maskFade: true,
+  alignY: "center",
+  scrollSpeed: 1,
+  scrollEasing: "out",
 };
 
 /** 各滑杆的合法区间：设置页与规范化共用，避免两处写死不同的数 */
@@ -256,7 +279,17 @@ export const LYRICS_STYLE_RANGES = {
   inactiveOpacity: { min: 0.2, max: 0.95 },
   lineGap: { min: 0, max: 28 },
   glow: { min: 0, max: 2 },
+  scrollSpeed: { min: 0.5, max: 2.5 },
 } as const;
+
+/** 当前行垂直位置的可选值（顺序即设置页按钮顺序） */
+export const LYRIC_ANCHORS: readonly LyricAnchor[] = ["top", "center", "bottom"];
+
+/** 缓动曲线的可选值与文案 */
+export const LYRIC_EASINGS: readonly { value: LyricEasing; label: string }[] = [
+  { value: "out", label: "缓出" },
+  { value: "inout", label: "缓入缓出" },
+];
 
 /** 可选字重（细 / 常规 / 中等 / 半粗 / 粗） */
 export const LYRICS_FONT_WEIGHTS: readonly number[] = [300, 400, 500, 600, 700];
@@ -338,6 +371,16 @@ export function normalizeLyricsStyle(value: unknown): LyricsStyleConfig {
         : LYRICS_STYLE_DEFAULT.showTranslation,
     glow: clampRange(raw.glow, ranges.glow.min, ranges.glow.max, LYRICS_STYLE_DEFAULT.glow),
     maskFade: typeof raw.maskFade === "boolean" ? raw.maskFade : LYRICS_STYLE_DEFAULT.maskFade,
+    alignY: LYRIC_ANCHORS.includes(raw.alignY as LyricAnchor)
+      ? (raw.alignY as LyricAnchor)
+      : LYRICS_STYLE_DEFAULT.alignY,
+    scrollSpeed: clampRange(
+      raw.scrollSpeed,
+      ranges.scrollSpeed.min,
+      ranges.scrollSpeed.max,
+      LYRICS_STYLE_DEFAULT.scrollSpeed,
+    ),
+    scrollEasing: raw.scrollEasing === "inout" ? "inout" : "out",
   };
 }
 

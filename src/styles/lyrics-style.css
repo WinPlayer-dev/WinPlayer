@@ -29,15 +29,38 @@
   --lrc-blur-3: 2.4px;
   --lrc-glow: 12px;
   --lrc-glow-alpha: 0.45;
+  /* 行过渡时长与曲线：由设置里的「歌词滚动」速度 / 缓动决定，
+     这里只是变量缺失时的兜底（与服务端默认值一致） */
+  --lrc-dur: 340ms;
+  --lrc-ease: cubic-bezier(0.33, 0, 0.2, 1);
+  /* 当前行落在容器的高度比例（由设置里的「靠上 / 居中 / 靠下」决定） */
+  --lrc-anchor: 0.5;
+  /**
+   * 上下边缘渐隐带的宽度。
+   *
+   * 默认值只是「没测到行高时」的兜底：按锚点比例估算，靠上 / 靠下时自动
+   * 收窄一点。运行时 `useLyricLines` 会拿当前行实际高度改写成精确 px ——
+   * 否则一旦这段渐隐带比「当前行上沿到容器顶」还宽（靠上播放 + 长句折成
+   * 三四行时很容易发生），高亮行的上半截就会被压暗，看着像盖了层灰影。
+   */
+  --lrc-fade-max: 26%;
+  --lrc-fade-top: calc(var(--lrc-anchor) * var(--lrc-fade-max));
+  --lrc-fade-bottom: calc(var(--lrc-fade-max) - var(--lrc-fade-top));
 
   font-family: var(--lrc-font);
   /* 上下边缘渐隐：歌词从视野边缘淡入淡出，可在设置里关掉 */
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 20%, #000 80%, transparent 100%);
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--lrc-fade-top),
+    #000 calc(100% - var(--lrc-fade-bottom)),
+    transparent 100%
+  );
   -webkit-mask-image: linear-gradient(
     to bottom,
-    transparent 0%,
-    #000 20%,
-    #000 80%,
+    transparent 0,
+    #000 var(--lrc-fade-top),
+    #000 calc(100% - var(--lrc-fade-bottom)),
     transparent 100%
   );
 }
@@ -61,8 +84,8 @@
   cursor: pointer;
   color: rgba(255, 255, 255, var(--lrc-op-4));
   transition:
-    color var(--duration-normal, 0.2s) var(--ease-standard, ease),
-    filter var(--duration-normal, 0.2s) var(--ease-standard, ease);
+    color var(--lrc-dur) var(--lrc-ease),
+    filter var(--lrc-dur) var(--lrc-ease);
 }
 
 /* 靠左：整块贴左边，行内文字左对齐（长句折行后仍然对齐同一条基线） */
@@ -78,9 +101,12 @@
   font-size: var(--lrc-size);
   font-weight: var(--lrc-weight);
   line-height: 1.45;
+  /* 放大 / 加粗也吃同一套时长与曲线（以前写死 0.2s，现在跟「歌词滚动」设置走） */
   transition:
-    font-size var(--duration-normal, 0.2s) var(--ease-standard, ease),
-    font-weight var(--duration-normal, 0.2s) var(--ease-standard, ease);
+    font-size var(--lrc-dur) var(--lrc-ease),
+    font-weight var(--lrc-dur) var(--lrc-ease),
+    color var(--lrc-dur) var(--lrc-ease),
+    text-shadow var(--lrc-dur) var(--lrc-ease);
 }
 
 /* 翻译副行：按字号等比缩放，跟着原文的明暗层级走 */
@@ -89,7 +115,7 @@
   line-height: 1.4;
   color: inherit;
   opacity: 0.62;
-  transition: opacity var(--duration-normal, 0.2s) var(--ease-standard, ease);
+  transition: opacity var(--lrc-dur) var(--lrc-ease);
 }
 
 /* ------------------------------ 层级 ------------------------------ */

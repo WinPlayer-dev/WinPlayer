@@ -183,7 +183,7 @@ const wallpaper = asset("assets/bg.jpg");
 | `PageShell` | 应用骨架（标题栏 + 导航 + 内容 + 播放条） | 换整体布局、加侧边栏抽屉 |
 | `TitleBar` | 顶部标题栏 | 换搜索框样式、加按钮 |
 | `SideNav` | 桌面端侧边导航 | 换导航组件、改歌单列表样式 |
-| `PlayerBar` | 桌面端播放条 | 换播放控件、改成悬浮胶囊。**务必保留 `<QueuePanel />` / `<LyricsPanel />` / `<DownloadPanel />`**，并让播放条自身 `position: relative`（面板靠 absolute 锚定在它上方） |
+| `PlayerBar` | 桌面端播放条 | 换播放控件、改成悬浮胶囊。**务必保留 `<QueuePanel />` / `<LyricsPanel />` / `<DownloadPanel />`**，并让播放条自身 `position: relative`（队列 / 下载面板靠 absolute 锚定在它上方；`LyricsPanel` 已是整窗 fixed 覆盖层，不受这个影响） |
 | `MediaCard` | 歌单 / 专辑 / 歌手卡片 | 换卡片结构、加播放按钮 |
 | `EmptyState` | 空状态占位 | 换插画、加引导操作 |
 
@@ -306,7 +306,7 @@ const title = computed(() => (player.currentTrack ? trackTitle(player.currentTra
 | `@/components/common/CachedImage.vue` | 带磁盘缓存的图片组件 |
 | `@/components/theme/WpCard.vue` | 卡片分发层（主题实现 Card 时可复用它的语义） |
 | `@/components/layout/QueuePanel.vue` | 播放队列面板（重写 PlayerBar 时务必带上，否则队列按钮无反应） |
-| `@/components/layout/LyricsPanel.vue` | 歌词面板（同上） |
+| `@/components/layout/LyricsPanel.vue` | 沉浸式「正在播放」整页：`player.showLyrics` 为真时 `inset: 0` 覆盖整个窗口（含标题栏，顶栏自带拖拽区与最小化 / 最大化 / 关闭） |
 | `@/components/layout/DownloadPanel.vue` | 离线下载面板（同上） |
 | `@theme/base`（各 `*Base.vue`） | 内置实现的「原件」，可「包一层再改一点」，不会递归 |
 | `@/composables/useIsMobile` | `useIsMobile` / `useIsWindows` |

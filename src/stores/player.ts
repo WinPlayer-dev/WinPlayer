@@ -83,8 +83,9 @@ export const usePlayerStore = defineStore("player", () => {
   /** 歌词请求序号：只接受最后一次请求写入的原文 */
   let lyricToken = 0;
 
-  // UI 状态（队列/歌词面板）
+  // UI 状态（队列 / 沉浸式正在播放页）
   const showQueue = ref(false);
+  /** 正在播放整页是否展开（手机端是全屏页，桌面端是 NowPlayingPage 覆盖层） */
   const showLyrics = ref(false);
 
   const currentTrack = computed<UnifiedTrack | null>(() =>
@@ -96,7 +97,7 @@ export const usePlayerStore = defineStore("player", () => {
   /**
    * 当前曲目的「展示版」：套上用户自定义的歌名 / 歌手 / 专辑 / 封面。
    *
-   * 界面（播放条、移动端播放器、歌词面板、系统媒体控件、托盘提示）读这个，
+   * 界面（播放条、移动端播放器、正在播放页、系统媒体控件、托盘提示）读这个，
    * 而播放、喜欢、播放历史等写操作仍然读 `currentTrack`——避免把自定义信息
    * 顺手写进快照，用户点「恢复原始信息」后各处才能立刻回到原样。
    */

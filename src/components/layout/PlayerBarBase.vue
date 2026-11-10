@@ -113,6 +113,18 @@ const seekTime = computed(() => formatTime(seekValue.value));
 const progressMax = computed(() => (player.duration > 0 ? player.duration : 1));
 const liked = computed(() => (player.currentTrack ? library.isLiked(player.currentTrack) : false));
 
+/**
+ * 打开沉浸式「正在播放」整页（点击封面 / 曲名，或「歌词」按钮）。
+ * 顺手收掉队列与下载浮层，避免整页下面还压着面板。
+ */
+function openNowPlaying(): void {
+  if (!player.currentTrack) return;
+  player.showQueue = false;
+  downloads.panelOpen = false;
+  player.showLyrics = true;
+}
+
+
 /** 当前曲目的歌手：插件回传 artistIds 时可跳转歌手详情页，缺失则退化为纯文本 */
 interface ArtistLink {
   name: string;
@@ -178,7 +190,7 @@ async function toggleLikeCurrent() {
   if (player.currentTrack) await library.toggleLike(player.currentTrack);
 }
 
-/** 下载管理面板：与播放队列 / 歌词面板互斥 */
+/** 下载管理面板：与播放队列 / 正在播放页互斥 */
 function toggleDownloads(): void {
   const next = !downloads.panelOpen;
   downloads.panelOpen = next;
@@ -361,9 +373,14 @@ onUnmounted(() => {
 
 <template>
   <footer class="playerbar">
-    <!-- 左：当前曲目 -->
+    <!-- 左：当前曲目（封面与曲名可点开正在播放页） -->
     <div class="now-playing">
-      <div class="cover">
+      <div
+        class="cover"
+        :class="{ 'is-openable': player.currentTrack }"
+        :title="player.currentTrack ? '打开正在播放页' : undefined"
+        @click="openNowPlaying"
+      >
         <transition name="cover-fade" mode="out-in">
           <CachedImage
             v-if="player.displayTrack?.cover"
@@ -375,7 +392,13 @@ onUnmounted(() => {
         </transition>
       </div>
       <transition name="track-meta" mode="out-in">
-        <div class="meta" :key="player.currentTrack ? `${player.currentTrack.sourceId}:${player.currentTrack.id}` : 'empty'">
+        <div
+          class="meta"
+          :class="{ 'is-openable': player.currentTrack }"
+          :title="player.currentTrack ? '打开正在播放页' : undefined"
+          :key="player.currentTrack ? `${player.currentTrack.sourceId}:${player.currentTrack.id}` : 'empty'"
+          @click="openNowPlaying"
+        >
           <div class="title ellipsis">{{ player.displayTrack ? trackTitle(player.displayTrack) : "未在播放" }}</div>
           <div class="artist ellipsis">
             <template v-if="!player.displayTrack">从插件来源发现音乐</template>
@@ -387,7 +410,7 @@ onUnmounted(() => {
                   v-if="artist.target"
                   class="artist-link"
                   :title="`查看歌手「${artist.name}」`"
-                  @click="go(artist.target!)"
+                  @click.stop="go(artist.target!)"
                 >
                   {{ artist.name }}
                 </button>
@@ -428,7 +451,7 @@ onUnmounted(() => {
         <WpIconButton title="下一首" :disabled="!player.queue.length" @click="player.next()">
           <span class="wp-icon filled">&#xF574;</span>
         </WpIconButton>
-        <WpIconButton :active="player.showLyrics" title="歌词" :disabled="!player.currentTrack" @click="player.showLyrics = !player.showLyrics; player.showQueue = false; downloads.panelOpen = false">
+        <WpIconButton :active="player.showLyrics" title="歌词" :disabled="!player.currentTrack" @click="openNowPlaying">
           <span class="wp-icon">&#xF801;</span>
         </WpIconButton>
         <WpIconButton
@@ -848,6 +871,22 @@ onUnmounted(() => {
 .meta {
   min-width: 0;
   flex: 1;
+}
+
+/* 封面 / 曲名可点开沉浸式正在播放页 */
+.cover.is-openable,
+.meta.is-openable {
+  cursor: pointer;
+}
+
+.cover.is-openable:hover {
+  box-shadow:
+    var(--shadow-card),
+    0 0 0 2px var(--wp-accent);
+}
+
+.meta.is-openable:hover .title {
+  color: var(--wp-accent);
 }
 
 .title {

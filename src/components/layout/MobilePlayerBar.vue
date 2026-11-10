@@ -10,12 +10,9 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import CachedImage from "@/components/common/CachedImage.vue";
-import { useAutoCenter } from "@/composables/useAutoCenter";
 import { useLongPress } from "@/composables/useLongPress";
+import { useLyricLines } from "@/composables/useLyricLines";
 import { registerBackInterceptor } from "@/services/backButton";
-import { getSetting, setSetting } from "@/services/db";
-import { findLyricIndex } from "@/services/lrc";
-import { lyricStyleClasses, lyricStyleVars } from "@/services/lyricStyle";
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
 import { useTrackMetaStore } from "@/stores/trackMeta";
@@ -194,56 +191,26 @@ function openFull(): void {
 
 /* ------------------------------ 歌词 ------------------------------ */
 
-/** 歌词偏移（毫秒，正值 = 歌词整体后移、更晚出现），按曲目持久化 */
-const lyricOffset = ref(0);
+/** 歌词滚动容器（下拉收起手势与自动居中都要用） */
+const listRef = ref<HTMLElement | null>(null);
 
-function lyricOffsetKey(): string | null {
-  const track = player.currentTrack;
-  return track ? `lyric.offset:${track.sourceId ?? ""}:${track.id}` : null;
-}
-
-async function loadLyricOffset(): Promise<void> {
-  const key = lyricOffsetKey();
-  lyricOffset.value = 0;
-  if (!key) return;
-  lyricOffset.value = await getSetting<number>(key, 0);
-}
-
-function persistLyricOffset(value: number): void {
-  const key = lyricOffsetKey();
-  if (!key) return;
-  void setSetting(key, value);
-}
-
-/** 微调歌词偏移：正值让歌词更晚出现（上限 ±5s） */
-function shiftLyricOffset(delta: number): void {
-  lyricOffset.value = Math.min(5000, Math.max(-5000, lyricOffset.value + delta));
-  persistLyricOffset(lyricOffset.value);
-}
-
-function resetLyricOffset(): void {
-  lyricOffset.value = 0;
-  persistLyricOffset(0);
-}
-
-/** 偏移显示文案，如 +0.5s / −1.0s */
-const offsetLabel = computed(
-  () => `${lyricOffset.value >= 0 ? "+" : "−"}${(Math.abs(lyricOffset.value) / 1000).toFixed(1)}s`,
-);
-
-/** 当前歌词行（已按偏移校正，-1 表示尚未开始） */
-const activeIndex = computed(() =>
-  findLyricIndex(player.lyrics, player.currentTime * 1000 - lyricOffset.value),
-);
-
-/** 歌词行：原文 + 对照翻译（翻译只挂在该行自己的时间轴上，没有就是空） */
-const lyricRows = computed(() =>
-  player.lyrics.map((line) => ({
-    time: line.time,
-    text: line.text,
-    translation: line.translation ?? "",
-  })),
-);
+/**
+ * 歌词时间轴与外观：偏移校准、当前行、层级、CSS 变量、自动居中、点击跳转。
+ * 与桌面沉浸页 `NowPlayingPage` 共用同一份实现，两端表现完全一致。
+ */
+const {
+  lyricRows,
+  lineLevel,
+  lyricVars,
+  lyricClasses,
+  seekToLine,
+  offsetLabel,
+  shiftLyricOffset,
+  resetLyricOffset,
+} = useLyricLines({
+  container: listRef,
+  isActive: () => showFull.value,
+});
 
 /** 上一次「已确定」的纯封面判定，仅在歌词加载空窗期复用 */
 const lastCoverOnly = ref(false);
@@ -261,49 +228,6 @@ const coverOnlyMode = computed(() => {
 
 watch(coverOnlyMode, (value) => {
   lastCoverOnly.value = value;
-});
-
-/** 模糊/渐隐的作用范围（行数）：约等于歌词视口能显示的行数 */
-const FOCUS_SPAN = 9;
-
-/**
- * 视觉层级：0 当前行 / 1~3 逐级模糊渐隐 / 4 远端仅压暗。
- * 档位按 FOCUS_SPAN 均分，歌词区变高后模糊范围同步变大，避免靠外的行
- * 「既没模糊又被压暗」的断层感；超过 FOCUS_SPAN 的行不再加模糊（此时
- * 已滚出视口），以控制渲染开销。
- */
-function lineLevel(index: number): number {
-  const distance = Math.abs(index - activeIndex.value);
-  if (distance === 0) return 0;
-  if (distance >= FOCUS_SPAN) return 4;
-  return Math.min(3, Math.ceil((distance / FOCUS_SPAN) * 3));
-}
-
-/**
- * 歌词外观（设置 → 外观 → 歌词样式）。
- *
- * 配置 → CSS 变量，样式本身写在 `styles/lyrics-style.css`，
- * 设置页里的实时预览用的是同一套变量与类名，保证「所见即所得」。
- */
-const lyricVars = computed(() => lyricStyleVars(settings.lyricsStyle));
-const lyricClasses = computed(() => lyricStyleClasses(settings.lyricsStyle));
-
-/** 点击歌词行：按偏移校正后的时间跳转，使该行成为当前行 */
-function seekToLine(index: number): void {
-  const row = lyricRows.value[index];
-  if (!row) return;
-  player.seek((row.time + lyricOffset.value) / 1000);
-}
-
-/** 全屏页歌词当前行自动居中；用户手动滚动后延迟回正 */
-const listRef = ref<HTMLElement | null>(null);
-
-useAutoCenter({
-  container: listRef,
-  // 类名与 styles/lyrics-style.css 保持一致（设置页预览复用同一套类名）
-  itemSelector: ".wp-lrc-line",
-  getIndex: () => activeIndex.value,
-  isActive: () => showFull.value,
 });
 
 /* ------------------------------ 播放模式 ------------------------------ */
@@ -710,7 +634,7 @@ const dropLineTop = computed(() => {
  */
 let unregisterBack: (() => void) | null = null;
 
-// 打开全屏页：读取本曲目歌词偏移并注册返回键拦截；收起时逐个复位
+// 打开全屏页时注册返回键拦截；收起时逐个复位
 watch(showFull, (open) => {
   unregisterBack?.();
   unregisterBack = null;
@@ -723,7 +647,6 @@ watch(showFull, (open) => {
     showQuality.value = false;
     return;
   }
-  void loadLyricOffset();
   unregisterBack = registerBackInterceptor(() => {
     if (showMore.value) {
       showMore.value = false;
@@ -753,14 +676,6 @@ watch(showFull, (open) => {
     return true;
   });
 });
-
-// 切歌后重新读取该曲目保存的歌词偏移
-watch(
-  () => player.currentTrack,
-  () => {
-    if (showFull.value) void loadLyricOffset();
-  },
-);
 
 onBeforeUnmount(() => {
   unregisterBack?.();

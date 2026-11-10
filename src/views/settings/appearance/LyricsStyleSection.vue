@@ -1,40 +1,53 @@
 <script setup lang="ts">
 /**
- * 设置 → 外观 → 歌词样式（手机端专属）。
+ * 设置 → 外观 → 歌词样式（手机与桌面通用）。
  *
- * 管的只有一件事：手机「正在播放」全屏页里那屏歌词长什么样 ——
+ * 管的只有一件事：沉浸式「正在播放」页面里那屏歌词长什么样 ——
  * 字号、对齐、字体、字重、当前行是否放大 / 加粗、非当前行是否模糊与压暗、
  * 行距、翻译副行、投影、上下边缘渐隐。
+ *
+ * 两端共用同一份配置：手机全屏页与桌面沉浸页读的都是 `settings.lyricsStyle`，
+ * 改一处两端一起变。配置里的字号是手机基准值，桌面按 `DESKTOP_LYRIC_FONT_SCALE`
+ * 放大（预览也按当前端渲染，所以看到的就是实际效果）。
  *
  * 两个设计取舍：
  * 1. 顶部先给一块**实时预览**。这些参数互相影响（放大 + 模糊 + 行距叠在一起
  *    很容易难看），只靠文字描述根本调不准，所以预览必须放在第一张卡；
  * 2. 预览和真实播放页共用 `styles/lyrics-style.css` 与同一组 `--lrc-*` 变量，
  *    不另写一套「示意样式」，避免预览好看、实际不一样。
- *
- * 桌面端不渲染本分组：它只作用于手机全屏页，桌面播放条歌词面板与桌面歌词窗口
- * 各有独立外观设置。
  */
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { ComboBox, Slider, ToggleSwitch } from "@/components/winui";
 import WpButton from "@/components/theme/WpButton.vue";
 import WpCard from "@/components/theme/WpCard.vue";
+import { useIsMobile } from "@/composables/useIsMobile";
 import {
   LYRICS_FONT_WEIGHTS,
   LYRICS_STYLE_RANGES,
+  LYRIC_EASINGS,
   useSettingsStore,
   type LyricAlign,
+  type LyricAnchor,
   type LyricFontPreset,
 } from "@/stores/settings";
-import { LYRIC_FONT_OPTIONS, lyricStyleClasses, lyricStyleVars } from "@/services/lyricStyle";
+import {
+  DESKTOP_LYRIC_FONT_SCALE,
+  LYRIC_FONT_OPTIONS,
+  lyricStyleClasses,
+  lyricStyleVars,
+} from "@/services/lyricStyle";
 import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 
 const settings = useSettingsStore();
+const isMobile = useIsMobile();
 
 /** 当前配置的简写，模板里少写几层 */
 const style = computed(() => settings.lyricsStyle);
 
-const previewVars = computed(() => lyricStyleVars(style.value));
+/** 预览按当前端渲染：桌面放大 1.3 倍，与真实播放页一致 */
+const previewZoom = isMobile ? 1 : DESKTOP_LYRIC_FONT_SCALE;
+
+const previewVars = computed(() => lyricStyleVars(style.value, previewZoom));
 const previewClasses = computed(() => lyricStyleClasses(style.value));
 
 /** 预览歌词：故意留一句长句与两句带翻译，能看出折行、对齐与副行效果 */
@@ -75,14 +88,10 @@ function onFontChange(_sender: unknown, payload?: { AddedItems?: unknown[] }): v
   update({ fontPreset: option.value as LyricFontPreset });
 }
 
-const ALIGN_LABELS = ["居中", "靠左"];
-const alignIndex = computed(() => (style.value.align === "left" ? 1 : 0));
-
-function onAlignChange(_sender: unknown, payload?: { AddedItems?: unknown[] }): void {
-  const label = String(payload?.AddedItems?.[0] ?? "");
-  const align: LyricAlign = label === "靠左" ? "left" : "center";
-  if (align !== style.value.align) update({ align });
-}
+const ALIGN_OPTIONS: ReadonlyArray<{ value: LyricAlign; label: string }> = [
+  { value: "center", label: "居中" },
+  { value: "left", label: "靠左" },
+];
 
 const WEIGHT_LABELS = ["细", "常规", "中等", "半粗", "粗"];
 const weightIndex = computed(() =>
@@ -124,6 +133,33 @@ onBeforeUnmount(() => window.clearTimeout(fontTimer));
 
 /* ------------------------------ 展示文案 ------------------------------ */
 
+/** 当前行垂直位置的可选项：三段按钮比下拉更直观，点一下就能看到位置变化 */
+const ANCHOR_OPTIONS: ReadonlyArray<{ value: LyricAnchor; label: string }> = [
+  { value: "top", label: "靠上" },
+  { value: "center", label: "居中" },
+  { value: "bottom", label: "靠下" },
+];
+
+const anchorHint = computed(() => {
+  switch (style.value.alignY) {
+    case "top":
+      return "当前行靠上，下方留出更多「接下来要唱」的内容，适合跟唱";
+    case "bottom":
+      return "当前行靠下，上方保留刚唱过的句子，适合边听边回看";
+    default:
+      return "当前行居中，上下各分一半，最平衡也最不容易疲劳";
+  }
+});
+
+/** 滚动速度文案：1× 为基准，越快切换行时滑得越短促 */
+const scrollLabel = computed(() => `${style.value.scrollSpeed.toFixed(2).replace(/0$/, "")}×`);
+
+const easingHint = computed(() =>
+  style.value.scrollEasing === "inout"
+    ? "两头慢、中间快，慢歌与长句更贴"
+    : "起步快、收尾缓，跟唱时更跟手",
+);
+
 const scaleLabel = computed(() => `${Math.round(style.value.activeScale * 100)}%`);
 const blurLabel = computed(() => `${style.value.blurStrength.toFixed(1)}×`);
 const dimLabel = computed(() => `${Math.round(style.value.inactiveOpacity * 100)}%`);
@@ -139,14 +175,15 @@ const glowLabel = computed(() =>
       <div class="card-content">
         <div class="card-header">实时预览</div>
         <div class="card-description">
-          手机「正在播放」全屏页的歌词效果；下面的设置会立即反映到这里，下一首歌 / 下次打开播放页同样生效
+          沉浸式「正在播放」页面的歌词效果；手机全屏页与桌面正在播放页共用这套外观（桌面按
+          {{ DESKTOP_LYRIC_FONT_SCALE }} 倍字号显示），调下面任一选项都会立即反映在这里
         </div>
       </div>
 
-      <div class="lrc-preview">
+      <div class="lrc-preview" :style="{ '--preview-zoom': previewZoom }">
         <div
           class="wp-lrc is-preview"
-          :class="previewClasses"
+          :class="[previewClasses, `preview-anchor-${style.alignY}`]"
           :style="previewVars"
           aria-hidden="true"
         >
@@ -191,16 +228,81 @@ const glowLabel = computed(() =>
     <WpCard variant="row">
       <div class="card-content">
         <div class="card-header">对齐方式</div>
+        <div class="card-description">短句适合居中，长句与说唱适合靠左；翻译副行跟随同一方向</div>
+      </div>
+      <div class="seg" role="group" aria-label="对齐方式">
+        <button
+          v-for="option in ALIGN_OPTIONS"
+          :key="option.value"
+          type="button"
+          class="seg-btn"
+          :class="{ on: style.align === option.value }"
+          @click="update({ align: option.value })"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+    </WpCard>
+
+    <!-- 当前行垂直位置 -->
+    <WpCard variant="row">
+      <div class="card-content">
+        <div class="card-header">当前行位置</div>
+        <div class="card-description">{{ anchorHint }}</div>
+      </div>
+      <div class="seg" role="group" aria-label="当前行位置">
+        <button
+          v-for="option in ANCHOR_OPTIONS"
+          :key="option.value"
+          type="button"
+          class="seg-btn"
+          :class="{ on: style.alignY === option.value }"
+          @click="update({ alignY: option.value })"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+    </WpCard>
+
+    <!-- 滚动速度 -->
+    <WpCard variant="column">
+      <div class="card-content">
+        <div class="card-header">歌词滚动</div>
         <div class="card-description">
-          居中适合短句独白，靠左适合长句与说唱；翻译副行跟随同一方向
+          切换歌词行时移动的快慢，以及当前行放大 / 加粗 / 变淡的过渡节奏；速度越快，行切换越利落
         </div>
       </div>
-      <ComboBox
-        class="card-control"
-        :ItemsSource="ALIGN_LABELS"
-        :SelectedIndex="alignIndex"
-        @SelectionChanged="onAlignChange"
-      />
+      <div class="slider-row">
+        <Slider
+          class="slider"
+          :Value="style.scrollSpeed"
+          :Minimum="LYRICS_STYLE_RANGES.scrollSpeed.min"
+          :Maximum="LYRICS_STYLE_RANGES.scrollSpeed.max"
+          :StepFrequency="0.05"
+          :SmallChange="0.05"
+          :LargeChange="0.25"
+          :IsThumbToolTipEnabled="false"
+          @update:Value="(value: number) => update({ scrollSpeed: value })"
+        />
+        <span class="slider-value">{{ scrollLabel }}</span>
+      </div>
+
+      <div class="ease-row">
+        <span class="ease-label">缓动曲线</span>
+        <div class="seg" role="group" aria-label="缓动曲线">
+          <button
+            v-for="option in LYRIC_EASINGS"
+            :key="option.value"
+            type="button"
+            class="seg-btn"
+            :class="{ on: style.scrollEasing === option.value }"
+            @click="update({ scrollEasing: option.value })"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+        <span class="ease-hint">{{ easingHint }}</span>
+      </div>
     </WpCard>
 
     <!-- 字体 -->
@@ -453,19 +555,119 @@ const glowLabel = computed(() =>
 
 /* 预览里的歌词：高度固定，超出裁掉（真实播放页是可滚动的，这里不需要滚动）。
    高度按「五句 + 两句翻译 + 默认行距」量出来，正好让上下边缘的渐隐各吃掉半句，
-   和真实播放页的观感一致；再矮就会把首尾整句切掉。 */
+   和真实播放页的观感一致；再矮就会把首尾整句切掉。
+   桌面端字号放大 1.3 倍，高度按同一比例跟着长，否则首尾行会被裁掉。 */
 .lrc-preview .wp-lrc {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
-  height: 340px;
+  height: calc(340px * var(--preview-zoom, 1));
   overflow: hidden;
 }
 
 /* 预览不可点：真实行是可点的（点击跳转），这里只做视觉展示 */
 .lrc-preview .wp-lrc-line {
   cursor: default;
+}
+
+/* 位置预览：靠上 / 靠下时把整块歌词推一下，方向与真实页一致（真实页靠滚动实现） */
+.lrc-preview .wp-lrc.preview-anchor-top {
+  padding-bottom: calc(70px * var(--preview-zoom, 1));
+}
+
+.lrc-preview .wp-lrc.preview-anchor-bottom {
+  padding-top: calc(70px * var(--preview-zoom, 1));
+}
+
+/* ------------------------------ 分段按钮 ------------------------------ */
+
+.seg {
+  flex: none;
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--wp-control-stroke);
+  border-radius: var(--radius-md);
+  background: var(--wp-subtle-secondary);
+}
+
+.seg-btn {
+  height: 28px;
+  padding: 0 14px;
+  border: none;
+  border-radius: calc(var(--radius-md) - 2px);
+  background: transparent;
+  color: var(--wp-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.seg-btn:hover {
+  background: var(--wp-card-hover);
+  color: var(--wp-text-primary);
+}
+
+.seg-btn.on {
+  background: var(--wp-accent);
+  color: #fff;
+}
+
+/* 缓动曲线行：左标签 + 分段按钮 + 右侧说明 */
+.ease-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  width: 100%;
+  margin-top: var(--space-lg);
+}
+
+.ease-label {
+  flex: none;
+  font-size: 12px;
+  color: var(--wp-text-secondary);
+}
+
+.ease-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--wp-text-tertiary);
+  text-align: right;
+}
+
+/* 手机：分段按钮换行占满整行。
+   注意必须让 `.card-content` 也取 100% basis —— 它的全局规则是 `flex: 1 1 0%`，
+   宽度 0 时「放得下」，flex-wrap 不会换行，结果就是按钮吃掉整宽、标题被挤成竖排。 */
+@media (max-width: 640px) {
+  /* 只影响带分段按钮的卡片，别波及其他开关卡片 */
+  .settings-card:has(.seg) > .card-content {
+    flex: 1 0 100%;
+  }
+
+  .seg {
+    flex: 1 0 100%;
+  }
+
+  .seg-btn {
+    flex: 1;
+    padding: 0;
+  }
+
+  .ease-row {
+    flex-wrap: wrap;
+    row-gap: var(--space-sm);
+  }
+
+  .ease-hint {
+    flex: 1 1 100%;
+    text-align: left;
+  }
 }
 
 /* ------------------------------ 滑杆 ------------------------------ */
