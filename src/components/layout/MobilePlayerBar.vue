@@ -15,6 +15,7 @@ import { useLongPress } from "@/composables/useLongPress";
 import { registerBackInterceptor } from "@/services/backButton";
 import { getSetting, setSetting } from "@/services/db";
 import { findLyricIndex } from "@/services/lrc";
+import { lyricStyleClasses, lyricStyleVars } from "@/services/lyricStyle";
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
 import { useTrackMetaStore } from "@/stores/trackMeta";
@@ -147,6 +148,19 @@ function openStudio(): void {
   void router.push({ name: "studio" });
 }
 
+/**
+ * 歌词样式：全屏页内不做第二套设置面板，直接跳到设置页对应分组。
+ * 顺手收起全屏页 —— 否则从设置返回时全屏页会盖在列表上，看着像没退出去。
+ */
+function openLyricStyle(): void {
+  showMore.value = false;
+  showFull.value = false;
+  void router.push({
+    name: "settings",
+    query: { tab: "appearance", focus: "appearance.lyrics.fontSize" },
+  });
+}
+
 const liked = computed(() => (player.currentTrack ? library.isLiked(player.currentTrack) : false));
 
 async function toggleLikeCurrent(): Promise<void> {
@@ -265,6 +279,15 @@ function lineLevel(index: number): number {
   return Math.min(3, Math.ceil((distance / FOCUS_SPAN) * 3));
 }
 
+/**
+ * 歌词外观（设置 → 外观 → 歌词样式）。
+ *
+ * 配置 → CSS 变量，样式本身写在 `styles/lyrics-style.css`，
+ * 设置页里的实时预览用的是同一套变量与类名，保证「所见即所得」。
+ */
+const lyricVars = computed(() => lyricStyleVars(settings.lyricsStyle));
+const lyricClasses = computed(() => lyricStyleClasses(settings.lyricsStyle));
+
 /** 点击歌词行：按偏移校正后的时间跳转，使该行成为当前行 */
 function seekToLine(index: number): void {
   const row = lyricRows.value[index];
@@ -277,7 +300,8 @@ const listRef = ref<HTMLElement | null>(null);
 
 useAutoCenter({
   container: listRef,
-  itemSelector: ".full-lrc-line",
+  // 类名与 styles/lyrics-style.css 保持一致（设置页预览复用同一套类名）
+  itemSelector: ".wp-lrc-line",
   getIndex: () => activeIndex.value,
   isActive: () => showFull.value,
 });
@@ -859,20 +883,23 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <!-- 歌词：当前行放大高亮，相邻行渐隐，上下边缘渐隐 -->
-        <div ref="listRef" class="full-lyrics">
+        <!-- 歌词：当前行放大高亮，相邻行渐隐，上下边缘渐隐；外观由设置里的「歌词样式」控制 -->
+        <div ref="listRef" class="full-lyrics wp-lrc" :class="lyricClasses" :style="lyricVars">
           <div v-if="player.lyricsLoading" class="lyrics-empty">歌词加载中…</div>
           <div v-else-if="!lyricRows.length" class="lyrics-empty">暂无歌词</div>
           <template v-else>
             <p
               v-for="(line, index) in lyricRows"
               :key="index"
-              class="full-lrc-line"
+              class="wp-lrc-line"
               :class="`level-${lineLevel(index)}`"
               @click="seekToLine(index)"
             >
-              <span class="full-lrc-text">{{ line.text }}</span>
-              <span v-if="line.translation" class="full-lrc-translation">{{ line.translation }}</span>
+              <span class="wp-lrc-text">{{ line.text }}</span>
+              <span
+                v-if="line.translation && settings.lyricsStyle.showTranslation"
+                class="wp-lrc-translation"
+              >{{ line.translation }}</span>
             </p>
           </template>
         </div>
@@ -980,6 +1007,11 @@ onBeforeUnmount(() => {
                   <span class="wp-icon more-row-icon">&#xF588;</span>
                   <span class="more-row-label">歌词偏移</span>
                   <span class="more-row-value">{{ offsetLabel }}</span>
+                  <span class="wp-icon more-row-chevron">&#xF2B0;</span>
+                </button>
+                <button class="more-row" @click="openLyricStyle">
+                  <span class="more-row-glyph" aria-hidden="true">Aa</span>
+                  <span class="more-row-label">歌词样式</span>
                   <span class="wp-icon more-row-chevron">&#xF2B0;</span>
                 </button>
                 <button class="more-row" @click="showMore = false; showRate = true">
@@ -1532,15 +1564,8 @@ onBeforeUnmount(() => {
     flex-grow var(--duration-slow) var(--ease-standard),
     flex-basis var(--duration-slow) var(--ease-standard),
     opacity var(--duration-normal) var(--ease-standard);
-  /* 上下边缘渐隐：歌词从视野边缘淡入淡出 */
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 20%, #000 80%, transparent 100%);
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    #000 20%,
-    #000 80%,
-    transparent 100%
-  );
+  /* 上下边缘渐隐（mask）与单行层级样式在 styles/lyrics-style.css 的 .wp-lrc 里，
+     设置页的实时预览复用同一份，改样式只需改那一处。 */
 }
 
 .full-lyrics::-webkit-scrollbar {
@@ -1662,71 +1687,6 @@ onBeforeUnmount(() => {
   .full-player.is-cover-only .full-artist {
     font-size: 13px;
   }
-}
-
-.full-lrc-line {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  margin: 0 auto;
-  padding: 10px 0;
-  max-width: 96%;
-  text-align: center;
-  cursor: pointer;
-  color: rgba(255, 255, 255, 0.32);
-  transition:
-    color var(--duration-normal) var(--ease-standard),
-    filter var(--duration-normal) var(--ease-standard);
-}
-
-.full-lrc-text {
-  font-size: 16px;
-  line-height: 1.45;
-  transition: font-size var(--duration-normal) var(--ease-standard);
-}
-
-/* 翻译副行：小字跟随原文的明暗层级 */
-.full-lrc-translation {
-  font-size: 12px;
-  line-height: 1.4;
-  color: inherit;
-  opacity: 0.62;
-  transition: opacity var(--duration-normal) var(--ease-standard);
-}
-
-/* 视觉层级：0 当前行 / 1~3 越远越模糊越淡 / 4 远端仅压暗 */
-.full-lrc-line.level-0 {
-  color: #fff;
-}
-
-.full-lrc-line.level-0 .full-lrc-text {
-  font-size: 19px;
-  font-weight: 700;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
-}
-
-.full-lrc-line.level-0 .full-lrc-translation {
-  opacity: 0.88;
-}
-
-.full-lrc-line.level-1 {
-  color: rgba(255, 255, 255, 0.68);
-  filter: blur(0.6px);
-}
-
-.full-lrc-line.level-2 {
-  color: rgba(255, 255, 255, 0.44);
-  filter: blur(1.4px);
-}
-
-.full-lrc-line.level-3 {
-  color: rgba(255, 255, 255, 0.26);
-  filter: blur(2.4px);
-}
-
-.full-lrc-line.level-4 {
-  color: rgba(255, 255, 255, 0.14);
 }
 
 .full-progress {
@@ -2070,6 +2030,18 @@ onBeforeUnmount(() => {
 
 .more-row-icon {
   font-size: 18px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* 「歌词样式」入口用文字字形：图标字体里没有靠谱的排版图标，
+   随手抄一个码位很容易变成无关图案（见项目约定），干脆用 Aa 更直观 */
+.more-row-glyph {
+  width: 18px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
   color: rgba(255, 255, 255, 0.7);
 }
 

@@ -27,6 +27,11 @@ export function installHarnessStubs(): void {
       if (cmd.includes("listen") || cmd.includes("plugin:event|listen")) return 0;
       if (cmd.includes("is_maximized")) return false;
       if (cmd.includes("plugin:event|unlisten")) return null;
+      // SQLite 插件桩：设置写盘在走查页没有真实数据库，但不该抛错
+      // （否则 `setSetting` 会在控制台刷 "not iterable"，掩盖真正的报错）
+      if (cmd === "plugin:sql|load") return "sqlite:winplayer.db";
+      if (cmd === "plugin:sql|select") return [];
+      if (cmd === "plugin:sql|execute") return [0, 0];
       return null;
     },
     transformCallback: (callback?: unknown) => {

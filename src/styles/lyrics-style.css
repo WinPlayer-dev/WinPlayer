@@ -1,0 +1,129 @@
+/**
+ * 歌词行样式（手机全屏播放页 + 设置页实时预览共用）。
+ *
+ * 所有可调项都由 `services/lyricStyle.ts` 生成的 `--lrc-*` 变量驱动，
+ * 这里的默认值只在变量没写时兜底（变量缺失不应该炸成零字号）。
+ *
+ * 使用方式：
+ * 1. 容器加 `.wp-lrc`，内联 style 绑定 `lyricStyleVars()` 的返回值，
+ *    再按 `lyricStyleClasses()` 补 `align-left` / `no-fade`；
+ * 2. 单行 `.wp-lrc-line` + 层级类 `level-0`（当前行）~ `level-4`（远端）；
+ * 3. 行内 `.wp-lrc-text` 原文、`.wp-lrc-translation` 翻译副行。
+ */
+
+/* ------------------------------ 容器 ------------------------------ */
+
+.wp-lrc {
+  --lrc-size: 16px;
+  --lrc-weight: 400;
+  --lrc-scale: 1.18;
+  --lrc-active-weight: 700;
+  --lrc-font: inherit;
+  --lrc-gap: 10px;
+  --lrc-op-1: 0.68;
+  --lrc-op-2: 0.45;
+  --lrc-op-3: 0.27;
+  --lrc-op-4: 0.15;
+  --lrc-blur-1: 0.6px;
+  --lrc-blur-2: 1.4px;
+  --lrc-blur-3: 2.4px;
+  --lrc-glow: 12px;
+  --lrc-glow-alpha: 0.45;
+
+  font-family: var(--lrc-font);
+  /* 上下边缘渐隐：歌词从视野边缘淡入淡出，可在设置里关掉 */
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 20%, #000 80%, transparent 100%);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 20%,
+    #000 80%,
+    transparent 100%
+  );
+}
+
+.wp-lrc.no-fade {
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
+/* ------------------------------ 单行 ------------------------------ */
+
+.wp-lrc-line {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin: 0 auto;
+  padding: var(--lrc-gap) 0;
+  max-width: 96%;
+  text-align: center;
+  cursor: pointer;
+  color: rgba(255, 255, 255, var(--lrc-op-4));
+  transition:
+    color var(--duration-normal, 0.2s) var(--ease-standard, ease),
+    filter var(--duration-normal, 0.2s) var(--ease-standard, ease);
+}
+
+/* 靠左：整块贴左边，行内文字左对齐（长句折行后仍然对齐同一条基线） */
+.wp-lrc.align-left .wp-lrc-line {
+  align-items: flex-start;
+  margin-left: 0;
+  margin-right: 0;
+  max-width: 100%;
+  text-align: left;
+}
+
+.wp-lrc-text {
+  font-size: var(--lrc-size);
+  font-weight: var(--lrc-weight);
+  line-height: 1.45;
+  transition:
+    font-size var(--duration-normal, 0.2s) var(--ease-standard, ease),
+    font-weight var(--duration-normal, 0.2s) var(--ease-standard, ease);
+}
+
+/* 翻译副行：按字号等比缩放，跟着原文的明暗层级走 */
+.wp-lrc-translation {
+  font-size: calc(var(--lrc-size) * 0.75);
+  line-height: 1.4;
+  color: inherit;
+  opacity: 0.62;
+  transition: opacity var(--duration-normal, 0.2s) var(--ease-standard, ease);
+}
+
+/* ------------------------------ 层级 ------------------------------ */
+/* 0 当前行 / 1~3 越远越模糊越淡 / 4 远端仅压暗 */
+
+.wp-lrc-line.level-0 {
+  color: #fff;
+}
+
+.wp-lrc-line.level-0 .wp-lrc-text {
+  font-size: calc(var(--lrc-size) * var(--lrc-scale));
+  font-weight: var(--lrc-active-weight);
+  text-shadow: 0 2px var(--lrc-glow) rgba(0, 0, 0, var(--lrc-glow-alpha));
+}
+
+.wp-lrc-line.level-0 .wp-lrc-translation {
+  opacity: 0.88;
+}
+
+.wp-lrc-line.level-1 {
+  color: rgba(255, 255, 255, var(--lrc-op-1));
+  filter: blur(var(--lrc-blur-1));
+}
+
+.wp-lrc-line.level-2 {
+  color: rgba(255, 255, 255, var(--lrc-op-2));
+  filter: blur(var(--lrc-blur-2));
+}
+
+.wp-lrc-line.level-3 {
+  color: rgba(255, 255, 255, var(--lrc-op-3));
+  filter: blur(var(--lrc-blur-3));
+}
+
+.wp-lrc-line.level-4 {
+  color: rgba(255, 255, 255, var(--lrc-op-4));
+}

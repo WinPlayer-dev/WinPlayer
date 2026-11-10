@@ -184,6 +184,163 @@ export function normalizeLyricsFontSize(value: unknown): number {
   return Math.min(DESKTOP_LYRICS_FONT_MAX, Math.max(DESKTOP_LYRICS_FONT_MIN, size));
 }
 
+/* ------------------------------ 手机全屏歌词样式 ------------------------------ */
+
+/** 歌词对齐方向：居中 / 靠左（靠右在小屏上反而不易读，不做） */
+export type LyricAlign = "center" | "left";
+
+/**
+ * 歌词字体预设。
+ * 只存预设 id，具体 font-family 栈在 `services/lyricStyle.ts` 里映射 ——
+ * 这样换字体栈不用迁移数据库，而且 CSS 变量拼接只在一处。
+ */
+export type LyricFontPreset = "default" | "sans" | "serif" | "round" | "kai" | "mono" | "custom";
+
+/** 手机全屏播放页歌词的外观配置（设置 → 外观 → 歌词样式） */
+export interface LyricsStyleConfig {
+  /** 常规行字号（px） */
+  fontSize: number;
+  /** 文本对齐 */
+  align: LyricAlign;
+  /** 字体预设 */
+  fontPreset: LyricFontPreset;
+  /** 自定义字体名（仅 fontPreset = "custom" 生效，直接当 font-family 值用） */
+  fontCustom: string;
+  /** 常规行字重 */
+  fontWeight: number;
+  /** 当前行是否加粗（字重取常规字重与 700 的较大值） */
+  activeBold: boolean;
+  /** 当前行是否放大 */
+  enlargeActive: boolean;
+  /** 当前行放大倍数（1 = 不放大） */
+  activeScale: number;
+  /** 非当前行是否模糊 */
+  blurInactive: boolean;
+  /** 模糊强度倍数（1 = 默认） */
+  blurStrength: number;
+  /** 紧邻当前行的一行不透明度，越远按比例递减 */
+  inactiveOpacity: number;
+  /** 行间距（每行上下 padding，px） */
+  lineGap: number;
+  /** 是否显示翻译副行 */
+  showTranslation: boolean;
+  /** 当前行投影强度（0 = 不投影） */
+  glow: number;
+  /** 歌词区上下边缘渐隐 */
+  maskFade: boolean;
+}
+
+export const LYRICS_STYLE_DEFAULT: LyricsStyleConfig = {
+  fontSize: 16,
+  align: "center",
+  fontPreset: "default",
+  fontCustom: "",
+  fontWeight: 400,
+  activeBold: true,
+  enlargeActive: true,
+  activeScale: 1.18,
+  blurInactive: true,
+  blurStrength: 1,
+  inactiveOpacity: 0.68,
+  lineGap: 10,
+  showTranslation: true,
+  glow: 1,
+  maskFade: true,
+};
+
+/** 各滑杆的合法区间：设置页与规范化共用，避免两处写死不同的数 */
+export const LYRICS_STYLE_RANGES = {
+  fontSize: { min: 12, max: 30 },
+  activeScale: { min: 1, max: 1.6 },
+  blurStrength: { min: 0.4, max: 2.4 },
+  inactiveOpacity: { min: 0.2, max: 0.95 },
+  lineGap: { min: 0, max: 28 },
+  glow: { min: 0, max: 2 },
+} as const;
+
+/** 可选字重（细 / 常规 / 中等 / 半粗 / 粗） */
+export const LYRICS_FONT_WEIGHTS: readonly number[] = [300, 400, 500, 600, 700];
+
+const LYRIC_FONT_PRESETS: readonly LyricFontPreset[] = [
+  "default",
+  "sans",
+  "serif",
+  "round",
+  "kai",
+  "mono",
+  "custom",
+];
+
+/** 夹取数值并保留两位小数（滑杆步进 0.02，浮点误差会写进数据库） */
+function clampRange(value: unknown, min: number, max: number, fallback: number): number {
+  const raw = Number(value);
+  if (!Number.isFinite(raw)) return fallback;
+  return Math.round(Math.min(max, Math.max(min, raw)) * 100) / 100;
+}
+
+/**
+ * 把持久化 / 用户输入合并成合法配置。
+ * 老版本没有这个键 → 全默认；手改数据库或字段缺失 → 逐字段回退，不会整份丢掉。
+ */
+export function normalizeLyricsStyle(value: unknown): LyricsStyleConfig {
+  const raw = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  const ranges = LYRICS_STYLE_RANGES;
+  const fontPreset = LYRIC_FONT_PRESETS.includes(raw.fontPreset as LyricFontPreset)
+    ? (raw.fontPreset as LyricFontPreset)
+    : "default";
+  const weight = Number(raw.fontWeight);
+  return {
+    fontSize: clampRange(
+      raw.fontSize,
+      ranges.fontSize.min,
+      ranges.fontSize.max,
+      LYRICS_STYLE_DEFAULT.fontSize,
+    ),
+    align: raw.align === "left" ? "left" : "center",
+    fontPreset,
+    fontCustom: typeof raw.fontCustom === "string" ? raw.fontCustom.slice(0, 200) : "",
+    fontWeight: LYRICS_FONT_WEIGHTS.includes(weight)
+      ? weight
+      : LYRICS_STYLE_DEFAULT.fontWeight,
+    activeBold:
+      typeof raw.activeBold === "boolean" ? raw.activeBold : LYRICS_STYLE_DEFAULT.activeBold,
+    enlargeActive:
+      typeof raw.enlargeActive === "boolean" ? raw.enlargeActive : LYRICS_STYLE_DEFAULT.enlargeActive,
+    activeScale: clampRange(
+      raw.activeScale,
+      ranges.activeScale.min,
+      ranges.activeScale.max,
+      LYRICS_STYLE_DEFAULT.activeScale,
+    ),
+    blurInactive:
+      typeof raw.blurInactive === "boolean" ? raw.blurInactive : LYRICS_STYLE_DEFAULT.blurInactive,
+    blurStrength: clampRange(
+      raw.blurStrength,
+      ranges.blurStrength.min,
+      ranges.blurStrength.max,
+      LYRICS_STYLE_DEFAULT.blurStrength,
+    ),
+    inactiveOpacity: clampRange(
+      raw.inactiveOpacity,
+      ranges.inactiveOpacity.min,
+      ranges.inactiveOpacity.max,
+      LYRICS_STYLE_DEFAULT.inactiveOpacity,
+    ),
+    lineGap: clampRange(
+      raw.lineGap,
+      ranges.lineGap.min,
+      ranges.lineGap.max,
+      LYRICS_STYLE_DEFAULT.lineGap,
+    ),
+    showTranslation:
+      typeof raw.showTranslation === "boolean"
+        ? raw.showTranslation
+        : LYRICS_STYLE_DEFAULT.showTranslation,
+    glow: clampRange(raw.glow, ranges.glow.min, ranges.glow.max, LYRICS_STYLE_DEFAULT.glow),
+    maskFade: typeof raw.maskFade === "boolean" ? raw.maskFade : LYRICS_STYLE_DEFAULT.maskFade,
+  };
+}
+
 /* ------------------------------ 动效手感 ------------------------------ */
 
 /**
@@ -344,6 +501,8 @@ export const useSettingsStore = defineStore("settings", () => {
   const coverNaturalRatio = ref(false);
   /** 手机端歌曲列表页布局（桌面端忽略） */
   const songListLayout = ref<SongListLayout>("default");
+  /** 手机全屏播放页歌词的外观（字号 / 对齐 / 字体 / 字重 / 当前行放大 / 非当前行模糊等） */
+  const lyricsStyle = ref<LyricsStyleConfig>({ ...LYRICS_STYLE_DEFAULT });
   /** 弹簧动效：开启后全站缓动换成带回弹的曲线，交互更「Q 弹」 */
   const springMotion = ref(false);
   /** 弹簧回弹幅度（缓动曲线第二控制点 y 值，越大冲得越远） */
@@ -491,6 +650,7 @@ export const useSettingsStore = defineStore("settings", () => {
       (await getSetting<string>("settings.songListLayout", "default")) === "cloud"
         ? "cloud"
         : "default";
+    lyricsStyle.value = normalizeLyricsStyle(await getSetting<unknown>("settings.lyricsStyle", null));
     springMotion.value = await getSetting<boolean>("settings.springMotion", false);
     springStrength.value = normalizeSpringStrength(
       await getSetting<number>("settings.springStrength", SPRING_STRENGTH_DEFAULT),
@@ -619,6 +779,29 @@ export const useSettingsStore = defineStore("settings", () => {
   async function setSongListLayout(value: SongListLayout): Promise<void> {
     songListLayout.value = value === "cloud" ? "cloud" : "default";
     await setSetting("settings.songListLayout", songListLayout.value);
+  }
+
+  /* ------------------------------ 手机全屏歌词样式 ------------------------------ */
+
+  /**
+   * 滑杆拖动期间的高频写入防抖计时器。
+   * 歌词样式的每一项都可能在拖动时按帧变化，逐次落库会打满 SQLite；
+   * 内存里的 ref 立即更新（预览是即时的），落库延后一拍。
+   */
+  let lyricsStylePersistTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** 局部更新歌词样式：`patch` 只带改动的字段，其余保持原值 */
+  function setLyricsStyle(patch: Partial<LyricsStyleConfig>): void {
+    lyricsStyle.value = normalizeLyricsStyle({ ...lyricsStyle.value, ...patch });
+    clearTimeout(lyricsStylePersistTimer);
+    lyricsStylePersistTimer = setTimeout(() => {
+      void setSetting("settings.lyricsStyle", lyricsStyle.value);
+    }, 300);
+  }
+
+  /** 恢复默认外观（不会自动播放 / 影响当前播放，只是样式） */
+  function resetLyricsStyle(): void {
+    setLyricsStyle({ ...LYRICS_STYLE_DEFAULT });
   }
 
   /* ------------------------------ 动效手感 ------------------------------ */
@@ -881,6 +1064,7 @@ export const useSettingsStore = defineStore("settings", () => {
     hapticsEnabled,
     coverAccent,
     songListLayout,
+    lyricsStyle,
     coverNaturalRatio,
     springMotion,
     springStrength,
@@ -930,6 +1114,8 @@ export const useSettingsStore = defineStore("settings", () => {
     setCoverAccent,
     setCoverNaturalRatio,
     setSongListLayout,
+    setLyricsStyle,
+    resetLyricsStyle,
     setSpringMotion,
     setSpringStrength,
     previewSpringStrength,
