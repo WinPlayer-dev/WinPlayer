@@ -1,0 +1,216 @@
+/**
+ * 手机端「云端」列表布局（设置 → 外观 → 布局 → 云端）。
+ *
+ * 生效条件：`<html data-song-layout="cloud">`（由 App.vue 单向写入，只在手机端为 cloud）
+ * 且页面根节点带 `.cloud-layout`。桌面端完全不受影响。
+ *
+ * 页面只需做两件事接入：
+ * 1. 根节点挂 `cloud-layout` class（`useSongListLayout()` 的返回值，本身就含手机端判定）；
+ * 2. 把「工具条 + 歌曲表 + 空状态」包进 `.list-panel`，白色圆角面板就是它。
+ *
+ * 头部渐变底色取封面主色，由 `useCloudHeaderGradient()` 写成页面的
+ * `--cloud-accent` 内联变量；没有封面 / 取色失败时回落到主题强调色。
+ */
+
+/* ------------------------------ 页面底色 ------------------------------ */
+/* 渐变只铺顶部一段，用 local 附着让渐变跟着头部一起滚走（而不是钉在视口上）。 */
+html[data-song-layout="cloud"] .wp-page.cloud-layout {
+  padding-bottom: 0;
+  background-color: var(--wp-base-solid, var(--wp-base));
+  background-image: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--cloud-accent, var(--wp-accent)) 86%, #ffffff) 0%,
+    var(--cloud-accent, var(--wp-accent)) 42%,
+    color-mix(in srgb, var(--cloud-accent, var(--wp-accent)) 72%, #0b1030) 100%
+  );
+  background-repeat: no-repeat;
+  background-size: 100% 360px;
+  background-attachment: local;
+}
+
+/* ------------------------------ 顶部返回栏 ------------------------------ */
+/* 场景里渐变头部本身就是最上层，不需要一条独立的实色顶栏：
+   改为透明、不吸顶，返回箭头浮在渐变上。 */
+html[data-song-layout="cloud"] .wp-page.cloud-layout .mobile-page-header {
+  position: static;
+  margin-bottom: 0;
+  background: transparent;
+  border-bottom: none;
+  color: #ffffff;
+}
+
+html[data-song-layout="cloud"] .wp-page.cloud-layout .mobile-page-header .back-button {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+html[data-song-layout="cloud"] .wp-page.cloud-layout .mobile-page-header .back-button:active {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* ------------------------------ 渐变头部 ------------------------------ */
+/* 封面左、信息右，操作按钮通栏一行（对应截图里的「分享 / 评论 / 收藏」那排）。 */
+html[data-song-layout="cloud"] .wp-page.cloud-layout .wp-page-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "cover meta"
+    "actions actions";
+  align-items: center;
+  column-gap: var(--space-lg);
+  row-gap: 0;
+  text-align: left;
+  margin: 0 calc(-1 * var(--page-pad-x));
+  padding: 0 var(--page-pad-x) var(--space-2xl);
+  color: #ffffff;
+}
+
+html[data-song-layout="cloud"] .wp-page.cloud-layout .wp-page-header .header-cover {
+  grid-area: cover;
+  width: 104px;
+  height: 104px;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+}
+
+html[data-song-layout="cloud"] .wp-page.cloud-layout .wp-page-header .header-cover .wp-icon {
+  font-size: 42px;
+}
+
+html[data-song-layout="cloud"] .wp-page.cloud-layout .wp-page-header .header-meta {
+  grid-area: meta;
+  flex: none;
+  width: 100%;
+  text-align: left;
+}
+
+html[data-song-layout="cloud"] .wp-page.cloud-layout .wp-page-header .wp-page-title {
+  font-size: 21px;
+  line-height: 1.3;
+  color: #ffffff;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
+}
+
+html[data-song-layout="cloud"] .wp-page.cloud-layout .wp-page-header .header-sub {
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+html[data-song-layout="cloud"] .wp-page.cloud-layout .wp-page-header .header-desc {
+  color: rgba(255, 255, 255, 0.72);
+  text-align: left;
+}
+
+html[data-song-layout="cloud"] .wp-page.cloud-layout .wp-page-header .source-badge {
+  color: rgba(255, 255, 255, 0.72);
+  text-align: left;
+}
+
+/* 头部次要操作（重命名 / 导出 / 删除歌单 / 来源标记）：压在信息区下面 */
+html[data-song-layout="cloud"] .wp-page.cloud-layout .wp-page-header .header-sub-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+html[data-song-layout="cloud"] .wp-page.cloud-layout .header-sub-actions .wp-standard-button {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+html[data-song-layout="cloud"] .wp-page.cloud-layout .header-sub-actions .wp-standard-button.danger {
+  color: #ffe3e3;
+}
+
+/* 主操作按钮：半透明胶囊，等宽平分一行 */
+html[data-song-layout="cloud"] .wp-page.cloud-layout .wp-page-header .header-actions {
+  grid-area: actions;
+  flex-wrap: nowrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+}
+
+html[data-song-layout="cloud"] .wp-page.cloud-layout .wp-page-header .header-actions .wp-accent-button,
+html[data-song-layout="cloud"] .wp-page.cloud-layout .wp-page-header .header-actions .wp-standard-button {
+  flex: 1 1 0;
+  height: 38px;
+  padding: 0 var(--space-md);
+  gap: var(--space-sm);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  font-size: 13px;
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+html[data-song-layout="cloud"] .wp-page.cloud-layout .wp-page-header .header-actions .wp-accent-button:active,
+html[data-song-layout="cloud"]
+  .wp-page.cloud-layout
+  .wp-page-header
+  .header-actions
+  .wp-standard-button:active {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* 缓存按钮在这里也是圆形图标，不抢文本按钮的宽度 */
+html[data-song-layout="cloud"] .wp-page.cloud-layout .wp-page-header .header-actions .cache-all-button {
+  flex: 0 0 38px;
+  width: 38px;
+  min-width: 38px;
+  padding: 0;
+  gap: 0;
+  justify-content: center;
+}
+
+/* ------------------------------ 白色圆角面板 ------------------------------ */
+/* 向上盖住渐变底部（负 margin），让列表像从渐变里升起来。 */
+html[data-song-layout="cloud"] .wp-page.cloud-layout .list-panel {
+  position: relative;
+  z-index: 1;
+  margin: calc(-1 * var(--space-xl)) calc(-1 * var(--page-pad-x)) 0;
+  padding: 12px var(--page-pad-x) var(--space-2xl);
+  min-height: calc(100vh - 240px);
+  border-radius: 22px 22px 0 0;
+  background: var(--wp-base-solid, var(--wp-base));
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.14);
+}
+
+/* 面板第一块内容不再需要自带的上外边距（面板自己给了内边距） */
+html[data-song-layout="cloud"] .wp-page.cloud-layout .list-panel > :first-child {
+  margin-top: 0;
+}
+
+/* ------------------------------ 列表行 ------------------------------ */
+/* 面板是纯色底，行不再需要自己的圆角与间距，改成整宽行更像原生列表。 */
+html[data-song-layout="cloud"] .wp-page.cloud-layout .song-table.is-mobile {
+  gap: 0;
+}
+
+html[data-song-layout="cloud"] .wp-page.cloud-layout .song-table.is-mobile .table-row {
+  padding: var(--space-md) 0;
+  border-radius: 0;
+}
+
+html[data-song-layout="cloud"] .wp-page.cloud-layout .song-table.is-mobile .table-row:active {
+  background: var(--wp-control-fill-secondary);
+}
+
+html[data-song-layout="cloud"] .wp-page.cloud-layout .song-table.is-mobile .row-cover {
+  width: 46px;
+  height: 46px;
+  border-radius: 8px;
+}

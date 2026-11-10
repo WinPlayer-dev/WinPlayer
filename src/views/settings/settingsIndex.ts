@@ -46,6 +46,8 @@ export const SETTINGS_SECTIONS: Record<SettingsCategoryKey, SettingsSectionMeta[
   appearance: [
     { id: "appearance-colors", category: "appearance", title: "配色与材质" },
     { id: "appearance-theme", category: "appearance", title: "主题" },
+    // 只影响手机端列表页，桌面端不渲染该分组
+    { id: "appearance-layout", category: "appearance", title: "布局", optional: true },
     { id: "appearance-font", category: "appearance", title: "字体" },
     { id: "appearance-motion", category: "appearance", title: "动效" },
   ],
@@ -346,6 +348,16 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     description: "自定义应用字体，填入 CSS font-family 值（可含备选字体）；留空恢复默认，输入即预览",
     aliases: ["字体", "字号", "font", "改字体"],
     keywords: ["font", "family", "typeface"],
+  },
+  {
+    id: "appearance.layout.songList",
+    category: "appearance",
+    sectionId: "appearance-layout",
+    title: "歌曲列表布局",
+    description:
+      "手机端歌单 / 专辑 / 歌手 / 我的喜欢 / 离线音乐等列表页的排版；「云端」会变成封面主色渐变头部 + 白色圆角面板",
+    aliases: ["布局", "手机布局", "列表样式", "卡片样式", "云端布局", "云音乐布局"],
+    keywords: ["layout", "list", "cloud", "card"],
   },
   {
     id: "appearance.motion.spring",

@@ -6,12 +6,13 @@
  * 全局浮层（Toast / 右键菜单 / 更新对话框…）也由骨架渲染，
  * 因此主题换骨架时这些宿主能力不会丢。
  */
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch, watchEffect } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
 import PageShell from "@/components/layout/PageShell.vue";
 import TitleBar from "@/components/layout/TitleBar.vue";
 import { themeSlot } from "@/components/theme/themeSlot";
 import { useIsMobile } from "@/composables/useIsMobile";
+import { useSongListLayout } from "@/composables/useSongListLayout";
 import ToastHost from "@/components/common/ToastHost.vue";
 import ContextMenuHost from "@/components/common/ContextMenuHost.vue";
 import PlaylistPickerHost from "@/components/common/PlaylistPickerHost.vue";
@@ -61,6 +62,20 @@ const history = useHistoryStore();
 const shortcuts = useShortcutsStore();
 const updater = useUpdaterStore();
 const isMobile = useIsMobile();
+/** 云端布局（仅手机端）：同时驱动 <html data-song-layout> 与设置页卡片选中态 */
+const cloudSongList = useSongListLayout();
+
+/**
+ * 手机端歌曲列表布局：把「是否云端」单向写到 <html data-song-layout>。
+ *
+ * 云端布局的样式全部挂在 `html[data-song-layout="cloud"]` 下（见 styles/cloud-layout.css），
+ * 这样列表页只要挂一个 class、包一层 `.list-panel` 就能接入，
+ * 不必在每个页面里重复写渐变与面板的背景规则。
+ * 桌面端 `useSongListLayout()` 恒为 false，所以桌面完全不受影响。
+ */
+watchEffect(() => {
+  document.documentElement.dataset.songLayout = cloudSongList.value ? "cloud" : "default";
+});
 
 /** 页面骨架：主题可用 components.PageShell 整体替换（含错误边界回退） */
 const ThemedPageShell = themeSlot("PageShell", PageShell);

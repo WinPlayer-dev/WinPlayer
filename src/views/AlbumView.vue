@@ -15,6 +15,7 @@ import MobilePageHeader from "@/components/layout/MobilePageHeader.vue";
 import CachedImage from "@/components/common/CachedImage.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import { useIsMobile } from "@/composables/useIsMobile";
+import { useCloudHeaderGradient, useSongListLayout } from "@/composables/useSongListLayout";
 import { useRefreshable } from "@/composables/useRefreshable";
 import type { AlbumDetail, UnifiedTrack } from "@/types/plugin";
 import WpButton from "@/components/theme/WpButton.vue";
@@ -26,6 +27,8 @@ const plugins = usePluginsStore();
 const downloads = useDownloadsStore();
 /** 移动端判定：用于挂 .is-mobile 类，切换移动端布局 */
 const isMobile = useIsMobile();
+/** 云端布局（设置 → 外观 → 布局）：只有在手机端选中时生效 */
+const cloudLayout = useSongListLayout();
 
 const sourceId = computed(() => String(route.params.source ?? ""));
 const sourceName = computed(() => pluginDisplayName(plugins.records, sourceId.value));
@@ -35,6 +38,8 @@ const tracks = ref<UnifiedTrack[]>([]);
 const loading = ref(true);
 const loadError = ref("");
 const descExpanded = ref(false);
+/** 云端布局的头部渐变底色：取专辑封面主色 */
+const cloudStyle = useCloudHeaderGradient(computed(() => album.value?.cover ?? ""));
 
 async function load(source: string, id: string) {
   loading.value = true;
@@ -133,7 +138,11 @@ function downloadAll() {
 </script>
 
 <template>
-  <div class="wp-page" :class="{ 'is-mobile': isMobile }">
+  <div
+    class="wp-page"
+    :class="{ 'is-mobile': isMobile, 'cloud-layout': cloudLayout }"
+    :style="cloudStyle"
+  >
     <MobilePageHeader />
     <template v-if="album">
       <div class="wp-page-header">
@@ -197,7 +206,10 @@ function downloadAll() {
         <WpButton @click="router.back()" variant="standard">返回</WpButton>
       </EmptyState>
 
-      <SongTable v-else-if="tracks.length" :tracks="tracks" :show-source="false" />
+      <!-- 云端布局：白色圆角面板（桌面端 / 默认布局时只是个普通容器） -->
+      <div v-else-if="tracks.length" class="list-panel">
+        <SongTable :tracks="tracks" :show-source="false" />
+      </div>
 
       <EmptyState
         v-else

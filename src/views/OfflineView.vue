@@ -16,6 +16,7 @@ import { useDownloadsStore, type DownloadGroup, type OfflineSong } from "@/store
 import { usePlayerStore } from "@/stores/player";
 import { useTrackMetaStore } from "@/stores/trackMeta";
 import { useIsMobile } from "@/composables/useIsMobile";
+import { useSongListLayout } from "@/composables/useSongListLayout";
 import { useLongPress } from "@/composables/useLongPress";
 import { useRefreshable } from "@/composables/useRefreshable";
 import { openContextMenu, openContextMenuAt, type ContextMenuItem } from "@/services/contextMenu";
@@ -30,6 +31,8 @@ const downloads = useDownloadsStore();
 const player = usePlayerStore();
 const trackMeta = useTrackMetaStore();
 const isMobile = useIsMobile();
+/** 云端布局（设置 → 外观 → 布局）：只有在手机端选中时生效 */
+const cloudLayout = useSongListLayout();
 
 /** 展示用分组：同一首歌可同时出现在其来源的多个分组里 */
 interface OfflineSection {
@@ -239,7 +242,7 @@ useRefreshable(() => downloads.refreshMissing());
 </script>
 
 <template>
-  <div class="wp-page" :class="{ 'is-mobile': isMobile }">
+  <div class="wp-page" :class="{ 'is-mobile': isMobile, 'cloud-layout': cloudLayout }">
     <MobilePageHeader />
     <div class="wp-page-header">
       <div class="header-cover">
@@ -324,7 +327,8 @@ useRefreshable(() => downloads.refreshMissing());
       <WpButton class="small" @click="cleanMissing" variant="standard">清理记录</WpButton>
     </div>
 
-    <template v-if="sections.length">
+    <!-- 云端布局：白色圆角面板（桌面端 / 默认布局时只是个普通容器） -->
+    <div v-if="sections.length" class="list-panel">
       <section v-for="section in sections" :key="section.key" class="offline-section">
         <h2 class="wp-section-title">
           {{ section.name }}
@@ -375,7 +379,7 @@ useRefreshable(() => downloads.refreshMissing());
           </div>
         </div>
       </section>
-    </template>
+    </div>
 
     <EmptyState
       v-else-if="!activeTasks.length"

@@ -42,6 +42,18 @@ export async function refreshAccentFromCover(
   if (hex) applyAccent(hex);
 }
 
+/**
+ * 取某个封面（页面上展示的任意封面，不限于当前播放）的主色。
+ *
+ * 「云端」布局用它生成头部渐变底色。失败一律返回 null，由调用方回落到主题强调色：
+ * 封面可能来自插件 CDN、可能没落盘、也可能根本没缓存开关。
+ */
+export async function coverDominantColor(cover: string | null | undefined): Promise<string | null> {
+  if (!cover) return null;
+  const url = resolveImgUrl(cover);
+  return url ? extractColor(url) : null;
+}
+
 /** 提取主色；封面没落盘（如「图片缓存」已关闭）时先预取进缓存再取一次 */
 async function extractColor(url: string): Promise<string | null> {
   const first = await invoke<string | null>("cover_dominant_color", { url }).catch(() => null);

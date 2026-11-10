@@ -14,6 +14,7 @@ import "@/styles/global.css";
 import "@/styles/mobile.css";
 import "@/styles/theme.css";
 import "@/styles/cover-natural.css";
+import "@/styles/cloud-layout.css";
 import App from "./App.vue";
 import router from "./router";
 import { installScrollMemory } from "@/services/scrollMemory";

@@ -18,6 +18,7 @@ import MobilePageHeader from "@/components/layout/MobilePageHeader.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 import { TextBox } from "@/components/winui";
 import { useIsMobile } from "@/composables/useIsMobile";
+import { useSongListLayout } from "@/composables/useSongListLayout";
 import { builtinSourceDef } from "@/services/builtinSources";
 import {
   albumGroupToUnified,
@@ -37,6 +38,8 @@ const route = useRoute();
 const router = useRouter();
 const player = usePlayerStore();
 const isMobile = useIsMobile();
+/** 云端布局（设置 → 外观 → 布局）：只有在手机端选中时生效 */
+const cloudLayout = useSongListLayout();
 const localMusic = useLocalMusicStore();
 const webdav = useWebdavStore();
 
@@ -203,7 +206,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="wp-page library-page" :class="{ mobile: isMobile }">
+  <div class="wp-page library-page" :class="{ mobile: isMobile, 'cloud-layout': cloudLayout }">
     <MobilePageHeader />
     <div class="wp-page-header">
       <div class="header-cover" :style="{ background: def?.accent }">
@@ -242,7 +245,9 @@ onMounted(async () => {
     </EmptyState>
 
     <template v-else>
-      <!-- 工具栏：视图切换 + 搜索 + 操作 -->
+      <!-- 云端布局：白色圆角面板（桌面端 / 默认布局时只是个普通容器） -->
+      <div class="list-panel">
+        <!-- 工具栏：视图切换 + 搜索 + 操作 -->
       <div class="library-toolbar">
         <div class="view-switch">
           <button
@@ -297,10 +302,11 @@ onMounted(async () => {
         <div v-if="!albums.length" class="empty-hint">曲库里还没有专辑</div>
       </div>
 
-      <!-- 歌手 -->
-      <div v-else class="media-grid">
-        <MediaCard v-for="artist in artists" :key="artist.id" kind="artist" :artist="artist" />
-        <div v-if="!artists.length" class="empty-hint">曲库里还没有歌手</div>
+        <!-- 歌手 -->
+        <div v-else class="media-grid">
+          <MediaCard v-for="artist in artists" :key="artist.id" kind="artist" :artist="artist" />
+          <div v-if="!artists.length" class="empty-hint">曲库里还没有歌手</div>
+        </div>
       </div>
     </template>
   </div>

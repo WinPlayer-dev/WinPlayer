@@ -33,6 +33,16 @@ export type CloseBehavior = "tray" | "minimize" | "quit";
 /** 桌面歌词外观：无底色纯文字 + 描边投影 / 歌曲卡片（封面模糊底 + 歌曲信息） */
 export type DesktopLyricsStyle = "plain" | "glass";
 
+/**
+ * 手机端歌曲列表页的布局。
+ *
+ * - `default`：标题居中、封面居中、列表平铺（原有的手机端样式）。
+ * - `cloud`：云音乐风格——封面主色渐变头部 + 白色圆角面板上滑包住列表。
+ *
+ * 只影响手机端（桌面端窗口宽、列表列多，套这套排版反而难用）。
+ */
+export type SongListLayout = "default" | "cloud";
+
 /* ------------------------------ 听完自动加歌单 ------------------------------ */
 
 /** 自动加歌单的方式：固定进某个歌单 / 按语种与类型自动分类 */
@@ -332,6 +342,8 @@ export const useSettingsStore = defineStore("settings", () => {
   const coverAccent = ref(false);
   /** 是否按封面原始宽高比显示（关闭则所有封面统一裁切为正方形） */
   const coverNaturalRatio = ref(false);
+  /** 手机端歌曲列表页布局（桌面端忽略） */
+  const songListLayout = ref<SongListLayout>("default");
   /** 弹簧动效：开启后全站缓动换成带回弹的曲线，交互更「Q 弹」 */
   const springMotion = ref(false);
   /** 弹簧回弹幅度（缓动曲线第二控制点 y 值，越大冲得越远） */
@@ -475,6 +487,10 @@ export const useSettingsStore = defineStore("settings", () => {
     hapticsEnabled.value = await getSetting<boolean>("settings.hapticsEnabled", true);
     coverAccent.value = await getSetting<boolean>("settings.coverAccent", false);
     coverNaturalRatio.value = await getSetting<boolean>("settings.coverNaturalRatio", false);
+    songListLayout.value =
+      (await getSetting<string>("settings.songListLayout", "default")) === "cloud"
+        ? "cloud"
+        : "default";
     springMotion.value = await getSetting<boolean>("settings.springMotion", false);
     springStrength.value = normalizeSpringStrength(
       await getSetting<number>("settings.springStrength", SPRING_STRENGTH_DEFAULT),
@@ -597,6 +613,12 @@ export const useSettingsStore = defineStore("settings", () => {
     coverNaturalRatio.value = value;
     applyCoverNaturalRatio();
     await setSetting("settings.coverNaturalRatio", value);
+  }
+
+  /** 切换手机端列表布局；桌面端读到的值仍是 cloud，但不参与排版 */
+  async function setSongListLayout(value: SongListLayout): Promise<void> {
+    songListLayout.value = value === "cloud" ? "cloud" : "default";
+    await setSetting("settings.songListLayout", songListLayout.value);
   }
 
   /* ------------------------------ 动效手感 ------------------------------ */
@@ -858,6 +880,7 @@ export const useSettingsStore = defineStore("settings", () => {
     desktopLyricsLocked,
     hapticsEnabled,
     coverAccent,
+    songListLayout,
     coverNaturalRatio,
     springMotion,
     springStrength,
@@ -906,6 +929,7 @@ export const useSettingsStore = defineStore("settings", () => {
     setHaptics,
     setCoverAccent,
     setCoverNaturalRatio,
+    setSongListLayout,
     setSpringMotion,
     setSpringStrength,
     previewSpringStrength,

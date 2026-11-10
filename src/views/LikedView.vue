@@ -9,6 +9,7 @@ import TrackListToolbar from "@/components/common/TrackListToolbar.vue";
 import MobilePageHeader from "@/components/layout/MobilePageHeader.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import { useIsMobile } from "@/composables/useIsMobile";
+import { useSongListLayout } from "@/composables/useSongListLayout";
 import { useRefreshable } from "@/composables/useRefreshable";
 import { useTrackList, trackIdentity } from "@/composables/useTrackList";
 import WpButton from "@/components/theme/WpButton.vue";
@@ -19,6 +20,8 @@ const player = usePlayerStore();
 const downloads = useDownloadsStore();
 /** 移动端判定：用于挂 .is-mobile 类，切换移动端布局 */
 const isMobile = useIsMobile();
+/** 云端布局（设置 → 外观 → 布局）：只有在手机端选中时生效 */
+const cloudLayout = useSongListLayout();
 
 // 下拉刷新：重新读取喜欢的音乐
 useRefreshable(() => library.loadAll());
@@ -60,7 +63,7 @@ function downloadAll() {
 </script>
 
 <template>
-  <div class="wp-page" :class="{ 'is-mobile': isMobile }">
+  <div class="wp-page" :class="{ 'is-mobile': isMobile, 'cloud-layout': cloudLayout }">
     <MobilePageHeader />
     <template v-if="library.liked.length">
       <div class="wp-page-header">
@@ -90,23 +93,25 @@ function downloadAll() {
         </div>
       </div>
 
-      <TrackListToolbar v-bind="toolbarProps" />
+      <div class="list-panel">
+        <TrackListToolbar v-bind="toolbarProps" />
 
-      <SongTable
-        v-if="visibleTracks.length"
-        :tracks="visibleTracks"
-        :show-source="true"
-        @remove="(track) => library.toggleLike(track)"
-      />
+        <SongTable
+          v-if="visibleTracks.length"
+          :tracks="visibleTracks"
+          :show-source="true"
+          @remove="(track) => library.toggleLike(track)"
+        />
 
-      <EmptyState
-        v-else
-        icon="&#xF4A3;"
-        title="没有匹配的歌曲"
-        :description="`「${query}」在喜欢的音乐里没有找到。试试歌名、歌手或专辑名的一部分。`"
-      >
-        <WpButton @click="clearQuery" variant="standard">清空搜索</WpButton>
-      </EmptyState>
+        <EmptyState
+          v-else
+          icon="&#xF4A3;"
+          title="没有匹配的歌曲"
+          :description="`「${query}」在喜欢的音乐里没有找到。试试歌名、歌手或专辑名的一部分。`"
+        >
+          <WpButton @click="clearQuery" variant="standard">清空搜索</WpButton>
+        </EmptyState>
+      </div>
     </template>
 
     <EmptyState

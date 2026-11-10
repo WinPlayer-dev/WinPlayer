@@ -22,6 +22,7 @@ import MobilePageHeader from "@/components/layout/MobilePageHeader.vue";
 import CachedImage from "@/components/common/CachedImage.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import { useIsMobile } from "@/composables/useIsMobile";
+import { useCloudHeaderGradient, useSongListLayout } from "@/composables/useSongListLayout";
 import { useRefreshable } from "@/composables/useRefreshable";
 import { useTrackList, trackIdentity } from "@/composables/useTrackList";
 import type { PlaylistDetail, UnifiedTrack } from "@/types/plugin";
@@ -35,6 +36,8 @@ const plugins = usePluginsStore();
 const downloads = useDownloadsStore();
 /** 移动端判定：用于挂 .is-mobile 类，切换移动端布局 */
 const isMobile = useIsMobile();
+/** 云端布局（设置 → 外观 → 布局）：只有在手机端选中时生效 */
+const cloudLayout = useSongListLayout();
 
 /** 插件来源歌单：路由名固定为 sourcePlaylist，多带一段 source */
 const isRemote = computed(() => route.name === "sourcePlaylist");
@@ -108,6 +111,9 @@ const header = computed(() => {
     description: item.description,
   };
 });
+
+/** 云端布局的头部渐变底色：取歌单封面主色 */
+const cloudStyle = useCloudHeaderGradient(computed(() => header.value?.cover ?? ""));
 
 /** 缓存展示中（后台刷新在线数据），出错时不打扰已显示的缓存内容 */
 const fromCache = ref(false);
@@ -320,7 +326,11 @@ async function openDelete() {
 </script>
 
 <template>
-  <div class="wp-page" :class="{ 'is-mobile': isMobile }">
+  <div
+    class="wp-page"
+    :class="{ 'is-mobile': isMobile, 'cloud-layout': cloudLayout }"
+    :style="cloudStyle"
+  >
     <MobilePageHeader />
     <template v-if="header">
       <div class="wp-page-header">
@@ -394,37 +404,40 @@ async function openDelete() {
       </EmptyState>
 
       <template v-else>
-        <TrackListToolbar v-bind="toolbarProps" />
+        <!-- 云端布局：白色圆角面板（桌面端 / 默认布局时只是个普通容器） -->
+        <div class="list-panel">
+          <TrackListToolbar v-bind="toolbarProps" />
 
-        <SongTable
-          v-if="visibleTracks.length"
-          :tracks="visibleTracks"
-          :show-source="!isRemote"
-          :removable="!isRemote || canEditRemote"
-          :reorderable="canReorder"
-          @remove="onRemove"
-          @reorder="onReorder"
-        />
+          <SongTable
+            v-if="visibleTracks.length"
+            :tracks="visibleTracks"
+            :show-source="!isRemote"
+            :removable="!isRemote || canEditRemote"
+            :reorderable="canReorder"
+            @remove="onRemove"
+            @reorder="onReorder"
+          />
 
-        <EmptyState
-          v-else-if="filtering"
-          icon="&#xF4A3;"
-          title="没有匹配的歌曲"
-          :description="`「${queryText}」在这个歌单里没有找到。试试歌名、歌手或专辑名的一部分。`"
-        >
-          <WpButton @click="clearQuery" variant="standard">清空搜索</WpButton>
-        </EmptyState>
+          <EmptyState
+            v-else-if="filtering"
+            icon="&#xF4A3;"
+            title="没有匹配的歌曲"
+            :description="`「${queryText}」在这个歌单里没有找到。试试歌名、歌手或专辑名的一部分。`"
+          >
+            <WpButton @click="clearQuery" variant="standard">清空搜索</WpButton>
+          </EmptyState>
 
-        <EmptyState
-          v-else
-          icon="&#xF4EE;"
-          title="歌单还是空的"
-          :description="
-            isRemote
-              ? '这个歌单暂时没有可展示的歌曲，可能是插件没有登录或内容受地区限制。'
-              : '在搜索结果或喜欢的音乐里，把歌曲添加到这个歌单吧。'
-          "
-        />
+          <EmptyState
+            v-else
+            icon="&#xF4EE;"
+            title="歌单还是空的"
+            :description="
+              isRemote
+                ? '这个歌单暂时没有可展示的歌曲，可能是插件没有登录或内容受地区限制。'
+                : '在搜索结果或喜欢的音乐里，把歌曲添加到这个歌单吧。'
+            "
+          />
+        </div>
       </template>
     </template>
 

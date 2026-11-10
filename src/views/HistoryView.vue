@@ -18,6 +18,7 @@ import WpButton from "@/components/theme/WpButton.vue";
 import { useHistoryStore } from "@/stores/history";
 import { usePlayerStore } from "@/stores/player";
 import { useIsMobile } from "@/composables/useIsMobile";
+import { useSongListLayout } from "@/composables/useSongListLayout";
 import { useRefreshable } from "@/composables/useRefreshable";
 import { useTrackList, trackIdentity } from "@/composables/useTrackList";
 import { formatDuration } from "@/types/player";
@@ -28,6 +29,8 @@ const router = useRouter();
 const history = useHistoryStore();
 const player = usePlayerStore();
 const isMobile = useIsMobile();
+/** 云端布局（设置 → 外观 → 布局）：只有在手机端选中时生效 */
+const cloudLayout = useSongListLayout();
 
 /** 视图：最近播放 / 最常听 */
 const view = ref<"recent" | "most">("recent");
@@ -107,7 +110,7 @@ async function onRemove(track: UnifiedTrack): Promise<void> {
 </script>
 
 <template>
-  <div class="wp-page" :class="{ 'is-mobile': isMobile }">
+  <div class="wp-page" :class="{ 'is-mobile': isMobile, 'cloud-layout': cloudLayout }">
     <MobilePageHeader />
 
     <template v-if="history.entries.length">
@@ -138,47 +141,50 @@ async function onRemove(track: UnifiedTrack): Promise<void> {
         </div>
       </div>
 
-      <!-- 视图切换：最近播放 / 最常听 -->
-      <div class="view-tabs" role="tablist" aria-label="历史视图">
-        <button
-          class="view-tab"
-          :class="{ active: view === 'recent' }"
-          role="tab"
-          :aria-selected="view === 'recent'"
-          @click="switchView('recent')"
+      <!-- 云端布局：白色圆角面板（桌面端 / 默认布局时只是个普通容器） -->
+      <div class="list-panel">
+        <!-- 视图切换：最近播放 / 最常听 -->
+        <div class="view-tabs" role="tablist" aria-label="历史视图">
+          <button
+            class="view-tab"
+            :class="{ active: view === 'recent' }"
+            role="tab"
+            :aria-selected="view === 'recent'"
+            @click="switchView('recent')"
+          >
+            最近播放
+          </button>
+          <button
+            class="view-tab"
+            :class="{ active: view === 'most' }"
+            role="tab"
+            :aria-selected="view === 'most'"
+            @click="switchView('most')"
+          >
+            最常听
+          </button>
+        </div>
+
+        <TrackListToolbar v-bind="toolbarProps" />
+
+        <SongTable
+          v-if="visibleTracks.length"
+          :tracks="visibleTracks"
+          :show-source="true"
+          :show-play-count="true"
+          removable
+          @remove="onRemove"
+        />
+
+        <EmptyState
+          v-else-if="filtering"
+          icon="&#xF4A3;"
+          title="没有匹配的歌曲"
+          :description="`「${query}」在播放历史里没有找到。试试歌名、歌手或专辑名的一部分。`"
         >
-          最近播放
-        </button>
-        <button
-          class="view-tab"
-          :class="{ active: view === 'most' }"
-          role="tab"
-          :aria-selected="view === 'most'"
-          @click="switchView('most')"
-        >
-          最常听
-        </button>
-      </div>
-
-      <TrackListToolbar v-bind="toolbarProps" />
-
-      <SongTable
-        v-if="visibleTracks.length"
-        :tracks="visibleTracks"
-        :show-source="true"
-        :show-play-count="true"
-        removable
-        @remove="onRemove"
-      />
-
-      <EmptyState
-        v-else-if="filtering"
-        icon="&#xF4A3;"
-        title="没有匹配的歌曲"
-        :description="`「${query}」在播放历史里没有找到。试试歌名、歌手或专辑名的一部分。`"
-      >
         <WpButton @click="clearQuery" variant="standard">清空搜索</WpButton>
-      </EmptyState>
+        </EmptyState>
+      </div>
     </template>
 
     <EmptyState
