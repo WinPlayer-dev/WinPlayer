@@ -200,6 +200,7 @@ const listRef = ref<HTMLElement | null>(null);
  */
 const {
   lyricRows,
+  coverOnly,
   lineLevel,
   lyricVars,
   lyricClasses,
@@ -212,23 +213,8 @@ const {
   isActive: () => showFull.value,
 });
 
-/** 上一次「已确定」的纯封面判定，仅在歌词加载空窗期复用 */
-const lastCoverOnly = ref(false);
-
-/**
- * 纯封面版式：歌词已加载结束且确实没有歌词时，把封面与标题放大填满中区，
- * 避免只留一句「暂无歌词」导致大面积空白。
- * 「歌词加载中」不算在内——加载期间保持原版式，歌词到达后要么正常上滚、要么平滑放大。
- */
-const coverOnlyMode = computed(() => {
-  // 切歌空窗期沿用上一次的判定：上一首没歌词就别先缩回去再放大（避免来回抖）
-  if (player.lyricsLoading) return lastCoverOnly.value;
-  return lyricRows.value.length === 0;
-});
-
-watch(coverOnlyMode, (value) => {
-  lastCoverOnly.value = value;
-});
+/** 纯封面版式（判定逻辑在 useLyricLines 里，与桌面沉浸页共用） */
+const coverOnlyMode = coverOnly;
 
 /* ------------------------------ 播放模式 ------------------------------ */
 
@@ -1522,7 +1508,9 @@ onBeforeUnmount(() => {
   justify-content: center;
   gap: var(--space-md);
   min-height: 0;
-  padding: var(--space-sm) var(--space-2xl) var(--space-lg);
+  /* 上下内边距必须相等：否则 `justify-content: center` 的视觉中心会偏上，
+     封面在屏幕里显得「吊在上面」而不是居中 */
+  padding: var(--space-md) var(--space-2xl);
 }
 
 .full-player.is-cover-only .full-cover {

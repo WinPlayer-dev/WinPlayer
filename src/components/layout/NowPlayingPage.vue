@@ -43,7 +43,7 @@ const router = useRouter();
  */
 const listRef = ref<HTMLElement | null>(null);
 
-const { lyricRows, lineLevel, lyricVars, lyricClasses, seekToLine } = useLyricLines({
+const { lyricRows, coverOnly, lineLevel, lyricVars, lyricClasses, seekToLine } = useLyricLines({
   container: listRef,
   isActive: () => true,
   // 桌面歌词视口更高，模糊层级跨度同步放大，避免外侧行「没模糊却已很淡」
@@ -255,7 +255,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="np">
+  <div class="np" :class="{ 'is-cover-only': coverOnly }">
     <!-- 背景：封面高斯模糊铺满 + 暗色遮罩（与手机全屏页同一套观感） -->
     <div class="np-bg" aria-hidden="true">
       <CachedImage v-if="track?.cover" :src="track.cover" class="np-bg-img" />
@@ -928,6 +928,49 @@ onBeforeUnmount(() => {
 
 .np-lyrics .wp-lrc-line.level-0 {
   max-width: 94%;
+}
+
+/* ---------------- 无歌词：封面居中 ---------------- */
+/**
+ * 纯音乐 / 没有歌词的曲目不再保留「左封面 + 右空栏」的半边空荡版式，
+ * 而是整块居中：歌词区与右栏一起让位，封面成为唯一主角。
+ * 判定（含切歌空窗期不抖动）在 `useLyricLines` 的 `coverOnly` 里，与手机端共用。
+ */
+.np.is-cover-only .np-body {
+  justify-content: center;
+  gap: 0;
+}
+
+.np.is-cover-only .np-right {
+  display: none;
+}
+
+.np.is-cover-only .np-left {
+  /* 没有歌词时封面可以吃得更大：宽高双向自适应，矮窗自动收 */
+  width: clamp(220px, min(40vw, 52vh), 500px);
+  align-items: center;
+  /* 从「有歌词」切到纯封面时换一段入场，避免左栏瞬间从左边跳到中间 */
+  animation: np-cover-in 380ms cubic-bezier(0.33, 0, 0.15, 1) both;
+}
+
+@keyframes np-cover-in {
+  from {
+    opacity: 0.4;
+    transform: scale(0.97);
+  }
+}
+
+.np.is-cover-only .np-meta {
+  text-align: center;
+}
+
+/* 曲名与心形作为一个整体居中（不是把心形推到右边缘） */
+.np.is-cover-only .np-title-row {
+  justify-content: center;
+}
+
+.np.is-cover-only .np-name {
+  flex: 0 1 auto;
 }
 
 /* ---------------- 窄窗口 ---------------- */

@@ -104,6 +104,21 @@ export function useLyricLines(options: LyricLinesOptions) {
   );
 
   /**
+   * 「纯封面」版式：歌词已加载结束且确实没有歌词。
+   *
+   * 两端都靠它切版式：手机把歌词区收起、封面挪到正中并放大；桌面隐藏右栏歌词、
+   * 让封面居中（否则会留着一句「暂无歌词」和一大片空白）。
+   * 「加载中」不算在内——沿用上一次的判定，切歌时不会先缩回去再放大来回抖。
+   */
+  const lastCoverOnly = ref(false);
+  const coverOnly = computed(() =>
+    player.lyricsLoading ? lastCoverOnly.value : lyricRows.value.length === 0,
+  );
+  watch(coverOnly, (value) => {
+    lastCoverOnly.value = value;
+  });
+
+  /**
    * 视觉层级：0 当前行 / 1~3 逐级模糊渐隐 / 4 远端仅压暗。
    * 档位按 focusSpan 均分，超过跨度的行不再加模糊（此时已滚出视口），以控制渲染开销。
    */
@@ -184,6 +199,7 @@ export function useLyricLines(options: LyricLinesOptions) {
     resetLyricOffset,
     activeIndex,
     lyricRows,
+    coverOnly,
     lineLevel,
     lyricVars,
     lyricClasses,
