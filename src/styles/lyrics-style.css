@@ -101,12 +101,36 @@
   font-size: var(--lrc-size);
   font-weight: var(--lrc-weight);
   line-height: 1.45;
+  /**
+   * 折行基准：非当前行的可用宽度先除以放大倍数。
+   *
+   * 小字号一行能塞下更多字，轮到它播放时字号一放大，长句就多折一行，下面所有
+   * 歌词被整体顶开 —— 观感上像被生硬地挤了一下。把宽度预先按放大倍数收窄后，
+   * 「可用宽度 / 字号」在两种状态下相等（行数、断句点都相同），长句在没播放时
+   * 就已经是播放时的折行结构。
+   *
+   * 前提：同一容器里所有行（含 level-0）的宽度必须一致，否则等比关系不成立；
+   * 外层若有 `.wp-lrc-line { max-width }` 覆盖，不要给 level-0 单独放宽。
+   *
+   * 只改折行、不改行高：`line-height` 仍然跟着各自字号走（行高改死会让整页
+   * 行距变松），所以折行行数虽然一致，行盒高度仍会随放大倍数变化，切换当前行
+   * 时下面的歌词还会有「小半行」的位移 —— 这是行高随字号缩放的必然结果。
+   */
+  max-width: calc(100% / var(--lrc-scale));
   /* 放大 / 加粗也吃同一套时长与曲线（以前写死 0.2s，现在跟「歌词滚动」设置走） */
   transition:
     font-size var(--lrc-dur) var(--lrc-ease),
     font-weight var(--lrc-dur) var(--lrc-ease),
     color var(--lrc-dur) var(--lrc-ease),
     text-shadow var(--lrc-dur) var(--lrc-ease);
+}
+
+/* 当前行按满宽排版：与上面「除以放大倍数」的宽度等效，折行位置正好对齐 */
+.wp-lrc-line.level-0 .wp-lrc-text {
+  font-size: calc(var(--lrc-size) * var(--lrc-scale));
+  font-weight: var(--lrc-active-weight);
+  max-width: 100%;
+  text-shadow: 0 2px var(--lrc-glow) rgba(0, 0, 0, var(--lrc-glow-alpha));
 }
 
 /* 翻译副行：按字号等比缩放，跟着原文的明暗层级走 */
@@ -123,12 +147,6 @@
 
 .wp-lrc-line.level-0 {
   color: #fff;
-}
-
-.wp-lrc-line.level-0 .wp-lrc-text {
-  font-size: calc(var(--lrc-size) * var(--lrc-scale));
-  font-weight: var(--lrc-active-weight);
-  text-shadow: 0 2px var(--lrc-glow) rgba(0, 0, 0, var(--lrc-glow-alpha));
 }
 
 .wp-lrc-line.level-0 .wp-lrc-translation {

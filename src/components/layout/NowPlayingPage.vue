@@ -900,8 +900,10 @@ onBeforeUnmount(() => {
   position: relative;
   flex: 1;
   /* 首尾留白要够大，当前行才能被滚到「靠上 30%」或「靠下 72%」；
-     只留 24vh 的话靠下模式会顶到最后一个可滚位置、差出一截 */
-  padding: 40vh var(--space-xl);
+     只留 24vh 的话靠下模式会顶到最后一个可滚位置、差出一截。
+     左右不设内边距：横向留白统一由 `.np-body` 的 padding / gap 控制，
+     否则和歌词自己的 padding 叠在一起，右侧会比左侧多出一截看起来不对称。 */
+  padding: 40vh 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
@@ -921,13 +923,29 @@ onBeforeUnmount(() => {
   color: rgba(255, 255, 255, 0.4);
 }
 
-/* 桌面歌词行左右留白更宽，避免长句贴边；靠左对齐时由 .align-left 覆盖 */
+/**
+ * 桌面歌词行左右留白更宽，避免长句贴边；靠左对齐时由下面的规则覆盖。
+ *
+ * 所有层级必须同宽，包括当前行 —— `lyrics-style.css` 里给非当前行留的
+ * 折行宽度是「本级宽度的 1 / 放大倍数」（口径见 `.wp-lrc-text` 的 max-width），
+ * 一旦当前行单独放宽（以前写过 94%），等比关系就破了：临界长度的长句会
+ * 出现「没播放时折三行、播放时折两行」，切换当前行时整页歌词被上下顶开。
+ */
 .np-lyrics .wp-lrc-line {
   max-width: 88%;
 }
 
-.np-lyrics .wp-lrc-line.level-0 {
-  max-width: 94%;
+/**
+ * 靠左对齐时长句要能顶到容器的左右边缘（否则右端会多出一截 12% 的空白，
+ * 和左边的留白明显不对称）。
+ *
+ * 必须写完整的三段选择器：`lyrics-style.css` 里的 `.wp-lrc.align-left .wp-lrc-line`
+ * 与 scoped 的 `.np-lyrics .wp-lrc-line[data-v]` 特异性都是 (0,3,0)，谁后加载谁赢，
+ * 靠 `.align-left` 单独那条并不可靠。
+ */
+.np-lyrics.align-left .wp-lrc-line,
+.np-lyrics.align-left .wp-lrc-line.level-0 {
+  max-width: 100%;
 }
 
 /* ---------------- 无歌词：封面居中 ---------------- */
@@ -990,7 +1008,7 @@ onBeforeUnmount(() => {
   }
 
   .np-lyrics {
-    padding: 40vh var(--space-md);
+    padding: 40vh 0;
   }
 }
 
