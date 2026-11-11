@@ -15,17 +15,19 @@ import {
   SPRING_STRENGTH_MIN,
   useSettingsStore,
 } from "@/stores/settings";
+import { useI18n } from "@/i18n";
 import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 
 const settings = useSettingsStore();
+const { t } = useI18n();
 
 const strengthLabel = computed(() => {
   const value = settings.springStrength;
-  if (value < 1.4) return "克制";
-  if (value < 1.7) return "适中";
-  if (value < 1.86) return "明显";
-  return "很弹";
+  if (value < 1.4) return t("settings.appearance.motion.strength.options.subtle");
+  if (value < 1.7) return t("settings.appearance.motion.strength.options.medium");
+  if (value < 1.86) return t("settings.appearance.motion.strength.options.strong");
+  return t("settings.appearance.motion.strength.options.extreme");
 });
 
 /* ------------------------------ 实时预览 ------------------------------ */
@@ -60,12 +62,12 @@ watch(
 onBeforeUnmount(() => window.clearTimeout(saveTimer));</script>
 
 <template>
-  <SettingsSection id="appearance-motion" title="动效">
+  <SettingsSection id="appearance-motion" :title="t('settings.appearance.motion.section')">
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">弹簧手感</div>
+        <div class="card-header">{{ t("settings.appearance.motion.spring.title") }}</div>
         <div class="card-description">
-          把全站缓动换成带回弹的曲线：按钮、卡片、弹层、页面切换都会「Q 弹」一下；关闭则回到 WinUI 标准曲线
+          {{ t("settings.appearance.motion.spring.description") }}
         </div>
       </div>
       <ToggleSwitch :IsOn="settings.springMotion" @Toggled="onSpringToggle" />
@@ -73,9 +75,9 @@ onBeforeUnmount(() => window.clearTimeout(saveTimer));</script>
 
     <WpCard variant="column">
       <div class="card-content">
-        <div class="card-header">回弹幅度</div>
+        <div class="card-header">{{ t("settings.appearance.motion.strength.title") }}</div>
         <div class="card-description">
-          到达终点后多冲出去一点再落回；越大幅度越夸张，调好后可在下面直接试手感
+          {{ t("settings.appearance.motion.strength.description") }}
         </div>
       </div>
       <div class="motion-row">
@@ -98,13 +100,17 @@ onBeforeUnmount(() => window.clearTimeout(saveTimer));</script>
         class="motion-demo"
         :class="{ muted: !settings.springMotion }"
         type="button"
-        :title="settings.springMotion ? '点击重放' : '开启弹簧手感后可预览'"
+        :title="
+          settings.springMotion
+            ? t('settings.appearance.motion.demo.replay')
+            : t('settings.appearance.motion.demo.disabledHint')
+        "
         @click="replayDemo"
       >
         <span class="demo-track">
           <span :key="demoRun" class="demo-dot" />
         </span>
-        <span class="demo-caption">点击重放</span>
+        <span class="demo-caption">{{ t("settings.appearance.motion.demo.replay") }}</span>
       </button>
     </WpCard>
   </SettingsSection>

@@ -12,12 +12,14 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import { ProgressRing } from "@/components/winui";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { useRefreshable } from "@/composables/useRefreshable";
+import { useI18n } from "@/i18n";
 import { demoMode, demoName, DEMO_SOURCE_NAME } from "@/services/demoMode";
 import type { SearchResult, UnifiedAlbum, UnifiedArtist, UnifiedPlaylist, UnifiedTrack } from "@/types/plugin";
 import WpButton from "@/components/theme/WpButton.vue";
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 const plugins = usePluginsStore();
 const player = usePlayerStore();
 const settings = useSettingsStore();
@@ -54,10 +56,10 @@ const SCOPE_OF: Record<TabType, SearchScope> = {
 };
 
 const TYPE_TABS: { key: TabType; label: string; empty: string }[] = [
-  { key: "song", label: "单曲", empty: "没有找到相关单曲" },
-  { key: "playlist", label: "歌单", empty: "没有找到相关歌单" },
-  { key: "album", label: "专辑", empty: "没有找到相关专辑" },
-  { key: "artist", label: "歌手", empty: "没有找到相关歌手" },
+  { key: "song", label: t("search.tab.song"), empty: t("search.empty.song") },
+  { key: "playlist", label: t("search.tab.playlist"), empty: t("search.empty.playlist") },
+  { key: "album", label: t("search.tab.album"), empty: t("search.empty.album") },
+  { key: "artist", label: t("search.tab.artist"), empty: t("search.empty.artist") },
 ];
 
 interface SourceResult {
@@ -101,7 +103,7 @@ const searchSources = computed(() => {
 const sourceTabs = computed(() => {
   const tabs: { key: string; name: string }[] = [];
   if (settings.aggregateSearch && searchSources.value.length > 1) {
-    tabs.push({ key: AGGREGATE_KEY, name: "全部" });
+    tabs.push({ key: AGGREGATE_KEY, name: t("common.state.all") });
   }
   for (const [index, record] of searchSources.value.entries()) {
     tabs.push({
@@ -119,15 +121,17 @@ const sourceTabs = computed(() => {
 const isAggregateView = computed(() => activeSource.value === AGGREGATE_KEY);
 
 const activeSourceName = computed(
-  () => sourceTabs.value.find((tab) => tab.key === activeSource.value)?.name ?? "全部",
+  () => sourceTabs.value.find((tab) => tab.key === activeSource.value)?.name ?? t("common.state.all"),
 );
 
 const searchPlaceholder = computed(() => {
   if (searchSources.value.length === 1) {
-    return `在 ${demoName(searchSources.value[0]?.entry.manifest.name) || "插件"} 中搜索`;
+    return t("search.placeholder.inSource", {
+      source: demoName(searchSources.value[0]?.entry.manifest.name) || t("search.placeholder.pluginFallback"),
+    });
   }
-  if (isAggregateView.value) return "输入关键词，同时检索所有已启用的插件源";
-  return `在 ${activeSourceName.value} 中搜索`;
+  if (isAggregateView.value) return t("search.placeholder.aggregate");
+  return t("search.placeholder.inSource", { source: activeSourceName.value });
 });
 
 const currentKey = computed(() =>
@@ -205,7 +209,7 @@ const errors = computed(() => {
 });
 
 const activeEmptyText = computed(
-  () => TYPE_TABS.find((tab) => tab.key === activeType.value)?.empty ?? "没有找到相关内容",
+  () => TYPE_TABS.find((tab) => tab.key === activeType.value)?.empty ?? t("common.hint.noResult"),
 );
 
 /**
@@ -350,7 +354,7 @@ useRefreshable(() => {
   <div class="wp-page" :class="{ 'is-mobile': isMobile }">
     <MobilePageHeader />
     <div class="wp-page-header search-header">
-      <h1 class="wp-page-title">搜索</h1>
+      <h1 class="wp-page-title">{{ t("common.action.search") }}</h1>
       <div class="search-field">
         <span class="wp-icon search-icon">&#xF690;</span>
         <input
@@ -366,16 +370,16 @@ useRefreshable(() => {
           :placeholder="searchPlaceholder"
           @keydown.enter="onEnter"
         />
-        <button v-if="keyword" class="search-clear" title="清空" @click="keyword = ''">
+        <button v-if="keyword" class="search-clear" :title="t('search.clear')" @click="keyword = ''">
           <span class="wp-icon">&#xF36A;</span>
         </button>
       </div>
-      <WpButton :disabled="!keyword.trim() || loading" @click="submit" variant="accent">搜索</WpButton>
+      <WpButton :disabled="!keyword.trim() || loading" @click="submit" variant="accent">{{ t("common.action.search") }}</WpButton>
     </div>
 
     <!-- 移动端热门搜索词：点击即搜 -->
     <div v-if="isMobile && !searched && hotKeywords.length" class="hot-keywords">
-      <span class="hot-label">热门搜索</span>
+      <span class="hot-label">{{ t("search.hotKeywords") }}</span>
       <button v-for="word in hotKeywords" :key="word" class="hot-chip" @click="pickKeyword(word)">
         {{ word }}
       </button>
@@ -384,15 +388,15 @@ useRefreshable(() => {
     <EmptyState
       v-if="!searchSources.length"
       icon="&#xF137;"
-      title="没有可用的搜索来源"
-      description="搜索页会为每个启用了搜索能力的播放源生成一个 Tab。可以在播放源管理里添加本地音乐文件夹，或安装在线插件。"
+      :title="t('search.empty.noSourceTitle')"
+      :description="t('search.empty.noSourceDescription')"
     >
-      <WpButton @click="router.push('/plugins')" variant="accent">前往播放源管理</WpButton>
+      <WpButton @click="router.push('/plugins')" variant="accent">{{ t("library.shared.goToSourceManagement") }}</WpButton>
     </EmptyState>
 
     <template v-else>
       <!-- 一级 Tab：来源（「全部」聚合 + 各插件），只有一个来源时不显示 -->
-      <div v-if="sourceTabs.length > 1" class="source-tabs" role="tablist" aria-label="搜索来源">
+      <div v-if="sourceTabs.length > 1" class="source-tabs" role="tablist" :aria-label="t('search.tab.sourceAria')">
         <button
           v-for="tab in sourceTabs"
           :key="tab.key"
@@ -419,13 +423,17 @@ useRefreshable(() => {
             {{ tab.label }}<span v-if="countOf(tab.key) !== null" class="tab-count">{{ countOf(tab.key) }}</span>
           </button>
           <button v-if="activeType === 'song' && songs.length" class="tab-action" @click="playAll">
-            <span class="wp-icon filled">&#xF610;</span>播放全部
+            <span class="wp-icon filled">&#xF610;</span>{{ t("library.shared.playAll") }}
           </button>
         </div>
 
         <div v-if="loading" class="loading-wrap">
           <ProgressRing :IsActive="true" :IsIndeterminate="true" :Width="36" :Height="36" />
-          <span class="loading-text">正在搜索{{ isAggregateView ? "所有插件源" : activeSourceName }}…</span>
+          <span class="loading-text">{{
+            t("search.result.searching", {
+              target: isAggregateView ? t("search.result.allSources") : activeSourceName,
+            })
+          }}</span>
         </div>
 
         <template v-else>

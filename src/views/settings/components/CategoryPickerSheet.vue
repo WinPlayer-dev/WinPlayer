@@ -11,6 +11,7 @@
  */
 import { ref } from "vue";
 import { ContentDialog } from "@/components/winui";
+import { useI18n } from "@/i18n";
 import type { SettingsCategory, SettingsCategoryKey } from "@/views/settings/categories";
 
 defineProps<{
@@ -19,6 +20,8 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{ pick: [key: SettingsCategoryKey] }>();
+
+const { t } = useI18n();
 
 interface DialogRef {
   ShowAsync: () => Promise<string>;
@@ -42,8 +45,8 @@ defineExpose({ open });
 <template>
   <ContentDialog
     ref="dialogRef"
-    Title="选择设置分类"
-    CloseButtonText="取消"
+    :Title="t('settings.shell.categoryPicker.title')"
+    :CloseButtonText="t('common.action.cancel')"
     DefaultButton="Close"
   >
     <ul class="category-sheet">
@@ -56,8 +59,8 @@ defineExpose({ open });
         >
           <span class="wp-icon sheet-icon" v-html="category.icon" aria-hidden="true" />
           <span class="sheet-text">
-            <span class="sheet-label">{{ category.label }}</span>
-            <span class="sheet-sub">{{ category.mobileSubtitle }}</span>
+            <span class="sheet-label">{{ t(category.labelKey) }}</span>
+            <span class="sheet-sub">{{ t(category.mobileSubtitleKey) }}</span>
           </span>
           <span v-if="category.key === active" class="sheet-check" aria-hidden="true">✓</span>
         </button>

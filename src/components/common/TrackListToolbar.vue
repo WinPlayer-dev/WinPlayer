@@ -7,9 +7,12 @@
  * `useTrackList` 持有，组件本身不存任何状态。
  */
 import { computed } from "vue";
+import { useI18n } from "@/i18n";
 import { ComboBox, TextBox } from "@/components/winui";
 import WpIconButton from "@/components/theme/WpIconButton.vue";
 import { TRACK_SORT_OPTIONS, type TrackSortKey } from "@/services/trackQuery";
+
+const { t } = useI18n();
 
 const props = withDefaults(
   defineProps<{
@@ -46,8 +49,13 @@ const sortIndex = computed(() =>
 
 /** 升降序按钮文案：跟随当前排序字段的语义（字母序 / 时长 / 时间） */
 const directionTitle = computed(() => {
-  const label = TRACK_SORT_OPTIONS[sortIndex.value]?.label ?? "排序";
-  return props.Descending ? `${label}：降序（点击切为升序）` : `${label}：升序（点击切为降序）`;
+  const label = TRACK_SORT_OPTIONS[sortIndex.value]?.label ?? t("common.action.sort");
+  return t(
+    props.Descending
+      ? "components.trackToolbar.descendingHint"
+      : "components.trackToolbar.ascendingHint",
+    { label },
+  );
 });
 
 /** 升降序图标码点：升序 arrow_sort_up_24_regular (F821)，降序 arrow_sort_down_24_regular (F811) */
@@ -79,14 +87,14 @@ function clearQuery(): void {
       <TextBox
         class="search-input"
         :Text="props.Query"
-        PlaceholderText="在列表中搜索歌名 / 歌手 / 专辑"
+        :PlaceholderText="t('components.trackToolbar.searchPlaceholder')"
         @update:Text="onQueryInput"
       />
       <button
         v-if="props.Query"
         class="search-clear"
-        title="清空搜索"
-        aria-label="清空搜索"
+        :title="t('components.trackToolbar.clearSearch')"
+        :aria-label="t('components.trackToolbar.clearSearch')"
         @click="clearQuery"
       >
         <span class="wp-icon">&#xF36A;</span>

@@ -12,9 +12,11 @@ import { useIsMobile } from "@/composables/useIsMobile";
 import { useSongListLayout } from "@/composables/useSongListLayout";
 import { useRefreshable } from "@/composables/useRefreshable";
 import { useTrackList, trackIdentity } from "@/composables/useTrackList";
+import { useI18n } from "@/i18n";
 import WpButton from "@/components/theme/WpButton.vue";
 
 const router = useRouter();
+const { t } = useI18n();
 const library = useLibraryStore();
 const player = usePlayerStore();
 const downloads = useDownloadsStore();
@@ -57,7 +59,9 @@ function shufflePlay() {
 /** 缓存全部到本地（已下载的自动跳过）；只缓存当前筛选结果 */
 function downloadAll() {
   if (visibleTracks.value.length) {
-    void downloads.enqueue(visibleTracks.value, [{ kind: "liked", name: "我喜欢的音乐" }]);
+    void downloads.enqueue(visibleTracks.value, [
+      { kind: "liked", name: t("library.liked.title") },
+    ]);
   }
 }
 </script>
@@ -71,20 +75,20 @@ function downloadAll() {
           <span class="wp-icon filled">&#xF47E;</span>
         </div>
         <div class="header-meta">
-          <h1 class="wp-page-title">我喜欢的音乐</h1>
-          <div class="header-sub">{{ library.liked.length }} 首</div>
+          <h1 class="wp-page-title">{{ t("library.liked.title") }}</h1>
+          <div class="header-sub">{{ t("common.unit.track", { count: library.liked.length }) }}</div>
         </div>
         <div class="header-actions with-cache">
           <WpButton @click="playAll" variant="accent">
-            <span class="wp-icon filled">&#xF610;</span>播放全部
+            <span class="wp-icon filled">&#xF610;</span>{{ t("library.shared.playAll") }}
           </WpButton>
           <WpButton @click="shufflePlay" variant="standard">
-            <span class="wp-icon">&#xEF37;</span>随机播放
+            <span class="wp-icon">&#xEF37;</span>{{ t("common.action.shuffle") }}
           </WpButton>
           <WpButton
             class="cache-all-button"
-            title="缓存全部到本地"
-            aria-label="缓存全部到本地"
+            :title="t('library.shared.cacheAll')"
+            :aria-label="t('library.shared.cacheAll')"
             @click="downloadAll"
             variant="standard"
           >
@@ -106,10 +110,10 @@ function downloadAll() {
         <EmptyState
           v-else
           icon="&#xF4A3;"
-          title="没有匹配的歌曲"
-          :description="`「${query}」在喜欢的音乐里没有找到。试试歌名、歌手或专辑名的一部分。`"
+          :title="t('library.shared.noMatchingSongs')"
+          :description="t('library.liked.noMatchDescription', { keyword: query })"
         >
-          <WpButton @click="clearQuery" variant="standard">清空搜索</WpButton>
+          <WpButton @click="clearQuery" variant="standard">{{ t("components.trackToolbar.clearSearch") }}</WpButton>
         </EmptyState>
       </div>
     </template>
@@ -117,10 +121,10 @@ function downloadAll() {
     <EmptyState
       v-else
       icon="&#xF47A;"
-      title="还没有喜欢的音乐"
-      description="浏览搜索结果或推荐，点击歌曲行的心形按钮即可收藏。"
+      :title="t('library.liked.empty.title')"
+      :description="t('library.liked.empty.description')"
     >
-      <WpButton @click="router.push('/')" variant="accent">去发现音乐</WpButton>
+      <WpButton @click="router.push('/')" variant="accent">{{ t("library.shared.discoverMusic") }}</WpButton>
     </EmptyState>
   </div>
 </template>

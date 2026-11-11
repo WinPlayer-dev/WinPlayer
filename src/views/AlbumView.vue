@@ -17,11 +17,13 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { useCloudHeaderGradient, useSongListLayout } from "@/composables/useSongListLayout";
 import { useRefreshable } from "@/composables/useRefreshable";
+import { useI18n } from "@/i18n";
 import type { AlbumDetail, UnifiedTrack } from "@/types/plugin";
 import WpButton from "@/components/theme/WpButton.vue";
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 const player = usePlayerStore();
 const plugins = usePluginsStore();
 const downloads = useDownloadsStore();
@@ -50,7 +52,7 @@ async function load(source: string, id: string) {
   try {
     const detail = await plugins.getAlbumDetail(source, id);
     if (!detail) {
-      loadError.value = "插件没有返回这张专辑的内容";
+      loadError.value = t("library.album.pluginEmpty");
       return;
     }
     album.value = detail;
@@ -84,7 +86,11 @@ const publishText = computed(() => {
   const time = album.value?.publishTime;
   if (!time || !Number.isFinite(time)) return "";
   const date = new Date(time);
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+  return t("library.album.publishDate", {
+    year: date.getFullYear(),
+    month: date.getMonth() + 1,
+    day: date.getDate(),
+  });
 });
 
 /** 头部副信息：歌手链接 + 发行时间 */
@@ -131,7 +137,7 @@ function downloadAll() {
       kind: "album",
       sourceId: sourceId.value,
       id: String(route.params.id ?? ""),
-      name: album.value?.name ?? "专辑",
+      name: album.value?.name ?? t("common.column.album"),
     },
   ]);
 }
@@ -158,7 +164,7 @@ function downloadAll() {
               <button
                 v-if="artist.target"
                 class="artist-link"
-                :title="`查看歌手「${artist.name}」`"
+                :title="t('components.songTable.viewArtist', { name: artist.name })"
                 @click="go(artist.target!)"
               >
                 {{ artist.name }}
@@ -170,25 +176,29 @@ function downloadAll() {
           <div v-if="album.description" class="header-desc-wrap">
             <p class="header-desc" :class="{ expanded: descExpanded }">{{ album.description }}</p>
             <WpButton class="small desc-toggle" @click="descExpanded = !descExpanded" variant="standard">
-              {{ descExpanded ? "收起" : "展开简介" }}
+              {{
+                descExpanded
+                  ? t("library.shared.collapseDescription")
+                  : t("library.shared.expandDescription")
+              }}
             </WpButton>
           </div>
           <div class="header-sub-actions">
-            <span class="source-badge">来自 {{ sourceName }} · {{ tracks.length }} 首</span>
+            <span class="source-badge">{{ t("library.shared.fromSourceWithCount", { source: sourceName, count: tracks.length }) }}</span>
           </div>
         </div>
         <div class="header-actions with-cache">
           <WpButton :disabled="!tracks.length" @click="playAll" variant="accent">
-            <span class="wp-icon filled">&#xF610;</span>播放全部
+            <span class="wp-icon filled">&#xF610;</span>{{ t("library.shared.playAll") }}
           </WpButton>
           <WpButton :disabled="!tracks.length" @click="shufflePlay" variant="standard">
-            <span class="wp-icon">&#xEF37;</span>随机播放
+            <span class="wp-icon">&#xEF37;</span>{{ t("common.action.shuffle") }}
           </WpButton>
           <WpButton
             class="cache-all-button"
             :disabled="!tracks.length"
-            title="缓存全部到本地"
-            aria-label="缓存全部到本地"
+            :title="t('library.shared.cacheAll')"
+            :aria-label="t('library.shared.cacheAll')"
             @click="downloadAll"
             variant="standard"
           >
@@ -199,11 +209,11 @@ function downloadAll() {
 
       <div v-if="loading" class="loading-wrap">
         <ProgressRing :IsActive="true" :IsIndeterminate="true" :Width="36" :Height="36" />
-        <span class="loading-text">正在加载专辑…</span>
+        <span class="loading-text">{{ t("library.album.loading") }}</span>
       </div>
 
-      <EmptyState v-else-if="loadError" icon="&#xF3F2;" title="专辑加载失败" :description="loadError">
-        <WpButton @click="router.back()" variant="standard">返回</WpButton>
+      <EmptyState v-else-if="loadError" icon="&#xF3F2;" :title="t('library.album.loadFailed')" :description="loadError">
+        <WpButton @click="router.back()" variant="standard">{{ t("common.action.back") }}</WpButton>
       </EmptyState>
 
       <!-- 云端布局：白色圆角面板（桌面端 / 默认布局时只是个普通容器） -->
@@ -214,8 +224,8 @@ function downloadAll() {
       <EmptyState
         v-else
         icon="&#xE010;"
-        title="这张专辑还没有曲目"
-        description="可能是插件没有登录，或该专辑在当前地区不可用。"
+        :title="t('library.album.empty.title')"
+        :description="t('library.album.empty.description')"
       />
     </template>
   </div>

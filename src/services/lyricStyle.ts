@@ -62,19 +62,15 @@ export const LYRIC_EASE_FN: Record<LyricEasing, (t: number) => number> = {
   inout: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
 };
 
-/** 字体预设下拉项：label 展示、hint 在卡片描述里提示跨端差异 */
-export const LYRIC_FONT_OPTIONS: ReadonlyArray<{
-  value: LyricFontPreset;
-  label: string;
-  hint: string;
-}> = [
-  { value: "default", label: "跟随应用", hint: "与界面使用同一套字体，最稳" },
-  { value: "sans", label: "无衬线（黑体）", hint: "思源黑体 / HarmonyOS Sans 一类，清晰现代" },
-  { value: "serif", label: "衬线（宋体）", hint: "宋体 / Noto Serif，适合慢歌与老歌" },
-  { value: "round", label: "圆体", hint: "圆润可爱，系统没有圆体时回落到黑体" },
-  { value: "kai", label: "楷体", hint: "手写感，系统没有楷体时回落到宋体" },
-  { value: "mono", label: "等宽", hint: "数字与英文更整齐，适合电子 / 说唱" },
-  { value: "custom", label: "自定义", hint: "填系统里已安装的字体名" },
+/** 字体预设的**可选值**。显示名与说明在 settings/appearance.ts 的词条里（服务层不放界面文案） */
+export const LYRIC_FONT_OPTIONS: readonly LyricFontPreset[] = [
+  "default",
+  "sans",
+  "serif",
+  "round",
+  "kai",
+  "mono",
+  "custom",
 ];
 
 /**

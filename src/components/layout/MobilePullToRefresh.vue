@@ -13,6 +13,9 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import { hasActiveRefresh, runActiveRefresh } from "@/services/pullToRefresh";
 import { isKeyboardOpen } from "@/services/keyboard";
 import { hapticImpact } from "@/services/haptics";
+import { useI18n } from "@/i18n";
+
+const { t } = useI18n();
 
 /** 触发刷新所需的下拉距离（像素） */
 const THRESHOLD = 64;
@@ -111,8 +114,8 @@ const ready = computed(() => distance.value >= THRESHOLD);
 /** 未显示时收在状态栏上方（负偏移），下拉时跟随手指 */
 const offset = computed(() => (visible.value ? distance.value : -56));
 const text = computed(() => {
-  if (refreshing.value) return "正在刷新…";
-  return ready.value ? "松开刷新" : "下拉刷新";
+  if (refreshing.value) return t("layout.pullToRefresh.refreshing");
+  return ready.value ? t("layout.pullToRefresh.release") : t("layout.pullToRefresh.pull");
 });
 </script>
 

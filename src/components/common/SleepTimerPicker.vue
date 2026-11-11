@@ -9,9 +9,12 @@
  * 选定后触发 `close`，调用方据此收起外层容器。
  */
 import { computed, ref } from "vue";
+import { useI18n } from "@/i18n";
 import { NumberBox, TextBox } from "@/components/winui";
 import { useSleepTimer } from "@/services/sleepTimer";
 import { toast } from "@/services/toast";
+
+const { t } = useI18n();
 
 const props = withDefaults(defineProps<{ tone?: "light" | "dark" }>(), { tone: "light" });
 
@@ -32,11 +35,11 @@ const customMinutes = ref(30);
 function applyCustomMinutes(): void {
   const value = Number(customMinutes.value);
   if (!Number.isFinite(value) || value < 1) {
-    toast("请输入大于 0 的分钟数", "error");
+    toast(t("components.sleepTimer.invalidMinutes"), "error");
     return;
   }
   startMinutes(value);
-  toast(`将在 ${Math.round(value)} 分钟后停止播放`, "success");
+  toast(t("components.sleepTimer.stopsInMinutes", { count: Math.round(value) }), "success");
   emit("close");
 }
 
@@ -75,12 +78,20 @@ const clockIsTomorrow = computed(() => {
 function applyClock(): void {
   const parsed = parseClock(clockText.value);
   if (!parsed) {
-    toast("时间格式应为 23:30", "error");
+    toast(t("components.sleepTimer.invalidClock"), "error");
     return;
   }
   startAtClock(parsed.hour, parsed.minute);
   const label = `${String(parsed.hour).padStart(2, "0")}:${String(parsed.minute).padStart(2, "0")}`;
-  toast(`将在${clockIsTomorrow.value ? " 明天 " : " "}${label} 停止播放`, "success");
+  toast(
+    t(
+      clockIsTomorrow.value
+        ? "components.sleepTimer.stopsAtTomorrow"
+        : "components.sleepTimer.stopsAt",
+      { time: label },
+    ),
+    "success",
+  );
   emit("close");
 }
 
@@ -88,19 +99,19 @@ function applyClock(): void {
 
 function pickPreset(minutes: number): void {
   startMinutes(minutes);
-  toast(`将在 ${minutes} 分钟后停止播放`, "success");
+  toast(t("components.sleepTimer.stopsInMinutes", { count: minutes }), "success");
   emit("close");
 }
 
 function applyAfterTrack(): void {
   startAfterTrack();
-  toast("播完当前曲目后停止播放", "success");
+  toast(t("components.sleepTimer.afterTrackToast"), "success");
   emit("close");
 }
 
 function clearTimer(): void {
   cancel();
-  toast("已取消睡眠定时器", "info");
+  toast(t("components.sleepTimer.canceled"), "info");
   emit("close");
 }
 </script>
@@ -108,8 +119,12 @@ function clearTimer(): void {
 <template>
   <div class="sleep-timer" :class="`tone-${props.tone}`">
     <p v-if="active" class="sleep-active">
-      <template v-if="mode === 'after-track'">播完当前曲目后停止</template>
-      <template v-else>剩余 {{ remainingLabel }} 后停止</template>
+      <template v-if="mode === 'after-track'">
+        {{ t("components.sleepTimer.activeAfterTrack") }}
+      </template>
+      <template v-else>
+        {{ t("components.sleepTimer.remaining", { time: remainingLabel }) }}
+      </template>
     </p>
 
     <div class="sleep-grid">
@@ -119,7 +134,7 @@ function clearTimer(): void {
         class="sleep-chip"
         @click="pickPreset(minutes)"
       >
-        {{ minutes }} 分钟
+        {{ t("common.unit.minute", { count: minutes }) }}
       </button>
     </div>
 
@@ -130,10 +145,12 @@ function clearTimer(): void {
         :Minimum="1"
         :Maximum="1440"
         :SmallChange="5"
-        PlaceholderText="分钟"
+        :PlaceholderText="t('components.sleepTimer.minutesPlaceholder')"
         @update:Value="customMinutes = $event"
       />
-      <button class="sleep-action" @click="applyCustomMinutes">分钟后停止</button>
+      <button class="sleep-action" @click="applyCustomMinutes">
+        {{ t("components.sleepTimer.stopAfterMinutes") }}
+      </button>
     </div>
 
     <div class="sleep-field">
@@ -144,14 +161,24 @@ function clearTimer(): void {
         :MaxLength="5"
         @update:Text="clockText = String($event ?? '')"
       />
-      <button class="sleep-action" :disabled="!clockValid" @click="applyClock">到点停止</button>
+      <button class="sleep-action" :disabled="!clockValid" @click="applyClock">
+        {{ t("components.sleepTimer.stopAtClock") }}
+      </button>
     </div>
     <p class="sleep-hint">
-      {{ clockIsTomorrow ? "该时刻今天已过，将在明天停止" : "24 小时制，如 23:30" }}
+      {{
+        clockIsTomorrow
+          ? t("components.sleepTimer.pastTimeHint")
+          : t("components.sleepTimer.clockHint")
+      }}
     </p>
 
-    <button class="sleep-row" @click="applyAfterTrack">播完当前曲目后停止</button>
-    <button v-if="active" class="sleep-row sleep-cancel" @click="clearTimer">取消定时</button>
+    <button class="sleep-row" @click="applyAfterTrack">
+      {{ t("components.sleepTimer.afterTrack") }}
+    </button>
+    <button v-if="active" class="sleep-row sleep-cancel" @click="clearTimer">
+      {{ t("components.sleepTimer.cancelTimer") }}
+    </button>
   </div>
 </template>
 

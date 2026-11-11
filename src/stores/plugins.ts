@@ -22,6 +22,7 @@ import {
 } from "@/services/builtinSources";
 import { useSettingsStore } from "@/stores/settings";
 import { useTrackMetaStore } from "@/stores/trackMeta";
+import { t } from "@/i18n";
 import type {
   AlbumDetail,
   ArtistAlbumsResult,
@@ -114,7 +115,7 @@ export function credentialKeyOf(manifest: PluginManifest): string {
 
 /** 官方内置插件市场源：始终存在，不可在设置中删除 */
 export const OFFICIAL_MARKET_SOURCE: MarketSource = {
-  name: "官方市场",
+  name: t("plugins.market.officialSource"),
   url: "https://raw.githubusercontent.com/WinPlayer-dev/plugin-market/main/market-index.json",
 };
 
@@ -187,7 +188,7 @@ export const usePluginsStore = defineStore("plugins", () => {
       }
     } catch (error) {
       console.error("加载插件列表失败", error);
-      toast(`加载插件列表失败: ${error}`, "error");
+      toast(t("plugins.error.loadList", { error: String(error) }), "error");
     } finally {
       loading.value = false;
     }
@@ -196,8 +197,8 @@ export const usePluginsStore = defineStore("plugins", () => {
   /** 获取来源运行时（懒加载）：插件启动 Worker 沙箱，内置源直接返回本地宿主 */
   async function getHost(id: string): Promise<PluginHost | BuiltinSourceHost> {
     const record = records.value.find((r) => r.entry.id === id);
-    if (!record) throw new Error(`播放源不存在: ${id}`);
-    if (!record.enabled) throw new Error(`播放源已停用: ${record.entry.manifest.name}`);
+    if (!record) throw new Error(t("plugins.error.notFound", { id }));
+    if (!record.enabled) throw new Error(t("plugins.error.disabled", { name: record.entry.manifest.name }));
 
     const existing = hosts.get(id);
     if (existing) return existing;
@@ -251,17 +252,17 @@ export const usePluginsStore = defineStore("plugins", () => {
     const path = await open({
       multiple: false,
       directory: false,
-      title: "选择插件包（.zip / .json）",
-      filters: [{ name: "WinPlayer 插件", extensions: ["zip", "json"] }],
+      title: t("plugins.install.fileDialogTitle"),
+      filters: [{ name: t("plugins.install.filterName"), extensions: ["zip", "json"] }],
     });
     if (!path || Array.isArray(path)) return false;
     try {
       const entry = await invoke<PluginEntry>("plugin_install_from_path", { src: path });
       await loadInstalled();
-      toast(`插件「${entry.manifest.name}」安装成功`, "success");
+      toast(t("plugins.install.success", { name: entry.manifest.name }), "success");
       return true;
     } catch (error) {
-      toast(`安装失败: ${error}`, "error");
+      toast(t("plugins.install.failed", { error: String(error) }), "error");
       return false;
     }
   }
@@ -274,10 +275,10 @@ export const usePluginsStore = defineStore("plugins", () => {
         mirror: settingsStore.githubMirror,
       });
       await loadInstalled();
-      toast(`插件「${entry.manifest.name}」安装成功`, "success");
+      toast(t("plugins.install.success", { name: entry.manifest.name }), "success");
       return true;
     } catch (error) {
-      toast(`安装失败: ${error}`, "error");
+      toast(t("plugins.install.failed", { error: String(error) }), "error");
       return false;
     }
   }
@@ -285,7 +286,7 @@ export const usePluginsStore = defineStore("plugins", () => {
   async function uninstall(id: string): Promise<void> {
     if (isBuiltinSource(id)) {
       // 内置源由宿主提供，没有可删除的插件包
-      toast("内置播放源无法卸载，可直接停用", "info");
+      toast(t("plugins.install.builtinUnremovable"), "info");
       return;
     }
     const record = records.value.find((r) => r.entry.id === id);
@@ -294,9 +295,12 @@ export const usePluginsStore = defineStore("plugins", () => {
     try {
       await invoke("plugin_remove", { id });
       await loadInstalled();
-      toast(`插件「${record?.entry.manifest.name ?? id}」已卸载`, "success");
+      toast(
+        t("plugins.install.uninstalled", { name: record?.entry.manifest.name ?? id }),
+        "success",
+      );
     } catch (error) {
-      toast(`卸载失败: ${error}`, "error");
+      toast(t("plugins.install.uninstallFailed", { error: String(error) }), "error");
     }
   }
 
@@ -442,7 +446,9 @@ export const usePluginsStore = defineStore("plugins", () => {
           failures.push(`${pluginDisplayName(records.value, playSourceId)}: ${describeError(error)}`);
         }
       } else {
-        failures.push(`${pluginDisplayName(records.value, playSourceId)}: 未搜索到对应歌曲`);
+        failures.push(
+          `${pluginDisplayName(records.value, playSourceId)}: ${t("plugins.error.noSearchResult")}`,
+        );
       }
     }
 
@@ -455,7 +461,7 @@ export const usePluginsStore = defineStore("plugins", () => {
         failures.push(`${pluginDisplayName(records.value, track.sourceId)}: ${describeError(error)}`);
       }
     } else {
-      failures.push("曲目缺少来源信息");
+      failures.push(t("plugins.error.missingSource"));
     }
 
     // 3. 其它启用插件（跳过前面已经试过的来源；内置源的本地曲库不参与网络歌曲换源）
@@ -472,7 +478,7 @@ export const usePluginsStore = defineStore("plugins", () => {
           const host = await getHost(record.entry.id);
           const result = await invokeWithQualityFallback(host, record.entry.id, sample.id);
           // 命中备用来源：提示一次，让用户知道换源了
-          toast(`原来源无法播放，已改用「${record.entry.manifest.name}」`, "info");
+          toast(t("plugins.error.switchedSource", { name: record.entry.manifest.name }), "info");
           return result;
         } catch (error) {
           failures.push(`${record.entry.manifest.name}: ${describeError(error)}`);
@@ -480,8 +486,13 @@ export const usePluginsStore = defineStore("plugins", () => {
       }
     }
 
-    const detail = failures.length ? failures.join("；") : "没有可用的播放来源";
-    throw new Error(`无法获取播放地址（已尝试 ${Math.max(1, failures.length)} 个来源）：${detail}`);
+    const detail = failures.length ? failures.join("；") : t("plugins.error.noSource");
+    throw new Error(
+      t("plugins.error.noUrl", {
+        count: Math.max(1, failures.length),
+        detail,
+      }),
+    );
   }
 
   /** 按「从高到低」候选链请求直链：高音质失败自动降级，全部失败抛最后一次错误 */
@@ -504,7 +515,7 @@ export const usePluginsStore = defineStore("plugins", () => {
           const codec = String(result.codec ?? "").trim().toLowerCase();
           if (codec && !DECODABLE_CODECS.has(codec)) {
             // 音源拿到了这一档，但原生解码器解不了：当作本档不可用，继续降级
-            lastError = new Error(`当前解码器不支持 ${codec} 编码`);
+            lastError = new Error(t("plugins.error.codecUnsupported", { codec }));
             console.warn(
               `[plugins] ${sourceId} 音质 ${quality ?? "默认"} 的编码 ${codec} 原生解码器不支持，自动降级`,
             );
@@ -519,12 +530,12 @@ export const usePluginsStore = defineStore("plugins", () => {
           }
           return result;
         }
-        lastError = new Error("来源未返回可用的播放地址");
+        lastError = new Error(t("plugins.error.sourceNoUrl"));
       } catch (error) {
         lastError = error;
       }
     }
-    throw lastError ?? new Error("来源未返回可用的播放地址");
+    throw lastError ?? new Error(t("plugins.error.sourceNoUrl"));
   }
 
   /** 读取插件的音质设置（未声明 quality 设置项时返回空串，表示由插件自行决定） */
@@ -652,7 +663,7 @@ export const usePluginsStore = defineStore("plugins", () => {
     if (result?.status !== "success") return result;
     if (!result.credential) {
       // 成功但没拿到凭证，宁可报错也不能让 UI 显示“已登录”却查不到任何数据
-      return { status: "error", message: "插件未返回登录凭证" };
+      return { status: "error", message: t("plugins.error.noCredential") };
     }
     const credentialKey = credentialKeyOf(record.entry.manifest);
     await updateSettings(sourceId, { ...record.settings, [credentialKey]: result.credential });
@@ -784,7 +795,7 @@ export const usePluginsStore = defineStore("plugins", () => {
   /** 按 id 找到插件记录，找不到时抛出可读错误 */
   function getRecordOrThrow(sourceId: string): PluginRecord {
     const record = records.value.find((r) => r.entry.id === sourceId);
-    if (!record) throw new Error(`插件 ${sourceId} 未安装`);
+    if (!record) throw new Error(t("plugins.error.notInstalled", { id: sourceId }));
     return record;
   }
 
@@ -978,7 +989,7 @@ export function describeError(error: unknown): string {
   if (error instanceof Error) return error.message || error.name;
   const text = String(error ?? "").trim();
   // Worker 抛出的错误常带 "Error: " 前缀，去掉避免重复
-  return text.replace(/^Error:\s*/i, "") || "未知错误";
+  return text.replace(/^Error:\s*/i, "") || t("plugins.error.unknown");
 }
 
 export type { UnifiedPlaylist };

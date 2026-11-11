@@ -14,6 +14,7 @@
 
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
+import { t } from "@/i18n";
 import { getDb, getSetting, setSetting } from "@/services/db";
 import {
   cacheWebdavCover,
@@ -243,7 +244,7 @@ export const useWebdavStore = defineStore("webdav", () => {
     if (scanning.value) return;
     if (!loaded.value) await load();
     if (!configured.value) {
-      error.value = "尚未配置 WebDAV 服务器";
+      error.value = t("errors.network.webdavNotConfigured");
       return;
     }
 

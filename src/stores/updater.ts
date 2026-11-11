@@ -10,6 +10,7 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import { getVersion } from "@tauri-apps/api/app";
+import { t } from "@/i18n";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { useSettingsStore } from "@/stores/settings";
 import { toast } from "@/services/toast";
@@ -101,7 +102,7 @@ export const useUpdaterStore = defineStore("updater", () => {
 
     await init();
     if (!canAutoUpdate.value) {
-      if (!silent) toast("当前平台不支持自动更新，请前往 Release 页面手动下载", "info");
+      if (!silent) toast(t("errors.generic.update.unsupportedPlatform"), "info");
       return;
     }
 
@@ -130,15 +131,22 @@ export const useUpdaterStore = defineStore("updater", () => {
         if (!silent) {
           const target = platform.value
             ? `${platform.value.platform}-${platform.value.arch}`
-            : "当前平台";
+            : t("errors.generic.update.platformFallback");
           toast(
-            `发现新版本 ${result.unsupportedVersion}，但该版本没有 ${target} 的安装包，请前往 Release 页面下载`,
+            t("errors.generic.update.noAssetForPlatform", {
+              version: result.unsupportedVersion,
+              target,
+            }),
             "info",
           );
         }
         return;
       }
-      if (!silent) toast(`当前已是最新版本 ${currentVersion.value}`.trim(), "success");
+      if (!silent)
+        toast(
+          t("errors.generic.update.upToDate", { version: currentVersion.value }).trim(),
+          "success",
+        );
     } catch (e) {
       phase.value = "error";
       error.value = e instanceof Error ? e.message : String(e);
@@ -184,14 +192,14 @@ export const useUpdaterStore = defineStore("updater", () => {
       dialog.value = "none";
       // 桌面端此时会自动退出应用、由安装程序接管；Android 交由系统安装界面
       if (target.installer === "android-apk") {
-        toast("已开始安装更新，请在系统提示中完成安装", "success");
+        toast(t("errors.generic.update.installStarted"), "success");
       }
     } catch (e) {
       dialog.value = "none";
       if (isCanceledError(e)) {
         phase.value = "idle";
         error.value = null;
-        toast("已取消更新下载", "info");
+        toast(t("errors.generic.update.canceled"), "info");
       } else {
         phase.value = "error";
         error.value = e instanceof Error ? e.message : String(e);
@@ -214,7 +222,7 @@ export const useUpdaterStore = defineStore("updater", () => {
     dialog.value = "none";
     if (!target) return;
     await settings.setIgnoredUpdateVersion(target.version);
-    toast(`已忽略版本 ${target.version}，之后不再自动提示`, "info");
+    toast(t("errors.generic.update.versionIgnored", { version: target.version }), "info");
   }
 
   /** 重新打开「发现新版本」弹窗（关于页「查看更新」） */

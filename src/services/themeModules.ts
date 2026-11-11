@@ -66,6 +66,8 @@ import { OFFICIAL_MARKET_SOURCE, pluginDisplayName, usePluginsStore } from "@/st
 import { useDownloadsStore } from "@/stores/downloads";
 import { useIsAndroid, useIsMobile, useIsWindows } from "@/composables/useIsMobile";
 import { useLongPress } from "@/composables/useLongPress";
+// 主题要显示多语言文案时用这个：t() 是纯函数，不依赖 app 初始化，主题里直接调即可
+import { d, n, t, useI18n } from "@/i18n";
 
 /** 主题宿主上下文：由 themes store 在应用主题时注入 */
 export interface ThemeHostContext {
@@ -87,7 +89,8 @@ export function setThemeHostContext(context: ThemeHostContext | null): void {
 }
 
 function requireContext(): ThemeHostContext {
-  if (!hostContext) throw new Error("主题运行时上下文尚未初始化");
+  // 这条会经 loadTheme 落到主题错误提示里给用户看，所以走词条
+  if (!hostContext) throw new Error(t("themes.theme.compile.contextNotReady"));
   return hostContext;
 }
 
@@ -111,6 +114,7 @@ const MODULES: Record<string, Record<string, unknown>> = {
   "@/stores/downloads": { useDownloadsStore },
 
   "@/services/toast": { toast },
+  // 词条：主题自己也会写界面文案，必须能取到同一套词条（`t` 给纯脚本用）
   // 主题若想自己实现窗口按钮 / 监听窗口事件，需要这两项
   "@tauri-apps/api/window": TauriWindow as unknown as Record<string, unknown>,
   "@/services/contextMenu": { openContextMenu, openContextMenuAt },
@@ -154,6 +158,8 @@ const MODULES: Record<string, Record<string, unknown>> = {
 
   "@/composables/useIsMobile": { useIsMobile, useIsWindows, useIsAndroid },
   "@/composables/useLongPress": { useLongPress },
+  // 内置 md3 主题的文案就是从这里取；第三方主题同样可以用词条而不是写死中文
+  "@/i18n": { useI18n, t, n, d },
 
   // 主题自己的运行时工具（推荐写法）
   "@theme/host": {

@@ -24,6 +24,7 @@ import {
   type ThemeEntry,
   type ThemeManifest,
 } from "@/types/theme";
+import { t } from "@/i18n";
 
 /** 主题包加载结果 */
 export interface LoadedTheme {
@@ -68,8 +69,8 @@ export async function installThemeFromDialog(): Promise<ThemeEntry | null> {
   const path = await open({
     multiple: false,
     directory: false,
-    title: "选择主题包（.zip）",
-    filters: [{ name: "WinPlayer 主题包", extensions: ["zip"] }],
+    title: t("themes.theme.fileDialogTitle"),
+    filters: [{ name: t("themes.theme.filterName"), extensions: ["zip"] }],
   });
   if (!path || Array.isArray(path)) return null;
   return invoke<ThemeEntry>("theme_install_from_path", { src: path });
@@ -96,20 +97,26 @@ export function resolveThemeAsset(themeId: string, path?: string | null): string
 /** 清单字段校验：给主题作者明确、可行动的报错 */
 export function validateManifest(manifest: ThemeManifest): string[] {
   const problems: string[] = [];
-  if (!manifest.id) problems.push("缺少 id");
-  if (!manifest.name) problems.push("缺少 name");
-  if (!manifest.version) problems.push("缺少 version（建议语义化版本，如 1.0.0）");
+  if (!manifest.id) problems.push(t("themes.theme.manifest.missingId"));
+  if (!manifest.name) problems.push(t("themes.theme.manifest.missingName"));
+  if (!manifest.version) problems.push(t("themes.theme.manifest.missingVersion"));
   if (!manifest.apiVersion) {
-    problems.push("缺少 apiVersion");
+    problems.push(t("themes.theme.manifest.missingApiVersion"));
   } else if (manifest.apiVersion > THEME_API_VERSION) {
     problems.push(
-      `apiVersion ${manifest.apiVersion} 高于当前宿主支持的 ${THEME_API_VERSION}，可能无法正常工作`,
+      t("themes.theme.manifest.apiVersionTooHigh", {
+        version: manifest.apiVersion,
+        supported: THEME_API_VERSION,
+      }),
     );
   }
   for (const key of Object.keys(manifest.components ?? {})) {
     if (!(THEME_COMPONENT_KEYS as readonly string[]).includes(key)) {
       problems.push(
-        `components.${key} 不是可覆盖的组件（可用：${THEME_COMPONENT_KEYS.join(" / ")}）`,
+        t("themes.theme.manifest.invalidComponent", {
+          key,
+          keys: THEME_COMPONENT_KEYS.join(" / "),
+        }),
       );
     }
   }
@@ -157,7 +164,7 @@ export async function loadTheme(entry: ThemeEntry): Promise<LoadedTheme> {
       try {
         const source = await readFile(path);
         if (!source) {
-          componentErrors[key] = `主题包内找不到 ${path}`;
+          componentErrors[key] = t("themes.theme.manifest.missingComponentFile", { path });
           continue;
         }
         const compiled = await compileThemeComponent(key, source, {

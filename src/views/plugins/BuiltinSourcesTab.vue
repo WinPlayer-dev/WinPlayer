@@ -22,6 +22,7 @@ import { toast } from "@/services/toast";
 import { usePluginsStore } from "@/stores/plugins";
 import { LOCAL_MUSIC_SOURCE_ID, useLocalMusicStore } from "@/stores/localMusic";
 import { WEBDAV_SOURCE_ID, useWebdavStore } from "@/stores/webdav";
+import { useI18n } from "@/i18n";
 import type { WebdavConfig } from "@/services/webdav";
 
 const plugins = usePluginsStore();
@@ -29,6 +30,7 @@ const localMusic = useLocalMusicStore();
 const webdav = useWebdavStore();
 const router = useRouter();
 const isMobile = useIsMobile();
+const { t } = useI18n();
 
 interface DialogRef {
   ShowAsync: () => Promise<string>;
@@ -50,7 +52,10 @@ const cards = computed(() =>
     const enabled = plugins.records.find((record) => record.entry.id === def.id)?.enabled ?? true;
     let summary = stats.summary;
     if (def.id === WEBDAV_SOURCE_ID && webdav.scanning) {
-      summary = `扫描中… ${webdav.progress.dirs} 个目录 / ${webdav.progress.files} 首`;
+      summary = t("plugins.builtin.webdav.scanProgress", {
+        dirs: webdav.progress.dirs,
+        files: webdav.progress.files,
+      });
     }
     return { def, stats, enabled, summary };
   }),
@@ -88,22 +93,23 @@ function openLibrary(id: string): void {
 
 async function addLocalFolders(): Promise<void> {
   const added = await localMusic.addFolders();
-  if (added) toast(`已添加 ${added} 个文件夹`, "success");
+  if (added) toast(t("plugins.builtin.local.foldersAdded", { count: added }), "success");
 }
 
 async function removeLocalFolder(folder: string): Promise<void> {
   await localMusic.removeFolder(folder);
-  toast("已移除文件夹及其曲库记录", "success");
+  toast(t("plugins.builtin.local.folderRemoved"), "success");
 }
 
 async function rescanLocal(): Promise<void> {
   await localMusic.scan();
-  if (!localMusic.scanning) toast(`扫描完成，共 ${localMusic.trackCount} 首`, "success");
+  if (!localMusic.scanning)
+    toast(t("plugins.builtin.local.scanDone", { count: localMusic.trackCount }), "success");
 }
 
 /** 上次扫描时间的简短展示 */
 function scanTimeText(timestamp: number): string {
-  if (!timestamp) return "尚未扫描";
+  if (!timestamp) return t("plugins.builtin.local.neverScanned");
   const date = new Date(timestamp);
   const now = new Date();
   const sameDay =
@@ -111,7 +117,13 @@ function scanTimeText(timestamp: number): string {
     date.getMonth() === now.getMonth() &&
     date.getDate() === now.getDate();
   const time = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-  return sameDay ? `今天 ${time}` : `${date.getMonth() + 1}月${date.getDate()}日 ${time}`;
+  return sameDay
+    ? t("plugins.builtin.local.scannedToday", { time })
+    : t("plugins.builtin.local.scannedDate", {
+        month: date.getMonth() + 1,
+        day: date.getDate(),
+        time,
+      });
 }
 
 /* ------------------------------ WebDAV ------------------------------ */
@@ -127,15 +139,15 @@ function field(key: keyof WebdavConfig, value: unknown): void {
 
 async function testWebdavConnection(): Promise<void> {
   if (!draft.value.url.trim()) {
-    draftError.value = "请先填写服务器地址";
+    draftError.value = t("plugins.builtin.webdav.urlRequired");
     return;
   }
   testing.value = true;
   draftError.value = "";
   try {
     const ok = await webdav.testConnection(draft.value);
-    if (ok) toast("连接成功", "success");
-    else draftError.value = webdav.error || "连接失败";
+    if (ok) toast(t("plugins.builtin.webdav.testSuccess"), "success");
+    else draftError.value = webdav.error || t("plugins.builtin.webdav.testFailed");
   } finally {
     testing.value = false;
   }
@@ -143,19 +155,19 @@ async function testWebdavConnection(): Promise<void> {
 
 async function saveWebdav(): Promise<void> {
   if (!draft.value.url.trim()) {
-    draftError.value = "请先填写服务器地址";
+    draftError.value = t("plugins.builtin.webdav.urlRequired");
     return;
   }
   await webdav.saveConfig(draft.value);
   // 保存后立即开扫（网络遍历可能较久，进度在卡片上展示）
   void webdav.scan();
-  toast("已保存，正在扫描远程目录…", "info");
+  toast(t("plugins.builtin.webdav.saved"), "info");
 }
 
 /** 重新扫描当前已保存的配置 */
 function rescanWebdav(): void {
   if (!webdav.configured) {
-    toast("请先配置服务器地址", "error");
+    toast(t("plugins.builtin.webdav.notConfigured"), "error");
     return;
   }
   void webdav.scan();
@@ -178,8 +190,10 @@ function rescanWebdav(): void {
         <span class="builtin-text">
           <span class="builtin-name">
             {{ card.def.name }}
-            <span class="builtin-badge">内置</span>
-            <span v-if="!card.enabled" class="builtin-off">已停用</span>
+            <span class="builtin-badge">{{ t("plugins.builtin.badge") }}</span>
+            <span v-if="!card.enabled" class="builtin-off">{{
+              t("plugins.builtin.disabled")
+            }}</span>
           </span>
           <span class="builtin-desc">{{ card.def.description }}</span>
         </span>
@@ -191,21 +205,21 @@ function rescanWebdav(): void {
     </div>
 
     <div class="builtin-hint">
-      内置播放源由应用自带，无需安装，也不会出现在「已安装的插件」里。点击卡片可以配置。
+      {{ t("plugins.builtin.hint") }}
     </div>
 
     <!-- 本地音乐配置 -->
     <ContentDialog
       ref="localDialogRef"
-      Title="本地音乐"
-      CloseButtonText="关闭"
+      :Title="t('plugins.builtin.local.name')"
+      :CloseButtonText="t('common.action.close')"
       DefaultButton="Close"
     >
       <div class="dlg">
         <div class="dlg-row">
           <div>
-            <div class="dlg-label">启用此播放源</div>
-            <div class="dlg-sub">停用后不会出现在搜索页与播放源下拉里</div>
+            <div class="dlg-label">{{ t("plugins.builtin.enableLabel") }}</div>
+            <div class="dlg-sub">{{ t("plugins.builtin.local.disableHint") }}</div>
           </div>
           <ToggleSwitch
             :IsOn="isEnabled(LOCAL_MUSIC_SOURCE_ID)"
@@ -214,40 +228,49 @@ function rescanWebdav(): void {
         </div>
 
         <div class="dlg-stats">
-          {{ localMusic.trackCount }} 首 · {{ localMusic.albumCount }} 张专辑 ·
-          {{ localMusic.artistCount }} 位歌手 · {{ scanTimeText(localMusic.lastScanAt) }}
+          {{ t("common.unit.track", { count: localMusic.trackCount }) }} ·
+          {{ t("common.unit.album", { count: localMusic.albumCount }) }} ·
+          {{ t("common.unit.artist", { count: localMusic.artistCount }) }} ·
+          {{ scanTimeText(localMusic.lastScanAt) }}
         </div>
 
         <div class="dlg-block">
           <div class="dlg-block-head">
-            <span>音乐文件夹</span>
-            <WpButton class="small" variant="standard" @click="addLocalFolders">添加文件夹</WpButton>
+            <span>{{ t("plugins.builtin.local.foldersTitle") }}</span>
+            <WpButton class="small" variant="standard" @click="addLocalFolders">{{
+              t("plugins.builtin.local.addFolder")
+            }}</WpButton>
           </div>
           <div v-if="localMusic.folders.length" class="folder-list">
             <div v-for="folder in localMusic.folders" :key="folder" class="folder-row">
               <span class="wp-icon folder-icon">&#xF419;</span>
               <span class="folder-path" :title="folder">{{ folder }}</span>
-              <span class="folder-count">{{ localMusic.folderCounts.get(folder) ?? 0 }} 首</span>
-              <button class="folder-remove" @click="removeLocalFolder(folder)">移除</button>
+              <span class="folder-count">{{
+                t("common.unit.track", { count: localMusic.folderCounts.get(folder) ?? 0 })
+              }}</span>
+              <button class="folder-remove" @click="removeLocalFolder(folder)">
+                {{ t("common.action.remove") }}
+              </button>
             </div>
           </div>
           <div v-else class="dlg-empty">
-            还没有添加文件夹。添加后会自动扫描其中的音频文件（含子文件夹）。
+            {{ t("plugins.builtin.local.emptyFolders") }}
           </div>
         </div>
 
         <div class="dlg-actions">
           <WpButton class="small" variant="standard" :disabled="localMusic.scanning" @click="rescanLocal">
-            {{ localMusic.scanning ? "扫描中…" : "重新扫描" }}
+            {{ localMusic.scanning ? t("plugins.builtin.local.scanning") : t("plugins.builtin.local.rescan") }}
           </WpButton>
           <WpButton class="small" variant="standard" @click="openLibrary(LOCAL_MUSIC_SOURCE_ID)">
-            打开曲库
+            {{ t("plugins.builtin.local.openLibrary") }}
           </WpButton>
         </div>
 
         <div class="dlg-hint">
-          支持 mp3 / flac / m4a / aac / ogg / wav；同名 <code>.lrc</code> 优先，其次
-          <code>.srt</code> 与内嵌歌词。
+          {{ t("plugins.builtin.local.formatHintLead") }} <code>.lrc</code>
+          {{ t("plugins.builtin.local.formatHintPrefer") }} <code>.srt</code>
+          {{ t("plugins.builtin.local.formatHintEmbedded") }}
         </div>
       </div>
     </ContentDialog>
@@ -255,16 +278,16 @@ function rescanWebdav(): void {
     <!-- WebDAV 配置 -->
     <ContentDialog
       ref="webdavDialogRef"
-      Title="WebDAV"
-      PrimaryButtonText="保存并扫描"
-      CloseButtonText="关闭"
+      :Title="t('plugins.builtin.webdav.name')"
+      :PrimaryButtonText="t('plugins.builtin.webdav.saveAndScan')"
+      :CloseButtonText="t('common.action.close')"
       DefaultButton="Primary"
     >
       <div class="dlg">
         <div class="dlg-row">
           <div>
-            <div class="dlg-label">启用此播放源</div>
-            <div class="dlg-sub">仅在配置完成后才会出现在搜索页与播放源下拉里</div>
+            <div class="dlg-label">{{ t("plugins.builtin.enableLabel") }}</div>
+            <div class="dlg-sub">{{ t("plugins.builtin.webdav.disableHint") }}</div>
           </div>
           <ToggleSwitch
             :IsOn="isEnabled(WEBDAV_SOURCE_ID)"
@@ -273,7 +296,7 @@ function rescanWebdav(): void {
         </div>
 
         <label class="field">
-          <span class="field-label">服务器地址</span>
+          <span class="field-label">{{ t("plugins.builtin.webdav.url") }}</span>
           <TextBox
             :Text="draft.url"
             PlaceholderText="https://dav.example.com/dav"
@@ -283,18 +306,18 @@ function rescanWebdav(): void {
 
         <div class="field-pair">
           <label class="field">
-            <span class="field-label">用户名</span>
+            <span class="field-label">{{ t("plugins.builtin.webdav.username") }}</span>
             <TextBox
               :Text="draft.username"
-              PlaceholderText="留空表示匿名访问"
+              :PlaceholderText="t('plugins.builtin.webdav.usernamePlaceholder')"
               @update:Text="field('username', $event)"
             />
           </label>
           <label class="field">
-            <span class="field-label">密码</span>
+            <span class="field-label">{{ t("plugins.builtin.webdav.password") }}</span>
             <TextBox
               :Text="draft.password"
-              PlaceholderText="Basic Auth 密码"
+              :PlaceholderText="t('plugins.builtin.webdav.passwordPlaceholder')"
               InputType="password"
               @update:Text="field('password', $event)"
             />
@@ -303,18 +326,18 @@ function rescanWebdav(): void {
 
         <div class="field-pair">
           <label class="field">
-            <span class="field-label">起始目录（可选）</span>
+            <span class="field-label">{{ t("plugins.builtin.webdav.rootPath") }}</span>
             <TextBox
               :Text="draft.rootPath"
-              PlaceholderText="如 Music，留空表示根目录"
+              :PlaceholderText="t('plugins.builtin.webdav.rootPathPlaceholder')"
               @update:Text="field('rootPath', $event)"
             />
           </label>
           <label class="field">
-            <span class="field-label">显示名称（可选）</span>
+            <span class="field-label">{{ t("plugins.builtin.webdav.displayName") }}</span>
             <TextBox
               :Text="draft.name"
-              PlaceholderText="如我的网盘"
+              :PlaceholderText="t('plugins.builtin.webdav.displayNamePlaceholder')"
               @update:Text="field('name', $event)"
             />
           </label>
@@ -322,10 +345,10 @@ function rescanWebdav(): void {
 
         <div class="dlg-actions">
           <WpButton class="small" variant="standard" :disabled="testing" @click="testWebdavConnection">
-            {{ testing ? "连接中…" : "测试连接" }}
+            {{ testing ? t("plugins.builtin.webdav.testing") : t("plugins.builtin.webdav.test") }}
           </WpButton>
           <WpButton class="small" variant="standard" :disabled="!webdav.configured" @click="rescanWebdav">
-            重新扫描
+            {{ t("plugins.builtin.local.rescan") }}
           </WpButton>
           <WpButton
             class="small"
@@ -333,25 +356,32 @@ function rescanWebdav(): void {
             :disabled="!webdav.configured"
             @click="openLibrary(WEBDAV_SOURCE_ID)"
           >
-            打开曲库
+            {{ t("plugins.builtin.local.openLibrary") }}
           </WpButton>
         </div>
 
         <div v-if="draftError" class="dlg-error">{{ draftError }}</div>
         <div v-else-if="webdav.error" class="dlg-error">{{ webdav.error }}</div>
         <div v-else-if="webdav.scanning" class="dlg-progress">
-          正在扫描：{{ webdav.progress.dirs }} 个目录，已发现 {{ webdav.progress.files }} 首
+          {{
+            t("plugins.builtin.webdav.scanning", {
+              dirs: webdav.progress.dirs,
+              files: webdav.progress.files,
+            })
+          }}
         </div>
         <div v-else-if="webdav.configured" class="dlg-stats">
-          {{ webdav.trackCount }} 首 · {{ webdav.albumCount }} 张专辑 ·
-          {{ webdav.artistCount }} 位歌手
-          <template v-if="webdav.lastScanAt"> · {{ scanTimeText(webdav.lastScanAt) }}扫描</template>
+          {{ t("common.unit.track", { count: webdav.trackCount }) }} ·
+          {{ t("common.unit.album", { count: webdav.albumCount }) }} ·
+          {{ t("common.unit.artist", { count: webdav.artistCount }) }}
+          <template v-if="webdav.lastScanAt">
+            · {{ t("plugins.builtin.webdav.scannedAt", { time: scanTimeText(webdav.lastScanAt) }) }}</template>
         </div>
 
         <div class="dlg-hint">
-          曲目信息按「文件夹 = 专辑、文件名 = 艺术家 - 标题」推断，同目录的
-          <code>cover.jpg</code> 作封面、同名 <code>.lrc</code> / <code>.srt</code> 作歌词。
-          服务器需要支持 WebDAV 的 PROPFIND 与 Range 请求（群晖、坚果云、Nextcloud 等均支持）。
+          {{ t("plugins.builtin.webdav.hintLead") }} <code>cover.jpg</code>
+          {{ t("plugins.builtin.webdav.hintCover") }} <code>.lrc</code> / <code>.srt</code>
+          {{ t("plugins.builtin.webdav.hintLyrics") }}
         </div>
       </div>
     </ContentDialog>

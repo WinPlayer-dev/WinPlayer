@@ -4,6 +4,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import { t } from "@/i18n";
 
 export interface HttpFetchSpec {
   url: string;
@@ -37,6 +38,6 @@ export async function httpFetchJson<T>(url: string, timeoutMs = 15_000): Promise
   try {
     return JSON.parse(result.body ?? "") as T;
   } catch {
-    throw new Error("响应不是合法的 JSON");
+    throw new Error(t("errors.network.invalidJson"));
   }
 }

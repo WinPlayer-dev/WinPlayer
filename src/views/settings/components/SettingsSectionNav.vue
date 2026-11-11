@@ -11,7 +11,9 @@
  * 共用一份，所以 chips 与页面里真实存在的分组不会走偏。
  */
 import { nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { useI18n } from "@/i18n";
 import type { SettingsSectionMeta } from "@/views/settings/settingsIndex";
+import { sectionTitle } from "@/views/settings/settingsIndex";
 
 const props = defineProps<{
   sections: SettingsSectionMeta[];
@@ -20,6 +22,8 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{ pick: [id: string] }>();
+
+const { t } = useI18n();
 
 /** 判定「已经到了这一组」的容差：分组标题顶到 chips 下方再留一点缓冲 */
 const ACTIVE_THRESHOLD = 24;
@@ -131,7 +135,12 @@ function pick(id: string): void {
 </script>
 
 <template>
-  <nav v-if="visible.length > 1" ref="trackRef" class="settings-chips" aria-label="本页分组">
+  <nav
+    v-if="visible.length > 1"
+    ref="trackRef"
+    class="settings-chips"
+    :aria-label="t('settings.shell.sectionNavLabel')"
+  >
     <button
       v-for="section in visible"
       :key="section.id"
@@ -140,7 +149,7 @@ function pick(id: string): void {
       :class="{ active: section.id === activeId }"
       @click="pick(section.id)"
     >
-      {{ section.title }}
+      {{ sectionTitle(section) }}
     </button>
   </nav>
 </template>

@@ -9,20 +9,22 @@ import { computed } from "vue";
 import { ComboBox, Slider, ToggleSwitch } from "@/components/winui";
 import { useSettingsStore } from "@/stores/settings";
 import { EQ_FREQS, EQ_PRESETS, formatEqFreq } from "@/constants/eqPresets";
+import { useI18n } from "@/i18n";
 import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 
 const settings = useSettingsStore();
+const { t } = useI18n();
 
-const EQ_CUSTOM_LABEL = "自定义";
+const EQ_CUSTOM_LABEL = computed(() => t("settings.playback.equalizer.options.custom"));
 
 /** 预设下拉框选项：内置预设 + 「自定义」（仅作手动状态的展示项） */
-const eqPresetLabels = [...EQ_PRESETS.map((preset) => preset.name), EQ_CUSTOM_LABEL];
+const eqPresetLabels = computed(() => [...EQ_PRESETS.map((preset) => preset.name), EQ_CUSTOM_LABEL.value]);
 
 const eqPresetIndex = computed(() => {
   const index = EQ_PRESETS.findIndex((preset) => preset.id === settings.eqPreset);
-  return index >= 0 ? index : eqPresetLabels.length - 1;
+  return index >= 0 ? index : eqPresetLabels.value.length - 1;
 });
 
 function onEqToggle(event: { IsOn: boolean }): void {
@@ -31,7 +33,7 @@ function onEqToggle(event: { IsOn: boolean }): void {
 
 function onEqPresetChange(_sender: unknown, payload?: { AddedItems?: unknown[] }): void {
   const label = String(payload?.AddedItems?.[0] ?? "");
-  if (label === EQ_CUSTOM_LABEL) return; // 自定义由手动拖动滑杆产生
+  if (label === EQ_CUSTOM_LABEL.value) return; // 自定义由手动拖动滑杆产生
   const preset = EQ_PRESETS.find((entry) => entry.name === label);
   if (preset && preset.id !== settings.eqPreset) void settings.setEqPreset(preset.id);
 }
@@ -61,12 +63,12 @@ function formatGain(gain: number | undefined): string {
 </script>
 
 <template>
-  <SettingsSection id="playback-eq" title="音效">
+  <SettingsSection id="playback-eq" :title="t('settings.playback.equalizer.section')">
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">均衡器</div>
+        <div class="card-header">{{ t("settings.playback.equalizer.enabled.title") }}</div>
         <div class="card-description">
-          10 段均衡（31Hz ~ 16kHz），播放时实时调整音色；关闭后输出原声
+          {{ t("settings.playback.equalizer.enabled.description") }}
         </div>
       </div>
       <ToggleSwitch :IsOn="settings.eqEnabled" @Toggled="onEqToggle" />
@@ -75,8 +77,8 @@ function formatGain(gain: number | undefined): string {
     <template v-if="settings.eqEnabled">
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">预设</div>
-          <div class="card-description">快速套用常见音色，手动拖动滑杆后变为「自定义」</div>
+          <div class="card-header">{{ t("settings.playback.equalizer.preset.title") }}</div>
+          <div class="card-description">{{ t("settings.playback.equalizer.preset.description") }}</div>
         </div>
         <ComboBox
           class="card-control"
@@ -108,7 +110,7 @@ function formatGain(gain: number | undefined): string {
           </div>
         </div>
         <div class="eq-actions">
-          <WpButton variant="standard" class="small" @click="settings.resetEq()">重置</WpButton>
+          <WpButton variant="standard" class="small" @click="settings.resetEq()">{{ t("common.action.reset") }}</WpButton>
         </div>
       </WpCard>
     </template>

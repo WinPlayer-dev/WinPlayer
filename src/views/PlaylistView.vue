@@ -25,11 +25,13 @@ import { useIsMobile } from "@/composables/useIsMobile";
 import { useCloudHeaderGradient, useSongListLayout } from "@/composables/useSongListLayout";
 import { useRefreshable } from "@/composables/useRefreshable";
 import { useTrackList, trackIdentity } from "@/composables/useTrackList";
+import { useI18n } from "@/i18n";
 import type { PlaylistDetail, UnifiedTrack } from "@/types/plugin";
 import WpButton from "@/components/theme/WpButton.vue";
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 const library = useLibraryStore();
 const player = usePlayerStore();
 const plugins = usePluginsStore();
@@ -98,7 +100,7 @@ const header = computed(() => {
   if (isRemote.value) {
     const detail = remote.value;
     if (!detail) return null;
-    const parts = [`${detail.trackCount ?? tracks.value.length} 首`];
+    const parts = [t("common.unit.track", { count: detail.trackCount ?? tracks.value.length })];
     if (detail.creator) parts.unshift(detail.creator);
     return { cover: detail.cover, name: detail.name, sub: parts.join(" · "), description: detail.description };
   }
@@ -107,7 +109,7 @@ const header = computed(() => {
   return {
     cover: item.cover,
     name: item.name,
-    sub: `${item.trackCount ?? tracks.value.length} 首`,
+    sub: t("common.unit.track", { count: item.trackCount ?? tracks.value.length }),
     description: item.description,
   };
 });
@@ -131,7 +133,7 @@ async function loadRemote(source: string, id: string) {
   try {
     const detail = await plugins.getPlaylistDetail(source, id);
     if (!detail) {
-      if (!cached) loadError.value = "插件没有返回这个歌单的内容";
+      if (!cached) loadError.value = t("library.playlist.pluginEmpty");
       return;
     }
     remote.value = detail;
@@ -226,7 +228,7 @@ function shufflePlay() {
 /** 缓存全部到本地（已下载的自动跳过），并记录来源歌单用于离线分组；只缓存当前筛选结果 */
 function downloadAll() {
   if (!visibleTracks.value.length) return;
-  const name = header.value?.name ?? "歌单";
+  const name = header.value?.name ?? t("library.playlist.title");
   if (isRemote.value) {
     void downloads.enqueue(visibleTracks.value, [
       { kind: "playlist", sourceId: sourceId.value, id: String(route.params.id ?? ""), name },
@@ -241,14 +243,19 @@ function downloadAll() {
 async function onRemove(track: UnifiedTrack) {
   // 系统歌单（如每日日推）由平台每天自动生成，不允许手动移除
   if (remote.value?.pinned) {
-    toast("这是平台自动生成的歌单，不支持手动增删歌曲", "info");
+    toast(t("library.playlist.toast.pinned"), "info");
     return;
   }
   // 平台个人歌单：调用插件把歌曲从平台歌单移除，成功后重新拉取
   if (isMine.value && sourceId.value) {
     try {
       await plugins.removeFromUserPlaylist(sourceId.value, String(route.params.id), track.id);
-      toast(`已从「${header.value?.name ?? "歌单"}」移除`, "success");
+      toast(
+        t("library.playlist.toast.removed", {
+          name: header.value?.name ?? t("library.playlist.title"),
+        }),
+        "success",
+      );
     } catch (error) {
       toast(error instanceof Error ? error.message : String(error), "error");
       return;
@@ -275,7 +282,7 @@ const canReorder = computed(() => !isRemote.value);
 async function onReorder(from: number, to: number): Promise<void> {
   if (from === to) return;
   if (queryText.value.trim() || sortKey.value !== "default") {
-    toast("请先在默认顺序下调整曲目位置（清空搜索并选择「默认顺序」）", "info");
+    toast(t("library.playlist.toast.reorderHint"), "info");
     return;
   }
   const ordered = [...tracks.value];
@@ -304,14 +311,14 @@ async function openExport(): Promise<void> {
   exporting.value = true;
   try {
     const ok = await exportPlaylist(
-      header.value?.name ?? "歌单",
+      header.value?.name ?? t("library.playlist.title"),
       header.value?.description ?? "",
       tracks.value,
       exportFormat.value,
     );
-    if (ok) toast("歌单已导出", "success");
+    if (ok) toast(t("library.playlist.toast.exported"), "success");
   } catch (error) {
-    toast(`导出失败: ${error}`, "error");
+    toast(t("library.playlist.toast.exportFailed", { error: String(error) }), "error");
   } finally {
     exporting.value = false;
   }
@@ -349,38 +356,42 @@ async function openDelete() {
           <div v-if="header.description && isMobile" class="header-desc-wrap">
             <p class="header-desc" :class="{ expanded: descExpanded }">{{ header.description }}</p>
             <WpButton class="small desc-toggle" @click="descExpanded = !descExpanded" variant="standard">
-              {{ descExpanded ? "收起" : "展开简介" }}
+              {{
+                descExpanded
+                  ? t("library.shared.collapseDescription")
+                  : t("library.shared.expandDescription")
+              }}
             </WpButton>
           </div>
           <div class="header-sub-actions">
             <template v-if="!isRemote">
               <WpButton class="small" @click="openRename" variant="standard">
-                <span class="wp-icon">&#xF3DE;</span>重命名
+                <span class="wp-icon">&#xF3DE;</span>{{ t("common.action.rename") }}
               </WpButton>
               <WpButton class="small" :disabled="exporting" @click="openExport" variant="standard">
-                <span class="wp-icon">&#xE0C8;</span>导出
+                <span class="wp-icon">&#xE0C8;</span>{{ t("common.action.export") }}
               </WpButton>
               <WpButton class="small danger" @click="openDelete" variant="standard">
-                <span class="wp-icon">&#xF34D;</span>删除歌单
+                <span class="wp-icon">&#xF34D;</span>{{ t("library.shared.deletePlaylist") }}
               </WpButton>
             </template>
             <span v-else class="source-badge">
-              来自 {{ sourceName }}<template v-if="fromCache"> · 缓存内容，正在更新…</template>
+              {{ t("library.shared.fromSource", { source: sourceName }) }}<template v-if="fromCache"> · {{ t("library.playlist.cacheUpdating") }}</template>
             </span>
           </div>
         </div>
         <div class="header-actions with-cache">
           <WpButton :disabled="!visibleTracks.length" @click="playAll" variant="accent">
-            <span class="wp-icon filled">&#xF610;</span>播放全部
+            <span class="wp-icon filled">&#xF610;</span>{{ t("library.shared.playAll") }}
           </WpButton>
           <WpButton :disabled="!visibleTracks.length" @click="shufflePlay" variant="standard">
-            <span class="wp-icon">&#xEF37;</span>随机播放
+            <span class="wp-icon">&#xEF37;</span>{{ t("common.action.shuffle") }}
           </WpButton>
           <WpButton
             class="cache-all-button"
             :disabled="!visibleTracks.length"
-            title="缓存全部到本地"
-            aria-label="缓存全部到本地"
+            :title="t('library.shared.cacheAll')"
+            :aria-label="t('library.shared.cacheAll')"
             @click="downloadAll"
             variant="standard"
           >
@@ -391,16 +402,16 @@ async function openDelete() {
 
       <div v-if="loading" class="loading-wrap">
         <ProgressRing :IsActive="true" :IsIndeterminate="true" :Width="36" :Height="36" />
-        <span class="loading-text">正在加载歌单…</span>
+        <span class="loading-text">{{ t("library.playlist.loading") }}</span>
       </div>
 
       <EmptyState
         v-else-if="loadError"
         icon="&#xF3F2;"
-        title="歌单加载失败"
+        :title="t('library.playlist.loadFailed')"
         :description="loadError"
       >
-        <WpButton @click="router.back()" variant="standard">返回</WpButton>
+        <WpButton @click="router.back()" variant="standard">{{ t("common.action.back") }}</WpButton>
       </EmptyState>
 
       <template v-else>
@@ -421,20 +432,20 @@ async function openDelete() {
           <EmptyState
             v-else-if="filtering"
             icon="&#xF4A3;"
-            title="没有匹配的歌曲"
-            :description="`「${queryText}」在这个歌单里没有找到。试试歌名、歌手或专辑名的一部分。`"
+            :title="t('library.shared.noMatchingSongs')"
+            :description="t('library.playlist.noMatchDescription', { keyword: queryText })"
           >
-            <WpButton @click="clearQuery" variant="standard">清空搜索</WpButton>
+            <WpButton @click="clearQuery" variant="standard">{{ t("components.trackToolbar.clearSearch") }}</WpButton>
           </EmptyState>
 
           <EmptyState
             v-else
             icon="&#xF4EE;"
-            title="歌单还是空的"
+            :title="t('library.playlist.empty.title')"
             :description="
               isRemote
-                ? '这个歌单暂时没有可展示的歌曲，可能是插件没有登录或内容受地区限制。'
-                : '在搜索结果或喜欢的音乐里，把歌曲添加到这个歌单吧。'
+                ? t('library.playlist.empty.remoteDescription')
+                : t('library.playlist.empty.localDescription')
             "
           />
         </div>
@@ -443,23 +454,23 @@ async function openDelete() {
 
     <ContentDialog
       ref="exportDialogRef"
-      Title="导出歌单"
-      PrimaryButtonText="导出"
-      CloseButtonText="取消"
+      :Title="t('library.playlist.exportDialog.title')"
+      :PrimaryButtonText="t('common.action.export')"
+      :CloseButtonText="t('common.action.cancel')"
     >
       <div class="export-form">
         <label class="export-option" :class="{ active: exportFormat === 'json' }">
           <input v-model="exportFormat" type="radio" value="json" />
           <span class="export-text">
-            <span class="export-name">WinPlayer 歌单（.json）</span>
-            <span class="export-desc">保留完整曲目信息，导回本应用可原样恢复；体积较大</span>
+            <span class="export-name">{{ t("library.playlist.exportDialog.jsonName") }}</span>
+            <span class="export-desc">{{ t("library.playlist.exportDialog.jsonDescription") }}</span>
           </span>
         </label>
         <label class="export-option" :class="{ active: exportFormat === 'm3u' }">
           <input v-model="exportFormat" type="radio" value="m3u" />
           <span class="export-text">
-            <span class="export-name">M3U8 播放列表（.m3u8）</span>
-            <span class="export-desc">标准格式，可给其他播放器使用；导入时需要重新搜索歌曲</span>
+            <span class="export-name">{{ t("library.playlist.exportDialog.m3uName") }}</span>
+            <span class="export-desc">{{ t("library.playlist.exportDialog.m3uDescription") }}</span>
           </span>
         </label>
       </div>
@@ -467,14 +478,14 @@ async function openDelete() {
 
     <ContentDialog
       ref="renameDialogRef"
-      Title="重命名歌单"
-      PrimaryButtonText="保存"
-      CloseButtonText="取消"
+      :Title="t('library.playlist.renameDialog.title')"
+      :PrimaryButtonText="t('common.action.save')"
+      :CloseButtonText="t('common.action.cancel')"
     >
       <div class="dialog-form">
         <TextBox
           :Text="renameValue"
-          PlaceholderText="歌单名称"
+          :PlaceholderText="t('library.playlist.namePlaceholder')"
           :MaxLength="50"
           @update:Text="renameValue = String($event ?? '')"
         />
@@ -483,10 +494,10 @@ async function openDelete() {
 
     <ContentDialog
       ref="deleteDialogRef"
-      Title="删除歌单"
-      Content="删除后无法恢复，确定要删除这个歌单吗？"
-      PrimaryButtonText="删除"
-      CloseButtonText="取消"
+      :Title="t('library.shared.deletePlaylist')"
+      :Content="t('library.playlist.deleteDialog.content')"
+      :PrimaryButtonText="t('common.action.delete')"
+      :CloseButtonText="t('common.action.cancel')"
     />
   </div>
 </template>

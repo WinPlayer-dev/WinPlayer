@@ -9,6 +9,8 @@
  * 空格「播放 / 暂停」为应用内内置、不可设置的快捷键，不在可配置动作列表中。
  */
 
+import { t } from "@/i18n";
+
 /** 一次按键绑定（与 KeyboardEvent 解耦，便于持久化与展示） */
 export interface ShortcutBinding {
   /** 归一化后的 KeyboardEvent.key（小写；空格记为 "space"） */
@@ -37,32 +39,32 @@ export interface ShortcutActionMeta {
 export const SHORTCUT_ACTIONS: readonly ShortcutActionMeta[] = [
   {
     id: "prev",
-    label: "上一首",
-    description: "切换到播放队列中的上一首",
+    label: t("shortcuts.action.prev.label"),
+    description: t("shortcuts.action.prev.description"),
     defaultBinding: { key: "arrowleft", ctrl: true, shift: false, alt: false, meta: false },
   },
   {
     id: "next",
-    label: "下一首",
-    description: "切换到播放队列中的下一首",
+    label: t("shortcuts.action.next.label"),
+    description: t("shortcuts.action.next.description"),
     defaultBinding: { key: "arrowright", ctrl: true, shift: false, alt: false, meta: false },
   },
   {
     id: "volumeUp",
-    label: "音量加",
-    description: "提高播放音量（每次 5%）",
+    label: t("shortcuts.action.volumeUp.label"),
+    description: t("shortcuts.action.volumeUp.description"),
     defaultBinding: null,
   },
   {
     id: "volumeDown",
-    label: "音量减",
-    description: "降低播放音量（每次 5%）",
+    label: t("shortcuts.action.volumeDown.label"),
+    description: t("shortcuts.action.volumeDown.description"),
     defaultBinding: null,
   },
   {
     id: "cycleMode",
-    label: "播放模式切换",
-    description: "在顺序播放 / 列表循环 / 单曲循环 / 随机播放之间切换",
+    label: t("shortcuts.action.cycleMode.label"),
+    description: t("shortcuts.action.cycleMode.description"),
     defaultBinding: null,
   },
 ];
@@ -103,20 +105,20 @@ export interface GlobalShortcutActionMeta {
 export const GLOBAL_SHORTCUT_ACTIONS: readonly GlobalShortcutActionMeta[] = [
   {
     id: "playPause",
-    label: "播放 / 暂停（全局）",
-    description: "任意应用中按下都能播放或暂停；窗口隐藏到托盘时同样有效",
+    label: t("shortcuts.global.playPause.label"),
+    description: t("shortcuts.global.playPause.description"),
     defaultBinding: { key: "space", ctrl: true, shift: false, alt: true, meta: false },
   },
   {
     id: "prev",
-    label: "上一首（全局）",
-    description: "任意应用中切换到上一首",
+    label: t("shortcuts.global.prev.label"),
+    description: t("shortcuts.global.prev.description"),
     defaultBinding: { key: "arrowleft", ctrl: true, shift: false, alt: true, meta: false },
   },
   {
     id: "next",
-    label: "下一首（全局）",
-    description: "任意应用中切换到下一首",
+    label: t("shortcuts.global.next.label"),
+    description: t("shortcuts.global.next.description"),
     defaultBinding: { key: "arrowright", ctrl: true, shift: false, alt: true, meta: false },
   },
 ];

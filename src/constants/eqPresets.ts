@@ -5,6 +5,8 @@
  * 增益范围 -12 ~ +12 dB，由后端 player_set_eq 做 clamp。
  */
 
+import { t } from "@/i18n";
+
 /** 10 段中心频率（Hz） */
 export const EQ_FREQS: readonly number[] = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 
@@ -22,14 +24,14 @@ export interface EqPreset {
 }
 
 export const EQ_PRESETS: EqPreset[] = [
-  { id: "flat", name: "平坦", gains: [...FLAT_GAINS] },
-  { id: "pop", name: "流行", gains: [-1, 2, 4, 4, 2, 0, -1, -1, -1, -2] },
-  { id: "rock", name: "摇滚", gains: [5, 4, 3, 1, -1, -1, 1, 3, 4, 5] },
-  { id: "classical", name: "古典", gains: [4, 3, 2, 1, -1, -1, 0, 1, 2, 3] },
-  { id: "jazz", name: "爵士", gains: [3, 2, 1, 2, -1, -1, 0, 1, 2, 3] },
-  { id: "electronic", name: "电子", gains: [5, 4, 1, 0, -1, 1, 2, 3, 4, 5] },
-  { id: "vocal", name: "人声", gains: [-2, -1, 0, 2, 4, 4, 3, 1, 0, -1] },
-  { id: "bass", name: "低音增强", gains: [6, 5, 4, 2, 1, 0, 0, 0, 0, 0] },
+  { id: "flat", name: t("player.eqPreset.flat"), gains: [...FLAT_GAINS] },
+  { id: "pop", name: t("player.eqPreset.pop"), gains: [-1, 2, 4, 4, 2, 0, -1, -1, -1, -2] },
+  { id: "rock", name: t("player.eqPreset.rock"), gains: [5, 4, 3, 1, -1, -1, 1, 3, 4, 5] },
+  { id: "classical", name: t("player.eqPreset.classical"), gains: [4, 3, 2, 1, -1, -1, 0, 1, 2, 3] },
+  { id: "jazz", name: t("player.eqPreset.jazz"), gains: [3, 2, 1, 2, -1, -1, 0, 1, 2, 3] },
+  { id: "electronic", name: t("player.eqPreset.electronic"), gains: [5, 4, 1, 0, -1, 1, 2, 3, 4, 5] },
+  { id: "vocal", name: t("player.eqPreset.vocal"), gains: [-2, -1, 0, 2, 4, 4, 3, 1, 0, -1] },
+  { id: "bass", name: t("player.eqPreset.bass"), gains: [6, 5, 4, 2, 1, 0, 0, 0, 0, 0] },
 ];
 
 /** 手动改动滑杆后的预设标识 */

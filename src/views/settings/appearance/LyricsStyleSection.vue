@@ -28,7 +28,6 @@ import {
   useSettingsStore,
   type LyricAlign,
   type LyricAnchor,
-  type LyricFontPreset,
 } from "@/stores/settings";
 import {
   DESKTOP_LYRIC_FONT_SCALE,
@@ -36,10 +35,12 @@ import {
   lyricStyleClasses,
   lyricStyleVars,
 } from "@/services/lyricStyle";
+import { useI18n } from "@/i18n";
 import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 
 const settings = useSettingsStore();
 const isMobile = useIsMobile();
+const { t } = useI18n();
 
 /** 当前配置的简写，模板里少写几层 */
 const style = computed(() => settings.lyricsStyle);
@@ -52,11 +53,20 @@ const previewClasses = computed(() => lyricStyleClasses(style.value));
 
 /** 预览歌词：故意留一句长句与两句带翻译，能看出折行、对齐与副行效果 */
 const PREVIEW_LINES: ReadonlyArray<{ text: string; translation: string }> = [
-  { text: "雨落下的声音", translation: "" },
-  { text: "把整座城市泡成一片模糊的蓝", translation: "The rain dissolves the city into blue" },
-  { text: "我在便利店门口站了很久", translation: "I waited outside the store" },
-  { text: "等一句不会再来的晚安", translation: "" },
-  { text: "雨停之前", translation: "Before the rain stops" },
+  { text: t("settings.appearance.lyrics.preview.lines.first"), translation: "" },
+  {
+    text: t("settings.appearance.lyrics.preview.lines.second"),
+    translation: t("settings.appearance.lyrics.preview.translations.second"),
+  },
+  {
+    text: t("settings.appearance.lyrics.preview.lines.third"),
+    translation: t("settings.appearance.lyrics.preview.translations.third"),
+  },
+  { text: t("settings.appearance.lyrics.preview.lines.fourth"), translation: "" },
+  {
+    text: t("settings.appearance.lyrics.preview.lines.fifth"),
+    translation: t("settings.appearance.lyrics.preview.translations.fifth"),
+  },
 ];
 
 /** 当前行固定在中间那行：上下各两行刚好覆盖 level-1 / level-2 两档层级 */
@@ -73,27 +83,69 @@ const update = (patch: Parameters<typeof settings.setLyricsStyle>[0]): void => {
 
 /* ------------------------------ 下拉选项 ------------------------------ */
 
-const FONT_LABELS = LYRIC_FONT_OPTIONS.map((option) => option.label);
+/**
+ * 字体预设的显示文案归本页维护（预设值与字体栈在 `services/lyricStyle`，
+ * 那里只放实现，不放界面文案）。
+ */
+const FONT_TEXT_KEYS = {
+  default: {
+    label: "settings.appearance.lyrics.font.options.default.label",
+    hint: "settings.appearance.lyrics.font.options.default.hint",
+  },
+  sans: {
+    label: "settings.appearance.lyrics.font.options.sans.label",
+    hint: "settings.appearance.lyrics.font.options.sans.hint",
+  },
+  serif: {
+    label: "settings.appearance.lyrics.font.options.serif.label",
+    hint: "settings.appearance.lyrics.font.options.serif.hint",
+  },
+  round: {
+    label: "settings.appearance.lyrics.font.options.round.label",
+    hint: "settings.appearance.lyrics.font.options.round.hint",
+  },
+  kai: {
+    label: "settings.appearance.lyrics.font.options.kai.label",
+    hint: "settings.appearance.lyrics.font.options.kai.hint",
+  },
+  mono: {
+    label: "settings.appearance.lyrics.font.options.mono.label",
+    hint: "settings.appearance.lyrics.font.options.mono.hint",
+  },
+  custom: {
+    label: "settings.appearance.lyrics.font.options.custom.label",
+    hint: "settings.appearance.lyrics.font.options.custom.hint",
+  },
+} as const;
+
+const FONT_LABELS = LYRIC_FONT_OPTIONS.map((option) => t(FONT_TEXT_KEYS[option].label));
 const fontIndex = computed(() =>
   Math.max(
     0,
-    LYRIC_FONT_OPTIONS.findIndex((option) => option.value === style.value.fontPreset),
+    LYRIC_FONT_OPTIONS.findIndex((option) => option === style.value.fontPreset),
   ),
 );
 
 function onFontChange(_sender: unknown, payload?: { AddedItems?: unknown[] }): void {
-  const label = String(payload?.AddedItems?.[0] ?? "");
-  const option = LYRIC_FONT_OPTIONS.find((entry) => entry.label === label);
-  if (!option || option.value === style.value.fontPreset) return;
-  update({ fontPreset: option.value as LyricFontPreset });
+  // 按显示文案反查序号（文案已本地化，不能再拿它和服务层的 label 比对）
+  const index = FONT_LABELS.indexOf(String(payload?.AddedItems?.[0] ?? ""));
+  const option = LYRIC_FONT_OPTIONS[index];
+  if (!option || option === style.value.fontPreset) return;
+  update({ fontPreset: option });
 }
 
 const ALIGN_OPTIONS: ReadonlyArray<{ value: LyricAlign; label: string }> = [
-  { value: "center", label: "居中" },
-  { value: "left", label: "靠左" },
+  { value: "center", label: t("settings.appearance.lyrics.align.options.center") },
+  { value: "left", label: t("settings.appearance.lyrics.align.options.left") },
 ];
 
-const WEIGHT_LABELS = ["细", "常规", "中等", "半粗", "粗"];
+const WEIGHT_LABELS = [
+  t("settings.appearance.lyrics.weight.options.thin"),
+  t("settings.appearance.lyrics.weight.options.normal"),
+  t("settings.appearance.lyrics.weight.options.medium"),
+  t("settings.appearance.lyrics.weight.options.semibold"),
+  t("settings.appearance.lyrics.weight.options.bold"),
+];
 const weightIndex = computed(() =>
   Math.max(0, LYRICS_FONT_WEIGHTS.indexOf(style.value.fontWeight)),
 );
@@ -104,14 +156,11 @@ function onWeightChange(_sender: unknown, payload?: { AddedItems?: unknown[] }):
 }
 
 /** 下拉选中的字体预设对应的说明（展示在卡片描述里） */
-const fontHint = computed(
-  () =>
-    LYRIC_FONT_OPTIONS.find((option) => option.value === style.value.fontPreset)?.hint ?? "",
-);
+const fontHint = computed(() => t(FONT_TEXT_KEYS[style.value.fontPreset].hint));
 
 /* ------------------------------ 自定义字体 ------------------------------ */
 
-const FONT_PLACEHOLDER = '如 "Noto Serif SC" 或 "HarmonyOS Sans SC"';
+const FONT_PLACEHOLDER = t("settings.appearance.lyrics.font.placeholder");
 
 /** 本地输入值：击键即预览，防抖后落库（与全局字体设置同一套做法） */
 const fontInput = ref(style.value.fontCustom);
@@ -135,48 +184,55 @@ onBeforeUnmount(() => window.clearTimeout(fontTimer));
 
 /** 当前行垂直位置的可选项：三段按钮比下拉更直观，点一下就能看到位置变化 */
 const ANCHOR_OPTIONS: ReadonlyArray<{ value: LyricAnchor; label: string }> = [
-  { value: "top", label: "靠上" },
-  { value: "center", label: "居中" },
-  { value: "bottom", label: "靠下" },
+  { value: "top", label: t("settings.appearance.lyrics.anchor.options.top") },
+  { value: "center", label: t("settings.appearance.lyrics.anchor.options.center") },
+  { value: "bottom", label: t("settings.appearance.lyrics.anchor.options.bottom") },
 ];
 
 const anchorHint = computed(() => {
   switch (style.value.alignY) {
     case "top":
-      return "当前行靠上，下方留出更多「接下来要唱」的内容，适合跟唱";
+      return t("settings.appearance.lyrics.anchor.hints.top");
     case "bottom":
-      return "当前行靠下，上方保留刚唱过的句子，适合边听边回看";
+      return t("settings.appearance.lyrics.anchor.hints.bottom");
     default:
-      return "当前行居中，上下各分一半，最平衡也最不容易疲劳";
+      return t("settings.appearance.lyrics.anchor.hints.center");
   }
 });
 
 /** 滚动速度文案：1× 为基准，越快切换行时滑得越短促 */
 const scrollLabel = computed(() => `${style.value.scrollSpeed.toFixed(2).replace(/0$/, "")}×`);
 
+/** 缓动曲线的显示文案归本页（曲线选项本身在 settings store） */
+const EASING_LABEL_KEYS = {
+  out: "settings.appearance.lyrics.scroll.easingOptions.out",
+  inout: "settings.appearance.lyrics.scroll.easingOptions.inout",
+} as const;
+
 const easingHint = computed(() =>
   style.value.scrollEasing === "inout"
-    ? "两头慢、中间快，慢歌与长句更贴"
-    : "起步快、收尾缓，跟唱时更跟手",
+    ? t("settings.appearance.lyrics.scroll.easingHints.inout")
+    : t("settings.appearance.lyrics.scroll.easingHints.out"),
 );
 
 const scaleLabel = computed(() => `${Math.round(style.value.activeScale * 100)}%`);
 const blurLabel = computed(() => `${style.value.blurStrength.toFixed(1)}×`);
 const dimLabel = computed(() => `${Math.round(style.value.inactiveOpacity * 100)}%`);
 const glowLabel = computed(() =>
-  style.value.glow <= 0 ? "关闭" : style.value.glow.toFixed(1),
+  style.value.glow <= 0 ? t("common.action.close") : style.value.glow.toFixed(1),
 );
 </script>
 
 <template>
-  <SettingsSection id="appearance-lyrics" title="歌词样式">
+  <SettingsSection id="appearance-lyrics" :title="t('settings.appearance.lyrics.section')">
     <!-- 实时预览：放第一张卡，调任何参数都能立刻看到整体效果 -->
     <WpCard variant="column">
       <div class="card-content">
-        <div class="card-header">实时预览</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.preview.title") }}</div>
         <div class="card-description">
-          沉浸式「正在播放」页面的歌词效果；手机全屏页与桌面正在播放页共用这套外观（桌面按
-          {{ DESKTOP_LYRIC_FONT_SCALE }} 倍字号显示），调下面任一选项都会立即反映在这里
+          {{
+            t("settings.appearance.lyrics.preview.description", { scale: DESKTOP_LYRIC_FONT_SCALE })
+          }}
         </div>
       </div>
 
@@ -205,8 +261,10 @@ const glowLabel = computed(() =>
     <!-- 字号 -->
     <WpCard variant="column">
       <div class="card-content">
-        <div class="card-header">歌词字号</div>
-        <div class="card-description">常规行的字号，当前行按下面的比例放大或保持不变</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.fontSize.title") }}</div>
+        <div class="card-description">
+          {{ t("settings.appearance.lyrics.fontSize.description") }}
+        </div>
       </div>
       <div class="slider-row">
         <Slider
@@ -227,10 +285,12 @@ const glowLabel = computed(() =>
     <!-- 对齐 -->
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">对齐方式</div>
-        <div class="card-description">短句适合居中，长句与说唱适合靠左；翻译副行跟随同一方向</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.align.title") }}</div>
+        <div class="card-description">
+          {{ t("settings.appearance.lyrics.align.description") }}
+        </div>
       </div>
-      <div class="seg" role="group" aria-label="对齐方式">
+      <div class="seg" role="group" :aria-label="t('settings.appearance.lyrics.align.title')">
         <button
           v-for="option in ALIGN_OPTIONS"
           :key="option.value"
@@ -247,10 +307,10 @@ const glowLabel = computed(() =>
     <!-- 当前行垂直位置 -->
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">当前行位置</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.anchor.title") }}</div>
         <div class="card-description">{{ anchorHint }}</div>
       </div>
-      <div class="seg" role="group" aria-label="当前行位置">
+      <div class="seg" role="group" :aria-label="t('settings.appearance.lyrics.anchor.title')">
         <button
           v-for="option in ANCHOR_OPTIONS"
           :key="option.value"
@@ -267,9 +327,9 @@ const glowLabel = computed(() =>
     <!-- 滚动速度 -->
     <WpCard variant="column">
       <div class="card-content">
-        <div class="card-header">歌词滚动</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.scroll.title") }}</div>
         <div class="card-description">
-          切换歌词行时移动的快慢，以及当前行放大 / 加粗 / 变淡的过渡节奏；速度越快，行切换越利落
+          {{ t("settings.appearance.lyrics.scroll.description") }}
         </div>
       </div>
       <div class="slider-row">
@@ -288,17 +348,21 @@ const glowLabel = computed(() =>
       </div>
 
       <div class="ease-row">
-        <span class="ease-label">缓动曲线</span>
-        <div class="seg" role="group" aria-label="缓动曲线">
+        <span class="ease-label">{{ t("settings.appearance.lyrics.scroll.easingLabel") }}</span>
+        <div
+          class="seg"
+          role="group"
+          :aria-label="t('settings.appearance.lyrics.scroll.easingLabel')"
+        >
           <button
             v-for="option in LYRIC_EASINGS"
-            :key="option.value"
+            :key="option"
             type="button"
             class="seg-btn"
-            :class="{ on: style.scrollEasing === option.value }"
-            @click="update({ scrollEasing: option.value })"
+            :class="{ on: style.scrollEasing === option }"
+            @click="update({ scrollEasing: option })"
           >
-            {{ option.label }}
+            {{ t(EASING_LABEL_KEYS[option]) }}
           </button>
         </div>
         <span class="ease-hint">{{ easingHint }}</span>
@@ -308,8 +372,10 @@ const glowLabel = computed(() =>
     <!-- 字体 -->
     <WpCard variant="column">
       <div class="card-content">
-        <div class="card-header">歌词字体</div>
-        <div class="card-description">{{ fontHint }}；只作用于歌词，不改界面字体</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.font.title") }}</div>
+        <div class="card-description">
+          {{ t("settings.appearance.lyrics.font.description", { hint: fontHint }) }}
+        </div>
       </div>
       <div class="font-row">
         <ComboBox
@@ -332,9 +398,9 @@ const glowLabel = computed(() =>
     <!-- 字重 -->
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">文字粗细</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.weight.title") }}</div>
         <div class="card-description">
-          所有歌词行的基础字重；系统缺少该字重时会就近取用（细 / 常规 / 中等 / 半粗 / 粗）
+          {{ t("settings.appearance.lyrics.weight.description") }}
         </div>
       </div>
       <ComboBox
@@ -348,8 +414,10 @@ const glowLabel = computed(() =>
     <!-- 当前行加粗 -->
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">当前行加粗</div>
-        <div class="card-description">让正在播放的那一句用更重的字重突出（比常规字重至少加粗 300）</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.activeBold.title") }}</div>
+        <div class="card-description">
+          {{ t("settings.appearance.lyrics.activeBold.description") }}
+        </div>
       </div>
       <ToggleSwitch
         :IsOn="style.activeBold"
@@ -360,8 +428,10 @@ const glowLabel = computed(() =>
     <!-- 放大当前行 -->
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">放大当前行</div>
-        <div class="card-description">关闭后所有行一样大，只靠亮度区分当前行，适合喜欢安静排版的人</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.enlarge.title") }}</div>
+        <div class="card-description">
+          {{ t("settings.appearance.lyrics.enlarge.description") }}
+        </div>
       </div>
       <ToggleSwitch
         :IsOn="style.enlargeActive"
@@ -371,8 +441,10 @@ const glowLabel = computed(() =>
 
     <WpCard v-if="style.enlargeActive" variant="column">
       <div class="card-content">
-        <div class="card-header">放大比例</div>
-        <div class="card-description">当前行相对常规行的倍数；100% 等于不放大</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.scale.title") }}</div>
+        <div class="card-description">
+          {{ t("settings.appearance.lyrics.scale.description") }}
+        </div>
       </div>
       <div class="slider-row">
         <Slider
@@ -393,9 +465,9 @@ const glowLabel = computed(() =>
     <!-- 模糊 -->
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">模糊非当前行</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.blur.title") }}</div>
         <div class="card-description">
-          距离当前行越远越模糊，模拟视线焦点；关闭后仍然按亮度分层，不会整屏一样亮
+          {{ t("settings.appearance.lyrics.blur.description") }}
         </div>
       </div>
       <ToggleSwitch
@@ -406,8 +478,10 @@ const glowLabel = computed(() =>
 
     <WpCard v-if="style.blurInactive" variant="column">
       <div class="card-content">
-        <div class="card-header">模糊强度</div>
-        <div class="card-description">1× 是默认手感；调高会形成「只有当前句清晰」的强焦点效果</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.blurStrength.title") }}</div>
+        <div class="card-description">
+          {{ t("settings.appearance.lyrics.blurStrength.description") }}
+        </div>
       </div>
       <div class="slider-row">
         <Slider
@@ -428,9 +502,9 @@ const glowLabel = computed(() =>
     <!-- 非当前行亮度 -->
     <WpCard variant="column">
       <div class="card-content">
-        <div class="card-header">非当前行亮度</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.dim.title") }}</div>
         <div class="card-description">
-          紧邻当前行那一句的不透明度，越远的行按比例更淡；调低会让焦点更集中
+          {{ t("settings.appearance.lyrics.dim.description") }}
         </div>
       </div>
       <div class="slider-row">
@@ -452,9 +526,9 @@ const glowLabel = computed(() =>
     <!-- 行间距 -->
     <WpCard variant="column">
       <div class="card-content">
-        <div class="card-header">行间距</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.lineGap.title") }}</div>
         <div class="card-description">
-          每行歌词上下的留白；调大后一屏能看到的行数变少，但每句更透气
+          {{ t("settings.appearance.lyrics.lineGap.description") }}
         </div>
       </div>
       <div class="slider-row">
@@ -476,8 +550,10 @@ const glowLabel = computed(() =>
     <!-- 翻译 -->
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">显示翻译</div>
-        <div class="card-description">有翻译的歌词在原文下方显示小字副行；关闭后只显示原文</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.translation.title") }}</div>
+        <div class="card-description">
+          {{ t("settings.appearance.lyrics.translation.description") }}
+        </div>
       </div>
       <ToggleSwitch
         :IsOn="style.showTranslation"
@@ -488,9 +564,9 @@ const glowLabel = computed(() =>
     <!-- 投影 -->
     <WpCard variant="column">
       <div class="card-content">
-        <div class="card-header">当前行投影</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.glow.title") }}</div>
         <div class="card-description">
-          给正在播放的一句加柔和投影，压在亮色封面上也能看清；调到 0 则完全不加
+          {{ t("settings.appearance.lyrics.glow.description") }}
         </div>
       </div>
       <div class="slider-row">
@@ -512,9 +588,9 @@ const glowLabel = computed(() =>
     <!-- 渐隐 -->
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">上下边缘渐隐</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.maskFade.title") }}</div>
         <div class="card-description">
-          歌词在歌词区上下边缘淡入淡出；关闭后是一块干净的裁切边缘
+          {{ t("settings.appearance.lyrics.maskFade.description") }}
         </div>
       </div>
       <ToggleSwitch
@@ -526,10 +602,14 @@ const glowLabel = computed(() =>
     <!-- 恢复默认 -->
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">恢复默认</div>
-        <div class="card-description">把上面所有选项恢复成初始外观，不影响歌词来源、偏移与其他设置</div>
+        <div class="card-header">{{ t("settings.appearance.lyrics.reset.title") }}</div>
+        <div class="card-description">
+          {{ t("settings.appearance.lyrics.reset.description") }}
+        </div>
       </div>
-      <WpButton variant="standard" class="small" @click="settings.resetLyricsStyle()">恢复默认</WpButton>
+      <WpButton variant="standard" class="small" @click="settings.resetLyricsStyle()">
+        {{ t("common.action.restoreDefault") }}
+      </WpButton>
     </WpCard>
   </SettingsSection>
 </template>

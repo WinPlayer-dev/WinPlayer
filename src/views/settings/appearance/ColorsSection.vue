@@ -3,18 +3,20 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { ComboBox, TextBox, ToggleSwitch } from "@/components/winui";
 import { useSettingsStore, type ThemePreference } from "@/stores/settings";
 import type { WindowMaterial } from "@/services/windowMaterial";
+import { useI18n } from "@/i18n";
 import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 
 const settings = useSettingsStore();
+const { t } = useI18n();
 // 窗口材质仅 Windows 桌面端有意义，其他平台隐藏该设置项
 
 /* ------------------------------ 主题 ------------------------------ */
 
 const THEME_OPTIONS: Array<{ label: string; value: ThemePreference }> = [
-  { label: "跟随系统", value: "system" },
-  { label: "浅色", value: "light" },
-  { label: "深色", value: "dark" },
+  { label: t("settings.appearance.colors.scheme.options.system"), value: "system" },
+  { label: t("settings.appearance.colors.scheme.options.light"), value: "light" },
+  { label: t("settings.appearance.colors.scheme.options.dark"), value: "dark" },
 ];
 
 const themeLabels = computed(() => THEME_OPTIONS.map((option) => option.label));
@@ -36,9 +38,9 @@ function onSchemeChange(_sender: unknown, payload?: { AddedItems?: unknown[] }):
 /* ------------------------------ 窗口材质 ------------------------------ */
 
 const MATERIAL_OPTIONS: Array<{ label: string; value: WindowMaterial }> = [
-  { label: "Mica（推荐）", value: "mica" },
+  { label: t("settings.appearance.colors.material.options.mica"), value: "mica" },
   { label: "Acrylic", value: "acrylic" },
-  { label: "关闭", value: "off" },
+  { label: t("common.action.close"), value: "off" },
 ];
 
 const materialLabels = MATERIAL_OPTIONS.map((option) => option.label);
@@ -65,7 +67,7 @@ function onCoverNaturalToggle(event: { IsOn: boolean }): void {
 
 /* ------------------------------ 全局字体 ------------------------------ */
 
-const FONT_PLACEHOLDER = '如 Microsoft YaHei 或 "HarmonyOS Sans SC", sans-serif';
+const FONT_PLACEHOLDER = t("settings.appearance.font.global.placeholder");
 
 /** 本地输入值：击键实时预览，防抖后落库，避免每个字符写一次数据库 */
 const fontInput = ref(settings.fontFamily);
@@ -99,12 +101,12 @@ onBeforeUnmount(() => window.clearTimeout(fontDebounce));
 <template>
   <div>
     <!-- 配色与材质 -->
-    <SettingsSection id="appearance-colors" title="配色与材质">
+    <SettingsSection id="appearance-colors" :title="t('settings.appearance.colors.section')">
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">配色模式</div>
+          <div class="card-header">{{ t("settings.appearance.colors.scheme.title") }}</div>
           <div class="card-description">
-            选择应用的亮 / 暗外观，默认跟随系统
+            {{ t("settings.appearance.colors.scheme.description") }}
           </div>
         </div>
         <ComboBox
@@ -116,9 +118,9 @@ onBeforeUnmount(() => window.clearTimeout(fontDebounce));
       </WpCard>
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">窗口材质</div>
+          <div class="card-header">{{ t("settings.appearance.colors.material.title") }}</div>
           <div class="card-description">
-            使用系统 Mica / Acrylic 材质作为窗口背景；关闭则使用纯色背景
+            {{ t("settings.appearance.colors.material.description") }}
           </div>
         </div>
         <ComboBox
@@ -130,18 +132,18 @@ onBeforeUnmount(() => window.clearTimeout(fontDebounce));
       </WpCard>
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">封面取色</div>
+          <div class="card-header">{{ t("settings.appearance.colors.coverAccent.title") }}</div>
           <div class="card-description">
-            从当前封面提取主色作为强调色，按钮、进度条跟随变化
+            {{ t("settings.appearance.colors.coverAccent.description") }}
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.coverAccent" @Toggled="onCoverAccentToggle" />
       </WpCard>
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">按封面原始比例</div>
+          <div class="card-header">{{ t("settings.appearance.colors.coverNatural.title") }}</div>
           <div class="card-description">
-            按原图比例显示封面，不再统一裁成正方形；卡片外框保持正方，多余区域用模糊封面填充
+            {{ t("settings.appearance.colors.coverNatural.description") }}
           </div>
           <div class="cover-preview" :class="{ natural: settings.coverNaturalRatio }" aria-hidden="true">
             <div class="preview-frame">
@@ -149,7 +151,11 @@ onBeforeUnmount(() => window.clearTimeout(fontDebounce));
               <div class="preview-art" />
             </div>
             <span class="preview-caption">
-              {{ settings.coverNaturalRatio ? "16:9 封面完整显示" : "裁切为 1:1 正方形" }}
+              {{
+                settings.coverNaturalRatio
+                  ? t("settings.appearance.colors.coverNatural.previewNatural")
+                  : t("settings.appearance.colors.coverNatural.previewSquare")
+              }}
             </span>
           </div>
         </div>
@@ -158,12 +164,12 @@ onBeforeUnmount(() => window.clearTimeout(fontDebounce));
     </SettingsSection>
 
     <!-- 字体 -->
-    <SettingsSection id="appearance-font" title="字体">
+    <SettingsSection id="appearance-font" :title="t('settings.appearance.font.section')">
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">全局字体</div>
+          <div class="card-header">{{ t("settings.appearance.font.global.title") }}</div>
           <div class="card-description">
-            自定义应用字体，填入 CSS font-family 值（可含备选字体）；留空恢复默认，输入即预览
+            {{ t("settings.appearance.font.global.description") }}
           </div>
         </div>
         <TextBox
@@ -172,7 +178,9 @@ onBeforeUnmount(() => window.clearTimeout(fontDebounce));
           :PlaceholderText="FONT_PLACEHOLDER"
           @update:Text="(value: unknown) => (fontInput = String(value ?? ''))"
         />
-        <button class="font-reset" type="button" @click="resetFont">恢复默认</button>
+        <button class="font-reset" type="button" @click="resetFont">
+          {{ t("common.action.restoreDefault") }}
+        </button>
       </WpCard>
     </SettingsSection>
   </div>

@@ -9,6 +9,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import { t } from "@/i18n";
 
 /** 一条录音工程 */
 export interface RecordingItem {
@@ -66,7 +67,7 @@ function inTauri(): boolean {
 }
 
 function ensure(): void {
-  if (!inTauri()) throw new Error("录音功能需要在应用内使用");
+  if (!inTauri()) throw new Error(t("studio.error.appOnly"));
 }
 
 /** 枚举可用麦克风设备名 */

@@ -13,7 +13,9 @@ import { openImportDialog } from "@/services/playlistIO";
 import { toast } from "@/services/toast";
 import { isTrackDrag, readDraggedTracks, trackDragState } from "@/services/trackDrag";
 import type { UnifiedPlaylist } from "@/types/plugin";
+import { useI18n } from "@/i18n";
 
+const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
 const library = useLibraryStore();
@@ -56,13 +58,13 @@ function openPlaylistMenu(playlist: LocalPlaylist, event: MouseEvent) {
   const items: ContextMenuItem[] = [
     {
       key: "rename",
-      label: "重命名歌单",
+      label: t("layout.sideNav.renamePlaylist"),
       icon: "&#xF66A;",
       action: () => openRenameDialog(playlist),
     },
     {
       key: "delete",
-      label: "删除歌单",
+      label: t("layout.sideNav.deletePlaylist"),
       icon: "&#xF34D;",
       danger: true,
       action: () => openDeleteDialog(playlist),
@@ -271,11 +273,11 @@ async function dropOnLiked(event: DragEvent): Promise<void> {
   try {
     const fresh = tracks.filter((track) => !library.isLiked(track));
     if (!fresh.length) {
-      toast("这些歌曲已经在「我喜欢的音乐」中", "info");
+      toast(t("layout.sideNav.alreadyLiked"), "info");
       return;
     }
     for (const track of fresh) await library.toggleLike(track);
-    if (fresh.length > 1) toast(`已喜欢 ${fresh.length} 首歌曲`, "success");
+    if (fresh.length > 1) toast(t("layout.sideNav.likedCount", { count: fresh.length }), "success");
   } finally {
     dropBusy.value = false;
   }
@@ -289,8 +291,8 @@ async function dropOnLocal(playlist: LocalPlaylist, event: DragEvent): Promise<v
   dropBusy.value = true;
   try {
     const added = await library.addTracksToPlaylist(playlist.id, tracks);
-    if (added) toast(`已添加 ${added} 首到「${playlist.name}」`, "success");
-    else toast(`「${playlist.name}」中已有这些歌曲`, "info");
+    if (added) toast(t("layout.sideNav.addedToPlaylist", { count: added, name: playlist.name }), "success");
+    else toast(t("layout.sideNav.alreadyInPlaylist", { name: playlist.name }), "info");
   } finally {
     dropBusy.value = false;
   }
@@ -303,17 +305,17 @@ async function dropOnPlatform(item: PlatformNavItem, event: DragEvent): Promise<
   if (!tracks.length || dropBusy.value) return;
 
   if (item.pinned) {
-    toast(`「${item.name}」由平台自动生成，不支持手动添加歌曲`, "error");
+    toast(t("layout.sideNav.platformReadOnly", { name: item.name }), "error");
     return;
   }
   const record = plugins.records.find((r) => r.entry.id === item.sourceId);
   if (!record?.enabled || !plugins.hasCapability(record, "myPlaylists")) {
-    toast("该平台歌单不支持添加歌曲", "error");
+    toast(t("layout.sideNav.platformNotWritable"), "error");
     return;
   }
   const sameSource = tracks.filter((track) => track.sourceId === item.sourceId);
   if (!sameSource.length) {
-    toast(`只能把「${item.sourceName}」的歌曲添加到该平台的歌单`, "error");
+    toast(t("layout.sideNav.sameSourceOnly", { name: item.sourceName }), "error");
     return;
   }
 
@@ -332,8 +334,8 @@ async function dropOnPlatform(item: PlatformNavItem, event: DragEvent): Promise<
   } finally {
     dropBusy.value = false;
   }
-  if (added) toast(`已添加 ${added} 首到「${item.name}」`, "success");
-  else toast(lastError || `添加到「${item.name}」失败`, "error");
+  if (added) toast(t("layout.sideNav.addedToPlaylist", { count: added, name: item.name }), "success");
+  else toast(lastError || t("layout.sideNav.addFailed", { name: item.name }), "error");
 }
 
 /** 拖拽结束后统一收尾（拖到窗口外松手时 dragover 不会再触发） */
@@ -417,7 +419,7 @@ function isActive(name: string): boolean {
         <li>
           <router-link :to="{ name: 'recommend' }" class="nav-item" :class="{ active: isActive('recommend') }">
             <span class="wp-icon nav-icon">&#xF481;</span>
-            <span class="nav-label">推荐</span>
+            <span class="nav-label">{{ t("layout.sideNav.recommend") }}</span>
           </router-link>
         </li>
         <li>
@@ -431,21 +433,21 @@ function isActive(name: string): boolean {
             @drop.prevent.stop="dropOnLiked($event)"
           >
             <span class="wp-icon nav-icon">&#xF47A;</span>
-            <span class="nav-label">我喜欢的音乐</span>
-            <span v-if="dropKey === 'liked'" class="drop-hint">松手收藏</span>
+            <span class="nav-label">{{ t("layout.sideNav.likedMusic") }}</span>
+            <span v-if="dropKey === 'liked'" class="drop-hint">{{ t("layout.sideNav.dropToLike") }}</span>
             <span v-else-if="library.liked.length" class="nav-badge">{{ library.liked.length }}</span>
           </router-link>
         </li>
         <li>
           <router-link :to="{ name: 'history' }" class="nav-item" :class="{ active: isActive('history') }">
             <span class="wp-icon nav-icon">&#xF2A1;</span>
-            <span class="nav-label">最近播放</span>
+            <span class="nav-label">{{ t("layout.sideNav.recentlyPlayed") }}</span>
           </router-link>
         </li>
         <li>
           <router-link :to="{ name: 'offline' }" class="nav-item" :class="{ active: isActive('offline') }">
             <span class="wp-icon nav-icon">&#xF151;</span>
-            <span class="nav-label">离线音乐</span>
+            <span class="nav-label">{{ t("layout.sideNav.offlineMusic") }}</span>
             <span v-if="downloads.downloadedCount" class="nav-badge">{{ downloads.downloadedCount }}</span>
           </router-link>
         </li>
@@ -453,20 +455,24 @@ function isActive(name: string): boolean {
         <li v-if="settings.studioEnabled">
           <router-link :to="{ name: 'studio' }" class="nav-item" :class="{ active: isActive('studio') }">
             <span class="wp-icon nav-icon">&#xE7FA;</span>
-            <span class="nav-label">录音棚</span>
-            <span v-if="recorder.recording" class="nav-badge recording-badge" title="正在录音" />
+            <span class="nav-label">{{ t("layout.sideNav.studio") }}</span>
+            <span
+              v-if="recorder.recording"
+              class="nav-badge recording-badge"
+              :title="t('layout.sideNav.studioRecordingTitle')"
+            />
           </router-link>
         </li>
       </ul>
 
       <!-- 演示模式：歌单与平台歌单整组隐藏（只影响入口，数据不变） -->
       <div v-if="!settings.demoMode" class="nav-section-header">
-        <span class="nav-section-title">歌单</span>
+        <span class="nav-section-title">{{ t("layout.sideNav.playlists") }}</span>
         <span class="add-buttons">
-          <button class="add-button" title="导入歌单（.json / .m3u8）" @click="openImportDialog">
+          <button class="add-button" :title="t('layout.sideNav.importPlaylist')" @click="openImportDialog">
             <span class="wp-icon">&#xF15A;</span>
           </button>
-          <button class="add-button" title="新建歌单" @click="openCreateDialog">
+          <button class="add-button" :title="t('layout.sideNav.newPlaylist')" @click="openCreateDialog">
             <span class="wp-icon">&#xF10A;</span>
           </button>
         </span>
@@ -497,22 +503,22 @@ function isActive(name: string): boolean {
               <span v-else class="wp-icon nav-cover-icon">&#xF4EE;</span>
             </span>
             <span class="nav-label ellipsis">{{ playlist.name }}</span>
-            <span v-if="dropKey === `local:${playlist.id}`" class="drop-hint">松手添加</span>
+            <span v-if="dropKey === `local:${playlist.id}`" class="drop-hint">{{ t("layout.sideNav.dropToAdd") }}</span>
             <span v-else-if="playlist.trackCount" class="nav-badge">{{ playlist.trackCount }}</span>
           </router-link>
         </li>
         <li v-if="!library.playlists.length" class="nav-empty">
-          {{ trackDragState.active ? "还没有歌单，点 + 新建后就能拖进来" : "还没有歌单，点击 + 创建" }}
+          {{ trackDragState.active ? t("layout.sideNav.emptyPlaylistsDrag") : t("layout.sideNav.emptyPlaylists") }}
         </li>
       </ul>
 
       <template v-if="hasMyPlaylistsPlugin && !settings.demoMode">
         <div class="nav-section-header">
-          <span class="nav-section-title">平台歌单</span>
+          <span class="nav-section-title">{{ t("layout.sideNav.platformPlaylists") }}</span>
           <button
             class="add-button"
             :class="{ spinning: platformLoading }"
-            title="同步平台歌单"
+            :title="t('layout.sideNav.syncPlatformPlaylists')"
             @click="loadPlatformPlaylists"
           >
             <span class="wp-icon">&#xF191;</span>
@@ -540,14 +546,14 @@ function isActive(name: string): boolean {
                 <span v-else class="wp-icon nav-cover-icon">&#xF4EE;</span>
               </span>
               <span class="nav-label ellipsis">{{ item.name }}</span>
-              <span v-if="dropKey === item.key" class="drop-hint">松手添加</span>
+              <span v-if="dropKey === item.key" class="drop-hint">{{ t("layout.sideNav.dropToAdd") }}</span>
             </router-link>
           </li>
           <li v-for="group in platformErrors" :key="`err:${group.record.entry.id}`" class="nav-empty">
             {{ group.record.entry.manifest.name }}：{{ group.error }}
           </li>
           <li v-if="!platformItems.length && !platformErrors.length" class="nav-empty">
-            {{ platformLoading ? "正在同步…" : "暂无平台歌单" }}
+            {{ platformLoading ? t("layout.sideNav.syncing") : t("layout.sideNav.noPlatformPlaylists") }}
           </li>
         </ul>
       </template>
@@ -560,13 +566,13 @@ function isActive(name: string): boolean {
         <li>
           <router-link :to="{ name: 'plugins' }" class="nav-item" :class="{ active: isActive('plugins') }">
             <span class="wp-icon nav-icon">&#xF137;</span>
-            <span class="nav-label">播放源管理</span>
+            <span class="nav-label">{{ t("layout.sideNav.manageSources") }}</span>
           </router-link>
         </li>
         <li>
           <router-link :to="{ name: 'settings' }" class="nav-item" :class="{ active: isActive('settings') }">
             <span class="wp-icon nav-icon">&#xF6AA;</span>
-            <span class="nav-label">设置</span>
+            <span class="nav-label">{{ t("layout.sideNav.settings") }}</span>
           </router-link>
         </li>
       </ul>
@@ -574,20 +580,20 @@ function isActive(name: string): boolean {
 
     <ContentDialog
       ref="createDialogRef"
-      Title="新建歌单"
-      PrimaryButtonText="创建"
-      CloseButtonText="取消"
+      :Title="t('layout.sideNav.newPlaylist')"
+      :PrimaryButtonText="t('layout.sideNav.createPlaylistConfirm')"
+      :CloseButtonText="t('common.action.cancel')"
     >
       <div class="dialog-form">
         <TextBox
           :Text="newPlaylistName"
-          PlaceholderText="歌单名称"
+          :PlaceholderText="t('layout.sideNav.playlistName')"
           :MaxLength="50"
           @update:Text="newPlaylistName = String($event ?? '')"
         />
         <TextBox
           :Text="newPlaylistDescription"
-          PlaceholderText="歌单简介（可选）"
+          :PlaceholderText="t('layout.sideNav.playlistDescription')"
           :MaxLength="200"
           @update:Text="newPlaylistDescription = String($event ?? '')"
         />
@@ -596,14 +602,14 @@ function isActive(name: string): boolean {
 
     <ContentDialog
       ref="renameDialogRef"
-      Title="重命名歌单"
-      PrimaryButtonText="保存"
-      CloseButtonText="取消"
+      :Title="t('layout.sideNav.renamePlaylist')"
+      :PrimaryButtonText="t('common.action.save')"
+      :CloseButtonText="t('common.action.cancel')"
     >
       <div class="dialog-form">
         <TextBox
           :Text="renameValue"
-          PlaceholderText="歌单名称"
+          :PlaceholderText="t('layout.sideNav.playlistName')"
           :MaxLength="50"
           @update:Text="renameValue = String($event ?? '')"
         />
@@ -612,10 +618,10 @@ function isActive(name: string): boolean {
 
     <ContentDialog
       ref="deleteDialogRef"
-      Title="删除歌单"
-      :Content="`删除后无法恢复，确定要删除歌单「${menuPlaylist?.name ?? ''}」吗？`"
-      PrimaryButtonText="删除"
-      CloseButtonText="取消"
+      :Title="t('layout.sideNav.deletePlaylist')"
+      :Content="t('layout.sideNav.deletePlaylistConfirm', { name: menuPlaylist?.name ?? '' })"
+      :PrimaryButtonText="t('common.action.delete')"
+      :CloseButtonText="t('common.action.cancel')"
     />
   </nav>
 </template>

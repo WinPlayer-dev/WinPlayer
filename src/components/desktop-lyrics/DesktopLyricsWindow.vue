@@ -17,6 +17,7 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { emitTo, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useI18n } from "@/i18n";
 
 /** 与 `startResizeDragging` 入参一致（该类型没有从包里导出，本地声明一份） */
 type ResizeDirection =
@@ -66,6 +67,8 @@ const EMPTY_STATE: DesktopLyricsState = {
   artist: "",
   cover: "",
 };
+
+const { t } = useI18n();
 
 const state = ref<DesktopLyricsState>({ ...EMPTY_STATE });
 let unlisten: UnlistenFn | null = null;
@@ -221,8 +224,8 @@ onUnmounted(() => {
       <button
         v-if="state.locked"
         class="tool tool-unlock"
-        title="解锁（恢复鼠标操作）"
-        aria-label="解锁"
+        :title="t('components.desktopLyrics.unlockTitle')"
+        :aria-label="t('components.desktopLyrics.unlock')"
         @click="send('unlock')"
       >
         <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
@@ -249,8 +252,8 @@ onUnmounted(() => {
       <template v-else>
         <button
           class="tool"
-          :title="state.playing ? '暂停' : '播放'"
-          :aria-label="state.playing ? '暂停' : '播放'"
+          :title="state.playing ? t('common.action.pause') : t('common.action.play')"
+          :aria-label="state.playing ? t('common.action.pause') : t('common.action.play')"
           @click="send('toggle-play')"
         >
           <svg v-if="state.playing" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
@@ -262,7 +265,12 @@ onUnmounted(() => {
           </svg>
         </button>
 
-        <button class="tool" title="锁定：鼠标穿透到下层窗口（在主窗口解锁）" aria-label="锁定" @click="send('lock')">
+        <button
+          class="tool"
+          :title="t('components.desktopLyrics.lockTitle')"
+          :aria-label="t('components.desktopLyrics.lock')"
+          @click="send('lock')"
+        >
           <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
             <rect
               x="5"
@@ -284,7 +292,12 @@ onUnmounted(() => {
           </svg>
         </button>
 
-        <button class="tool tool-close" title="关闭桌面歌词" aria-label="关闭" @click="send('close')">
+        <button
+          class="tool tool-close"
+          :title="t('components.desktopLyrics.closeTitle')"
+          :aria-label="t('common.action.close')"
+          @click="send('close')"
+        >
           <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
             <path
               d="M7.2 7.2l9.6 9.6M16.8 7.2l-9.6 9.6"

@@ -7,6 +7,7 @@
  * - progress：下载 / 安装进度
  */
 import { computed, ref, watch } from "vue";
+import { useI18n } from "@/i18n";
 import { ContentDialog, ProgressBar } from "@/components/winui";
 import { useUpdaterStore } from "@/stores/updater";
 import { formatBytes, installerLabel } from "@/services/updater";
@@ -21,6 +22,7 @@ interface DialogRef {
 const SHOW_RETRY_LIMIT = 25;
 const SHOW_RETRY_DELAY = 60;
 
+const { t } = useI18n();
 const updater = useUpdaterStore();
 
 /** 开发模式下禁用真实安装，避免误替换本地可执行文件 */
@@ -51,17 +53,21 @@ const publishedDate = computed(() => {
 
 /** 进度弹窗标题 */
 const progressTitle = computed(() => {
-  if (installing.value) return "正在安装更新";
-  if (updater.phase === "done") return "更新已就绪";
-  return "正在下载更新";
+  if (installing.value) return t("components.dialog.updateInstalling");
+  if (updater.phase === "done") return t("components.dialog.updateReady");
+  return t("components.dialog.updateDownloading");
 });
 
 /** 进度弹窗说明文字 */
 const progressHint = computed(() => {
-  if (installing.value) return "安装程序已启动，应用即将自动关闭以完成更新，请稍候…";
-  if (updater.phase === "done") return "更新已准备完成。";
+  if (installing.value) return t("components.dialog.updateInstallingHint");
+  if (updater.phase === "done") return t("components.dialog.updateReadyHint");
   const total = updater.progress.total;
-  if (!total) return `已下载 ${formatBytes(updater.progress.downloaded)}`;
+  if (!total) {
+    return t("components.dialog.updateDownloadedSize", {
+      size: formatBytes(updater.progress.downloaded),
+    });
+  }
   return `${formatBytes(updater.progress.downloaded)} / ${formatBytes(total)}`;
 });
 
@@ -73,7 +79,9 @@ const speedText = computed(() =>
 );
 
 /** 取消下载按钮仅在下载中显示 */
-const primaryButtonText = computed(() => (downloading.value ? "取消下载" : ""));
+const primaryButtonText = computed(() =>
+  downloading.value ? t("components.dialog.cancelDownload") : "",
+);
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -142,17 +150,23 @@ watch(
   <!-- 发现新版本 -->
   <ContentDialog
     ref="promptRef"
-    :Title="info?.prerelease ? '发现新的预览版本' : '发现新版本'"
-    PrimaryButtonText="下载并安装"
-    SecondaryButtonText="忽略此版本"
-    CloseButtonText="稍后"
+    :Title="
+      info?.prerelease
+        ? t('components.dialog.updatePromptPrerelease')
+        : t('components.dialog.updatePrompt')
+    "
+    :PrimaryButtonText="t('components.dialog.downloadAndInstall')"
+    :SecondaryButtonText="t('components.dialog.ignoreVersion')"
+    :CloseButtonText="t('components.dialog.later')"
     :IsPrimaryButtonEnabled="!isDev"
     DefaultButton="Primary"
   >
     <div v-if="info" class="update-prompt">
       <div class="update-version">
         <span class="version-tag">{{ info.version }}</span>
-        <span v-if="info.prerelease" class="prerelease-badge">预览版</span>
+        <span v-if="info.prerelease" class="prerelease-badge">
+          {{ t("components.dialog.prerelease") }}
+        </span>
       </div>
       <div class="update-meta">
         <span v-if="installerText">{{ installerText }}</span>
@@ -160,8 +174,10 @@ watch(
         <span v-if="publishedDate">{{ publishedDate }}</span>
       </div>
       <div v-if="notes" class="update-notes">{{ notes }}</div>
-      <div v-else class="update-notes empty">该版本未提供更新说明</div>
-      <div v-if="isDev" class="update-dev-hint">开发模式下不会真正执行安装</div>
+      <div v-else class="update-notes empty">
+        {{ t("components.dialog.updateNotesMissing") }}
+      </div>
+      <div v-if="isDev" class="update-dev-hint">{{ t("components.dialog.updateDevHint") }}</div>
     </div>
   </ContentDialog>
 
@@ -170,7 +186,7 @@ watch(
     ref="progressRef"
     :Title="progressTitle"
     :PrimaryButtonText="primaryButtonText"
-    :CloseButtonText="downloading ? '后台继续' : ''"
+    :CloseButtonText="downloading ? t('components.dialog.continueInBackground') : ''"
     :IsPrimaryButtonEnabled="downloading"
   >
     <div class="update-progress">

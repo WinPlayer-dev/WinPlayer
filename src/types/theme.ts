@@ -17,6 +17,8 @@
  * 3. **组件重写**：用 Vue 单文件替换内置的 6 个核心组件（见 ThemeComponentKey）。
  */
 
+import { t } from "@/i18n";
+
 /** 当前主题协议版本 */
 export const THEME_API_VERSION = 1;
 
@@ -82,21 +84,21 @@ export const THEME_SURFACE_COMPONENT_KEYS: readonly ThemeComponentKey[] = [
 
 /** 主题组件键的中文说明（设置页 / 文档展示用） */
 export const THEME_COMPONENT_LABELS: Record<ThemeComponentKey, string> = {
-  TitleBar: "标题栏",
-  SideNav: "侧边导航",
-  PlayerBar: "播放条",
-  MediaCard: "媒体卡片",
-  EmptyState: "空状态",
-  PageShell: "页面框架（背景 / 内容区）",
-  Button: "按钮（主 / 次）",
-  IconButton: "图标按钮",
-  TextBox: "文本输入框",
-  ComboBox: "下拉选择框",
-  ToggleSwitch: "开关",
-  Slider: "滑杆",
-  NumberBox: "数字输入框",
-  Card: "卡片容器（设置项 / 内容块）",
-  Background: "应用背景层",
+  TitleBar: t("themes.theme.component.titleBar"),
+  SideNav: t("themes.theme.component.sideNav"),
+  PlayerBar: t("themes.theme.component.playerBar"),
+  MediaCard: t("themes.theme.component.mediaCard"),
+  EmptyState: t("themes.theme.component.emptyState"),
+  PageShell: t("themes.theme.component.pageShell"),
+  Button: t("themes.theme.component.button"),
+  IconButton: t("themes.theme.component.iconButton"),
+  TextBox: t("themes.theme.component.textBox"),
+  ComboBox: t("themes.theme.component.comboBox"),
+  ToggleSwitch: t("themes.theme.component.toggleSwitch"),
+  Slider: t("themes.theme.component.slider"),
+  NumberBox: t("themes.theme.component.numberBox"),
+  Card: t("themes.theme.component.card"),
+  Background: t("themes.theme.component.background"),
 };
 
 /**

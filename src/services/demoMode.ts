@@ -11,9 +11,10 @@
  */
 
 import { ref } from "vue";
+import { t } from "@/i18n";
 
 /** 演示模式下所有来源统一显示的名字 */
-export const DEMO_SOURCE_NAME = "在线音乐";
+export const DEMO_SOURCE_NAME = t("nav.source.onlineMusic");
 
 /** 是否处于演示模式（响应式：模板 / computed 里直接读即可） */
 export const demoMode = ref(false);

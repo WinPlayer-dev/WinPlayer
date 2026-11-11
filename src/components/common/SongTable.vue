@@ -4,6 +4,8 @@
  */
 import { computed, ref } from "vue";
 import { useRouter, type RouteLocationRaw } from "vue-router";
+// 词条里存的是中文字面量：props 默认值在 setup 外求值，所以这里额外引一个模块级 t
+import { t as translate, useI18n } from "@/i18n";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
@@ -38,7 +40,7 @@ const props = withDefaults(
   {
     showSource: false,
     removable: false,
-    emptyText: "暂无歌曲",
+    emptyText: translate("components.empty.noSongs"),
     reorderable: false,
     showPlayCount: false,
   },
@@ -50,6 +52,7 @@ const emit = defineEmits<{
   reorder: [from: number, to: number];
 }>();
 
+const { t } = useI18n();
 const player = usePlayerStore();
 const library = useLibraryStore();
 const plugins = usePluginsStore();
@@ -162,28 +165,28 @@ function rowMenuItems(track: UnifiedTrack): ContextMenuItem[] {
   if (canAddToPlaylist.value) {
     items.push({
       key: "playlist",
-      label: "添加到歌单",
+      label: t("components.contextMenu.addToPlaylist"),
       icon: "&#xF4EE;",
       action: () => openPlaylistPicker(track),
     });
   }
   items.push({
     key: "like",
-    label: liked ? "取消喜欢" : "添加到我喜欢",
+    label: liked ? t("components.contextMenu.unlike") : t("components.contextMenu.like"),
     icon: liked ? "&#xF47E;" : "&#xF47A;",
     filled: liked,
     action: () => library.toggleLike(track),
   });
   items.push({
     key: "queue",
-    label: "添加到播放队列",
+    label: t("components.contextMenu.addToQueue"),
     icon: "&#xF10A;",
     action: () => addSingle(track),
   });
   if (downloads.isDownloaded(track)) {
     items.push({
       key: "download",
-      label: "已下载",
+      label: t("common.state.downloaded"),
       icon: "&#xF151;",
       disabled: true,
       action: () => {},
@@ -191,7 +194,7 @@ function rowMenuItems(track: UnifiedTrack): ContextMenuItem[] {
   } else {
     items.push({
       key: "download",
-      label: "下载到本地",
+      label: t("components.contextMenu.downloadToLocal"),
       icon: "&#xF151;",
       action: () => void downloads.downloadTrack(track),
     });
@@ -199,7 +202,7 @@ function rowMenuItems(track: UnifiedTrack): ContextMenuItem[] {
   if (canUploadToCloud(track)) {
     items.push({
       key: "upload-cloud",
-      label: "上传到同频服务器",
+      label: t("components.contextMenu.uploadToCloud"),
       icon: "&#xF2E5;",
       action: () => void uploadTrackToCloud(track),
     });
@@ -207,7 +210,7 @@ function rowMenuItems(track: UnifiedTrack): ContextMenuItem[] {
   if (props.removable) {
     items.push({
       key: "remove",
-      label: "移除",
+      label: t("common.action.remove"),
       icon: "&#xF34D;",
       danger: true,
       action: () => emit("remove", track),
@@ -215,24 +218,25 @@ function rowMenuItems(track: UnifiedTrack): ContextMenuItem[] {
   }
   items.push({
     key: "edit-meta",
-    label: "编辑歌曲信息",
+    label: t("components.contextMenu.editTrackMeta"),
     icon: "&#xF3DE;",
     action: () => openTrackMetaEditor(track),
   });
   items.push({
     key: "copy-name",
-    label: "复制歌曲名",
+    label: t("components.contextMenu.copyTrackName"),
     icon: "&#xF32C;",
     // 复制看到的名字：用户改过名就复制改后的
-    action: () => copyText(trackMeta.decorate(track).name, "歌曲名"),
+    action: () =>
+      copyText(trackMeta.decorate(track).name, t("components.songTable.copyTrackNameLabel")),
   });
   const alias = track.alias;
   if (alias) {
     items.push({
       key: "copy-alias",
-      label: "复制歌曲别名",
+      label: t("components.contextMenu.copyTrackAlias"),
       icon: "&#xF32C;",
-      action: () => copyText(alias, "歌曲别名"),
+      action: () => copyText(alias, t("components.songTable.copyTrackAliasLabel")),
     });
   }
   return items;
@@ -376,13 +380,13 @@ function onTouchDragUp(): void {
   <div class="song-table" :class="{ 'is-mobile': isMobile }">
     <div class="table-header">
       <span class="col-index">#</span>
-      <span class="col-title">标题</span>
-      <span class="col-artist">艺术家</span>
-      <span class="col-album">专辑</span>
-      <span v-if="showSource" class="col-source">来源</span>
-      <span v-if="showPlayCount" class="col-plays">播放</span>
+      <span class="col-title">{{ t("common.column.title") }}</span>
+      <span class="col-artist">{{ t("components.songTable.columnArtist") }}</span>
+      <span class="col-album">{{ t("common.column.album") }}</span>
+      <span v-if="showSource" class="col-source">{{ t("common.column.source") }}</span>
+      <span v-if="showPlayCount" class="col-plays">{{ t("components.songTable.columnPlayCount") }}</span>
       <span class="col-actions"></span>
-      <span class="col-duration">时长</span>
+      <span class="col-duration">{{ t("common.column.duration") }}</span>
     </div>
 
     <div v-if="!rows.length" class="table-empty">{{ emptyText }}</div>
@@ -423,8 +427,8 @@ function onTouchDragUp(): void {
         <span
           v-if="reorderable"
           class="drag-handle wp-icon"
-          title="拖动调整顺序"
-          aria-label="拖动调整顺序"
+          :title="t('components.songTable.dragHandle')"
+          :aria-label="t('components.songTable.dragHandle')"
           @pointerdown.stop="onTouchDragDown($event, index)"
           @pointermove.stop="onTouchDragMove"
           @pointerup.stop="onTouchDragUp"
@@ -441,8 +445,8 @@ function onTouchDragUp(): void {
           <span
             v-if="row.downloaded"
             class="title-downloaded wp-icon"
-            title="已下载到本地"
-            aria-label="已下载"
+            :title="t('components.songTable.downloadedToLocal')"
+            :aria-label="t('common.state.downloaded')"
           >&#xF151;</span>
         </span>
         <span v-if="row.view.vip" class="title-vip">VIP</span>
@@ -453,7 +457,7 @@ function onTouchDragUp(): void {
           <button
             v-if="artist.target"
             class="cell-link"
-            :title="`查看歌手「${artist.name}」`"
+            :title="t('components.songTable.viewArtist', { name: artist.name })"
             @click.stop="go(artist.target)"
             @dblclick.stop="noop"
           >
@@ -466,7 +470,7 @@ function onTouchDragUp(): void {
         <button
           v-if="row.album?.target"
           class="cell-link"
-          :title="`查看专辑「${row.album.name}」`"
+          :title="t('components.songTable.viewAlbum', { name: row.album.name })"
           @click.stop="go(row.album.target)"
           @dblclick.stop
         >
@@ -481,7 +485,7 @@ function onTouchDragUp(): void {
         <button
           class="row-action like-action"
           :class="{ liked: row.liked }"
-          :title="row.liked ? '取消喜欢' : '添加到我喜欢'"
+          :title="row.liked ? t('components.contextMenu.unlike') : t('components.contextMenu.like')"
           @click.stop="toggleLike(row.track)"
         >
           <span class="wp-icon" :class="{ filled: row.liked }">{{ row.liked ? "&#xF47E;" : "&#xF47A;" }}</span>
@@ -489,18 +493,22 @@ function onTouchDragUp(): void {
         <button
           v-if="canAddToPlaylist"
           class="row-action"
-          title="添加到歌单"
+          :title="t('components.contextMenu.addToPlaylist')"
           @click.stop="openPlaylistPicker(row.track)"
         >
           <span class="wp-icon">&#xF4EE;</span>
         </button>
-        <button class="row-action" title="添加到播放队列" @click.stop="addSingle(row.track)">
+        <button
+          class="row-action"
+          :title="t('components.contextMenu.addToQueue')"
+          @click.stop="addSingle(row.track)"
+        >
           <span class="wp-icon">&#xF10A;</span>
         </button>
         <button
           v-if="removable"
           class="row-action danger"
-          title="移除"
+          :title="t('common.action.remove')"
           @click.stop="emit('remove', row.track)"
         >
           <span class="wp-icon">&#xF34D;</span>

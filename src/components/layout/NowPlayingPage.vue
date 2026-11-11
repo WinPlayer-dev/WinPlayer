@@ -30,7 +30,9 @@ import {
   trackArtist,
   trackTitle,
 } from "@/types/player";
+import { useI18n } from "@/i18n";
 
+const { t } = useI18n();
 const player = usePlayerStore();
 const library = useLibraryStore();
 const settings = useSettingsStore();
@@ -55,7 +57,7 @@ const { lyricRows, coverOnly, lineLevel, lyricVars, lyricClasses, seekToLine } =
 
 const track = computed(() => player.displayTrack);
 
-const title = computed(() => (track.value ? trackTitle(track.value) : "未在播放"));
+const title = computed(() => (track.value ? trackTitle(track.value) : t("layout.playerBar.notPlaying")));
 const artistText = computed(() => (track.value ? trackArtist(track.value) : ""));
 const albumText = computed(() => track.value?.album ?? "");
 
@@ -268,37 +270,41 @@ onBeforeUnmount(() => {
       <div class="np-drag" data-tauri-drag-region @dblclick="toggleMaximize" />
 
       <div class="np-head-left">
-        <button class="np-icon" title="收起（Esc）" @click="close">
+        <button class="np-icon" :title="t('layout.nowPlaying.collapseWithEsc')" @click="close">
           <span class="wp-icon">&#xF2AB;</span>
         </button>
-        <span class="np-header-title">正在播放</span>
+        <span class="np-header-title">{{ t("layout.nowPlaying.title") }}</span>
       </div>
 
       <div class="np-tools">
         <button
           class="np-icon"
           :class="{ on: settings.desktopLyricsEnabled }"
-          :title="settings.desktopLyricsEnabled ? '关闭桌面歌词' : '桌面歌词'"
+          :title="settings.desktopLyricsEnabled ? t('layout.playerBar.desktopLyricsDisable') : t('layout.playerBar.desktopLyrics')"
           @click="toggleDesktopLyrics"
         >
           <span class="wp-icon">&#xEE5E;</span>
         </button>
-        <button class="np-icon" title="歌词样式" @click="openLyricStyle">
+        <button class="np-icon" :title="t('layout.playerBar.lyricsStyle')" @click="openLyricStyle">
           <span class="wp-icon np-icon-glyph">Aa</span>
         </button>
-        <button class="np-icon" title="播放队列" @click="openQueue">
+        <button class="np-icon" :title="t('layout.playerBar.queue')" @click="openQueue">
           <span class="wp-icon">&#xF4EE;</span>
         </button>
 
         <span class="np-tools-divider" aria-hidden="true" />
 
-        <button class="np-caption" title="最小化" @click="appWindow?.minimize()">
+        <button class="np-caption" :title="t('layout.titleBar.minimize')" @click="appWindow?.minimize()">
           <span class="wp-icon">&#xEBCF;</span>
         </button>
-        <button class="np-caption" :title="maximized ? '还原' : '最大化'" @click="toggleMaximize">
+        <button
+          class="np-caption"
+          :title="maximized ? t('layout.titleBar.restore') : t('layout.titleBar.maximize')"
+          @click="toggleMaximize"
+        >
           <span class="wp-icon">{{ maximized ? "&#xEB95;" : "&#xF533;" }}</span>
         </button>
-        <button class="np-caption close" title="关闭" @click="appWindow?.close()">
+        <button class="np-caption close" :title="t('common.action.close')" @click="appWindow?.close()">
           <span class="wp-icon">&#xF368;</span>
         </button>
       </div>
@@ -320,7 +326,7 @@ onBeforeUnmount(() => {
               class="np-like"
               :active="liked"
               :disabled="!player.currentTrack"
-              :title="liked ? '取消喜欢' : '添加到我喜欢'"
+              :title="liked ? t('layout.playerBar.unlike') : t('layout.playerBar.like')"
               @click="toggleLike"
             >
               <span class="wp-icon" :class="{ filled: liked }">{{ liked ? "&#xF47E;" : "&#xF47A;" }}</span>
@@ -334,7 +340,7 @@ onBeforeUnmount(() => {
                 <button
                   v-if="artist.target"
                   class="np-artist-link"
-                  :title="`查看歌手「${artist.name}」`"
+                  :title="t('layout.playerBar.viewArtist', { name: artist.name })"
                   @click="go(artist.target!)"
                 >
                   {{ artist.name }}
@@ -372,7 +378,7 @@ onBeforeUnmount(() => {
           </WpIconButton>
           <WpIconButton
             class="np-transport-button"
-            title="上一首"
+            :title="t('common.action.previous')"
             :disabled="!player.queue.length"
             @click="player.prev"
           >
@@ -380,7 +386,7 @@ onBeforeUnmount(() => {
           </WpIconButton>
           <button
             class="np-play"
-            :title="player.playing ? '暂停' : '播放'"
+            :title="player.playing ? t('common.action.pause') : t('common.action.play')"
             :disabled="!player.queue.length && !player.currentTrack"
             @click="player.togglePlay"
           >
@@ -390,7 +396,7 @@ onBeforeUnmount(() => {
           </button>
           <WpIconButton
             class="np-transport-button"
-            title="下一首"
+            :title="t('common.action.next')"
             :disabled="!player.queue.length"
             @click="player.next()"
           >
@@ -400,7 +406,7 @@ onBeforeUnmount(() => {
 
         <!-- 音量 -->
         <div class="np-volume">
-          <button class="np-icon np-mute" :title="player.muted ? '取消静音' : '静音'" @click="player.toggleMute">
+          <button class="np-icon np-mute" :title="player.muted ? t('layout.playerBar.unmute') : t('layout.playerBar.mute')" @click="player.toggleMute">
             <span class="wp-icon">{{ volumeIcon }}</span>
           </button>
           <div
@@ -424,8 +430,8 @@ onBeforeUnmount(() => {
       <!-- 右：歌词（样式来自设置 → 外观 → 歌词样式） -->
       <section class="np-right">
         <div ref="listRef" class="np-lyrics wp-lrc" :class="lyricClasses" :style="lyricVars">
-          <div v-if="player.lyricsLoading" class="np-lyrics-empty">歌词加载中…</div>
-          <div v-else-if="!lyricRows.length" class="np-lyrics-empty">暂无歌词</div>
+          <div v-if="player.lyricsLoading" class="np-lyrics-empty">{{ t("player.lyrics.loading") }}</div>
+          <div v-else-if="!lyricRows.length" class="np-lyrics-empty">{{ t("player.lyrics.empty") }}</div>
           <template v-else>
             <p
               v-for="(line, index) in lyricRows"

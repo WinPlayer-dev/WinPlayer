@@ -10,6 +10,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import { t } from "@/i18n";
 import { httpFetch } from "@/services/proxy";
 
 /** 内置同频服务器源的 ID（同时作为曲目的 sourceId） */
@@ -148,7 +149,7 @@ export async function cloudRequest<T>(
   try {
     return JSON.parse(result.body) as T;
   } catch {
-    throw new Error("服务器返回的不是合法的 JSON");
+    throw new Error(t("errors.network.serverInvalidJson"));
   }
 }
 
@@ -297,7 +298,7 @@ export async function onUploadProgress(
 export function cloudTrackToLibrary(track: CloudTrack): import("@/services/libraryIndex").LibraryTrack {
   return {
     path: track.hash,
-    folder: "同频服务器",
+    folder: t("cloud.server.defaultName"),
     fileName: track.originalName || `${track.title || track.hash.slice(0, 8)}.${track.ext}`,
     size: track.size,
     mtime: Math.floor(track.updatedAt / 1000),

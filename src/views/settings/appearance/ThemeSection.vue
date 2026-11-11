@@ -9,6 +9,7 @@ import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ComboBox, ContentDialog } from "@/components/winui";
 import { useThemesStore } from "@/stores/themes";
+import { useI18n } from "@/i18n";
 import {
   THEME_COMPONENT_LABELS,
   THEME_CONTROL_COMPONENT_KEYS,
@@ -21,6 +22,7 @@ import WpCard from "@/components/theme/WpCard.vue";
 
 const themes = useThemesStore();
 const router = useRouter();
+const { t } = useI18n();
 
 /** ContentDialog 通过 ShowAsync() 打开（库没有 IsOpen prop） */
 interface DialogRef {
@@ -39,8 +41,11 @@ const activeThemeInfo = computed(() => ({
   homepage: activeTheme.value?.homepage ?? "",
 }));
 
+/** 下拉里的「内置外观」项：既是首项文案，也是判定是否切回内置的比对值 */
+const DEFAULT_THEME_OPTION = t("settings.appearance.theme.current.defaultOption");
+
 const themeOptions = computed(() => [
-  "默认（WinUI）",
+  DEFAULT_THEME_OPTION,
   ...themes.installed.map((entry) => entry.manifest.name),
 ]);
 
@@ -55,7 +60,7 @@ async function onThemeChange(
   payload?: { AddedItems?: unknown[] },
 ): Promise<void> {
   const label = String(payload?.AddedItems?.[0] ?? "");
-  if (label === "默认（WinUI）") {
+  if (label === DEFAULT_THEME_OPTION) {
     await themes.applyTheme("");
     return;
   }
@@ -82,7 +87,7 @@ const overriddenLayoutLabel = computed<string>(() => {
   const labels = overriddenKeys.value
     .filter((key) => THEME_LAYOUT_COMPONENT_KEYS.includes(key))
     .map((key) => THEME_COMPONENT_LABELS[key]);
-  return labels.length ? labels.join("、") : "无";
+  return labels.length ? labels.join("、") : t("common.state.none");
 });
 
 /** 控件类覆盖（按钮 / 输入框 / 下拉框 …） */
@@ -90,7 +95,7 @@ const overriddenControlLabel = computed<string>(() => {
   const labels = overriddenKeys.value
     .filter((key) => THEME_CONTROL_COMPONENT_KEYS.includes(key))
     .map((key) => THEME_COMPONENT_LABELS[key]);
-  return labels.length ? labels.join("、") : "无";
+  return labels.length ? labels.join("、") : t("common.state.none");
 });
 
 /** 运行时被自动回退的组件（渲染抛错） */
@@ -107,12 +112,12 @@ function openThemeMarket(): void {
 </script>
 
 <template>
-  <SettingsSection id="appearance-theme" title="主题">
+  <SettingsSection id="appearance-theme" :title="t('settings.appearance.theme.section')">
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">当前主题</div>
+        <div class="card-header">{{ t("settings.appearance.theme.current.title") }}</div>
         <div class="card-description">
-          主题可改配色、圆角、背景，甚至重写标题栏 / 播放条等界面组件；切换后立即生效
+          {{ t("settings.appearance.theme.current.description") }}
         </div>
       </div>
       <ComboBox
@@ -131,60 +136,65 @@ function openThemeMarket(): void {
           <span class="theme-version">v{{ activeThemeInfo.version }}</span>
         </div>
         <div class="card-description">
-          {{ activeThemeInfo.description || "该主题没有提供描述" }}
+          {{ activeThemeInfo.description || t("settings.appearance.theme.detail.noDescription") }}
         </div>
       </div>
 
       <div class="theme-detail">
         <div class="detail-row">
-          <span class="detail-label">作者</span>
-          <span class="detail-value">{{ activeThemeInfo.author || "未知" }}</span>
+          <span class="detail-label">{{ t("settings.appearance.theme.detail.author") }}</span>
+          <span class="detail-value">{{ activeThemeInfo.author || t("common.state.unknown") }}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">重写界面</span>
+          <span class="detail-label">{{ t("settings.appearance.theme.detail.layout") }}</span>
           <span class="detail-value">{{ overriddenLayoutLabel }}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">重写控件</span>
+          <span class="detail-label">{{ t("settings.appearance.theme.detail.control") }}</span>
           <span class="detail-value">{{ overriddenControlLabel }}</span>
         </div>
         <div v-if="themes.lastError" class="detail-row">
-          <span class="detail-label">警告</span>
+          <span class="detail-label">{{ t("common.state.warning") }}</span>
           <span class="detail-value danger">{{ themes.lastError }}</span>
         </div>
         <div v-if="runtimeErrorLabel" class="detail-row">
-          <span class="detail-label">已回退</span>
+          <span class="detail-label">{{ t("settings.appearance.theme.detail.fallback") }}</span>
           <span class="detail-value danger">{{ runtimeErrorLabel }}</span>
         </div>
       </div>
 
       <div class="theme-actions">
-        <WpButton class="small" @click="openThemeMarket" variant="standard">浏览主题市场</WpButton>
-        <WpButton class="small" @click="themes.applyTheme('')" variant="standard">恢复默认</WpButton>
+        <WpButton class="small" @click="openThemeMarket" variant="standard">
+          {{ t("settings.appearance.theme.actions.browseMarket") }}
+        </WpButton>
+        <WpButton class="small" @click="themes.applyTheme('')" variant="standard">
+          {{ t("common.action.restoreDefault") }}
+        </WpButton>
       </div>
     </WpCard>
 
     <!-- 没有生效主题时的占位卡（与上面的详情卡互斥，避免同时出现两张） -->
     <WpCard v-else variant="row">
       <div class="card-content">
-        <div class="card-header">还没有应用主题</div>
+        <div class="card-header">{{ t("settings.appearance.theme.empty.title") }}</div>
         <div class="card-description">
-          当前使用内置 WinUI 外观，可从主题市场安装或导入 .zip 主题包。
+          {{ t("settings.appearance.theme.empty.description") }}
         </div>
       </div>
-      <WpButton @click="openThemeMarket" variant="standard">打开主题市场</WpButton>
+      <WpButton @click="openThemeMarket" variant="standard">
+        {{ t("settings.appearance.theme.actions.openMarket") }}
+      </WpButton>
     </WpCard>
 
     <!-- 安全提示：主题含可执行组件 -->
     <ContentDialog
       ref="trustDialogRef"
-      Title="该主题包含可执行代码"
-      PrimaryButtonText="仍要启用"
-      CloseButtonText="取消"
+      :Title="t('settings.appearance.theme.trust.title')"
+      :PrimaryButtonText="t('settings.appearance.theme.trust.confirm')"
+      :CloseButtonText="t('common.action.cancel')"
     >
       <div class="dialog-hint">
-        这个主题重写了内置界面组件（Vue 单文件组件）。启用后，主题代码将以完整权限运行在主界面中，
-        可以读取你的曲库、设置与登录凭证。请只启用你信任来源的主题。
+        {{ t("settings.appearance.theme.trust.hint") }}
       </div>
     </ContentDialog>
   </SettingsSection>

@@ -187,5 +187,6 @@ export function formatBytes(bytes: number): string {
 
 /** 判断错误是否来自用户主动取消下载 */
 export function isCanceledError(error: unknown): boolean {
+  // i18n-ignore：比对的是 **Rust 侧**的取消文案（原生层未接 i18n），不是界面文案
   return String(error).includes("已取消");
 }

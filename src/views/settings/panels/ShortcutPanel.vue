@@ -12,6 +12,7 @@
 import { onBeforeUnmount, ref } from "vue";
 import { ToggleSwitch } from "@/components/winui";
 import { useIsMobile } from "@/composables/useIsMobile";
+import { useI18n, type I18nKey } from "@/i18n";
 import { bindingFromEvent, formatBinding } from "@/services/shortcuts";
 import { useShortcutsStore } from "@/stores/shortcuts";
 import SettingsSection from "@/views/settings/components/SettingsSection.vue";
@@ -25,8 +26,56 @@ import WpCard from "@/components/theme/WpCard.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 
 const shortcuts = useShortcutsStore();
+const { t } = useI18n();
 /** 全局快捷键仅在桌面端有意义（移动端没有系统热键） */
 const isMobile = useIsMobile();
+
+/**
+ * 动作 ID → 词条。
+ *
+ * `types/shortcut.ts` 只放代码（ID 与默认绑定），显示名与说明归 i18n；这里按 ID 映射，
+ * 不改动动作表本身的结构。
+ */
+const APP_ACTION_KEYS: Record<ShortcutActionId, { label: I18nKey; description: I18nKey }> = {
+  prev: {
+    label: "shortcuts.action.prev.label",
+    description: "shortcuts.action.prev.description",
+  },
+  next: {
+    label: "shortcuts.action.next.label",
+    description: "shortcuts.action.next.description",
+  },
+  volumeUp: {
+    label: "shortcuts.action.volumeUp.label",
+    description: "shortcuts.action.volumeUp.description",
+  },
+  volumeDown: {
+    label: "shortcuts.action.volumeDown.label",
+    description: "shortcuts.action.volumeDown.description",
+  },
+  cycleMode: {
+    label: "shortcuts.action.cycleMode.label",
+    description: "shortcuts.action.cycleMode.description",
+  },
+};
+
+const GLOBAL_ACTION_KEYS: Record<
+  GlobalShortcutActionId,
+  { label: I18nKey; description: I18nKey }
+> = {
+  playPause: {
+    label: "settings.shortcut.global.actions.playPause.title",
+    description: "settings.shortcut.global.actions.playPause.description",
+  },
+  prev: {
+    label: "settings.shortcut.global.actions.prev.title",
+    description: "settings.shortcut.global.actions.prev.description",
+  },
+  next: {
+    label: "settings.shortcut.global.actions.next.title",
+    description: "settings.shortcut.global.actions.next.description",
+  },
+};
 
 /** 正在录制的动作 ID（null 表示未录制） */
 const recordingId = ref<ShortcutActionId | null>(null);
@@ -40,15 +89,17 @@ function onGlobalToggle(event: { IsOn: boolean }): void {
 
 /** 全局动作的按键框文本 */
 function displayForGlobal(id: GlobalShortcutActionId): string {
-  if (recordingGlobalId.value === id) return "请按下组合键…";
-  return formatBinding(shortcuts.globalBindings[id]) || "未设置";
+  if (recordingGlobalId.value === id) return t("settings.shortcut.record.recording");
+  return formatBinding(shortcuts.globalBindings[id]) || t("settings.shortcut.record.unset");
 }
 
 /** 全局动作的注册状态提示：生效 / 被占用 */
 function statusTextFor(id: GlobalShortcutActionId): string {
   const status = shortcuts.statusFor(id);
   if (!status) return "";
-  return status.registered ? "已生效" : (status.error ?? "注册失败");
+  return status.registered
+    ? t("settings.shortcut.global.status.registered")
+    : (status.error ?? t("settings.shortcut.global.status.failed"));
 }
 
 function isStatusError(id: GlobalShortcutActionId): boolean {
@@ -110,8 +161,8 @@ function resetGlobalDefaults(): void {
 
 /** 按键框显示文本：录制中提示、已绑定显示组合键、未绑定显示占位 */
 function displayFor(id: ShortcutActionId): string {
-  if (recordingId.value === id) return "请按下组合键…";
-  return formatBinding(shortcuts.bindings[id]) || "未设置";
+  if (recordingId.value === id) return t("settings.shortcut.record.recording");
+  return formatBinding(shortcuts.bindings[id]) || t("settings.shortcut.record.unset");
 }
 
 function startRecording(id: ShortcutActionId): void {
@@ -177,15 +228,15 @@ onBeforeUnmount(() => {
 
 <template>
   <div>
-    <SettingsSection id="shortcut-app" title="快捷键">
+    <SettingsSection id="shortcut-app" :title="t('settings.shortcut.app.section')">
       <p class="shortcut-hint">
-        点击右侧按键框后按下组合键即可录制；Esc 取消，Backspace / Delete 清除。仅窗口在前台时生效。
+        {{ t("settings.shortcut.app.hint") }}
       </p>
 
       <WpCard variant="row" v-for="action in SHORTCUT_ACTIONS" :key="action.id" >
         <div class="card-content">
-          <div class="card-header">{{ action.label }}</div>
-          <div class="card-description">{{ action.description }}</div>
+          <div class="card-header">{{ t(APP_ACTION_KEYS[action.id].label) }}</div>
+          <div class="card-description">{{ t(APP_ACTION_KEYS[action.id].description) }}</div>
         </div>
         <div class="shortcut-keys">
           <!-- 用带 tabindex 的 div 而非 button：避免空格 / 回车触发按钮激活，干扰录制 -->
@@ -207,8 +258,8 @@ onBeforeUnmount(() => {
             v-if="shortcuts.bindings[action.id]"
             type="button"
             class="shortcut-clear"
-            title="清除绑定"
-            aria-label="清除绑定"
+            :title="t('settings.shortcut.record.clearBinding')"
+            :aria-label="t('settings.shortcut.record.clearBinding')"
             @click="clearBinding(action.id)"
           >
             <span class="wp-icon">&#xF36A;</span>
@@ -217,21 +268,27 @@ onBeforeUnmount(() => {
       </WpCard>
 
       <div class="shortcut-actions">
-        <WpButton variant="standard" type="button" @click="resetDefaults">恢复默认</WpButton>
+        <WpButton variant="standard" type="button" @click="resetDefaults">{{
+          t("common.action.restoreDefault")
+        }}</WpButton>
       </div>
     </SettingsSection>
 
     <!-- 系统级全局快捷键（仅桌面端）：任意应用中生效 -->
-    <SettingsSection v-if="!isMobile" id="shortcut-global" title="全局快捷键">
+    <SettingsSection v-if="!isMobile" id="shortcut-global" :title="t('settings.shortcut.global.section')">
       <p class="shortcut-hint">
-        由系统注册的热键，窗口在后台或托盘中也生效；组合键必须带 Ctrl / Alt / Shift / Win，被其他程序占用时会提示「注册失败」。
+        {{
+          t("settings.shortcut.global.hint", {
+            failed: t("settings.shortcut.global.status.failed"),
+          })
+        }}
       </p>
 
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">启用全局快捷键</div>
+          <div class="card-header">{{ t("settings.shortcut.global.enabled.title") }}</div>
           <div class="card-description">
-            关闭后立即注销所有系统热键，仅保留窗口内快捷键；重新开启后按下面的设置恢复注册
+            {{ t("settings.shortcut.global.enabled.description") }}
           </div>
         </div>
         <ToggleSwitch :IsOn="shortcuts.globalEnabled" @Toggled="onGlobalToggle" />
@@ -240,7 +297,7 @@ onBeforeUnmount(() => {
       <WpCard variant="row" v-for="action in GLOBAL_SHORTCUT_ACTIONS" :key="action.id">
         <div class="card-content">
           <div class="card-header">
-            {{ action.label }}
+            {{ t(GLOBAL_ACTION_KEYS[action.id].label) }}
             <span
               v-if="shortcuts.globalEnabled && shortcuts.globalBindings[action.id]"
               class="shortcut-status"
@@ -249,7 +306,7 @@ onBeforeUnmount(() => {
               {{ statusTextFor(action.id) }}
             </span>
           </div>
-          <div class="card-description">{{ action.description }}</div>
+          <div class="card-description">{{ t(GLOBAL_ACTION_KEYS[action.id].description) }}</div>
         </div>
         <div class="shortcut-keys" :class="{ disabled: !shortcuts.globalEnabled }">
           <div
@@ -270,8 +327,8 @@ onBeforeUnmount(() => {
             v-if="shortcuts.globalBindings[action.id]"
             type="button"
             class="shortcut-clear"
-            title="清除绑定"
-            aria-label="清除绑定"
+            :title="t('settings.shortcut.record.clearBinding')"
+            :aria-label="t('settings.shortcut.record.clearBinding')"
             :disabled="!shortcuts.globalEnabled"
             @click="clearGlobalBinding(action.id)"
           >
@@ -281,7 +338,9 @@ onBeforeUnmount(() => {
       </WpCard>
 
       <div class="shortcut-actions">
-        <WpButton variant="standard" type="button" @click="resetGlobalDefaults">恢复默认</WpButton>
+        <WpButton variant="standard" type="button" @click="resetGlobalDefaults">{{
+          t("common.action.restoreDefault")
+        }}</WpButton>
       </div>
     </SettingsSection>
   </div>

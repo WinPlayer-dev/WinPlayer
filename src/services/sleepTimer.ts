@@ -15,6 +15,7 @@
  */
 
 import { computed, ref } from "vue";
+import { t } from "@/i18n";
 
 export type SleepTimerMode = "off" | "duration" | "clock" | "after-track";
 
@@ -142,7 +143,7 @@ function formatRemaining(seconds: number): string {
 
 /** 剩余时间（含 after-track 的文案） */
 const remainingLabel = computed(() => {
-  if (mode.value === "after-track") return "播完当前曲";
+  if (mode.value === "after-track") return t("layout.playerBar.sleepAfterTrack");
   if (!countingDown.value) return "";
   return formatRemaining(remainingSeconds.value);
 });

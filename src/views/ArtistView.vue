@@ -18,11 +18,13 @@ import CachedImage from "@/components/common/CachedImage.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { useRefreshable } from "@/composables/useRefreshable";
+import { useI18n } from "@/i18n";
 import type { UnifiedAlbum, UnifiedArtist, UnifiedTrack } from "@/types/plugin";
 import WpButton from "@/components/theme/WpButton.vue";
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 const player = usePlayerStore();
 const plugins = usePluginsStore();
 const downloads = useDownloadsStore();
@@ -68,7 +70,7 @@ async function load(source: string, id: string) {
   try {
     const detail = await plugins.getArtistDetail(source, id);
     if (!detail) {
-      loadError.value = "插件没有返回这个歌手的信息";
+      loadError.value = t("library.artist.pluginEmpty");
       return;
     }
     artist.value = detail;
@@ -128,8 +130,8 @@ const bannerStyle = computed(() => {
 
 const countText = computed(() => {
   const parts: string[] = [];
-  if (artist.value?.songCount) parts.push(`${artist.value.songCount} 首歌曲`);
-  if (artist.value?.albumCount) parts.push(`${artist.value.albumCount} 张专辑`);
+  if (artist.value?.songCount) parts.push(t("library.artist.songCount", { count: artist.value.songCount }));
+  if (artist.value?.albumCount) parts.push(t("common.unit.album", { count: artist.value.albumCount }));
   return parts.join(" · ");
 });
 
@@ -153,7 +155,7 @@ function downloadAll() {
       kind: "artist",
       sourceId: sourceId.value,
       id: artistId.value,
-      name: artist.value?.name ?? "歌手",
+      name: artist.value?.name ?? t("common.column.artist"),
     },
   ]);
 }
@@ -178,20 +180,20 @@ function downloadAll() {
               <span v-if="aliasText">{{ aliasText }}</span>
             </div>
             <p v-if="artist.briefDesc" class="banner-desc">{{ artist.briefDesc }}</p>
-            <div class="banner-source">来自 {{ sourceName }}</div>
+            <div class="banner-source">{{ t("library.shared.fromSource", { source: sourceName }) }}</div>
           </div>
           <div class="banner-actions">
             <WpButton :disabled="!hotTracks.length" @click="playAll" variant="accent">
-              <span class="wp-icon filled">&#xF610;</span>播放热门歌曲
+              <span class="wp-icon filled">&#xF610;</span>{{ t("library.artist.playHotTracks") }}
             </WpButton>
             <WpButton :disabled="!hotTracks.length" @click="shufflePlay" variant="standard">
-              <span class="wp-icon">&#xEF37;</span>随机播放
+              <span class="wp-icon">&#xEF37;</span>{{ t("common.action.shuffle") }}
             </WpButton>
             <WpButton
               class="cache-all-button"
               :disabled="!hotTracks.length"
-              title="缓存热门歌曲到本地"
-              aria-label="缓存热门歌曲到本地"
+              :title="t('library.shared.cacheHotTracks')"
+              :aria-label="t('library.shared.cacheHotTracks')"
               @click="downloadAll"
               variant="standard"
             >
@@ -203,32 +205,32 @@ function downloadAll() {
 
       <div v-if="loading" class="loading-wrap">
         <ProgressRing :IsActive="true" :IsIndeterminate="true" :Width="36" :Height="36" />
-        <span class="loading-text">正在加载歌手…</span>
+        <span class="loading-text">{{ t("library.artist.loading") }}</span>
       </div>
 
-      <EmptyState v-else-if="loadError" icon="&#xF3F2;" title="歌手页加载失败" :description="loadError">
-        <WpButton @click="router.back()" variant="standard">返回</WpButton>
+      <EmptyState v-else-if="loadError" icon="&#xF3F2;" :title="t('library.artist.loadFailed')" :description="loadError">
+        <WpButton @click="router.back()" variant="standard">{{ t("common.action.back") }}</WpButton>
       </EmptyState>
 
       <template v-else>
         <section class="content-section">
-          <h2 class="wp-section-title">热门歌曲</h2>
+          <h2 class="wp-section-title">{{ t("library.artist.hotTracks") }}</h2>
           <SongTable v-if="hotTracks.length" :tracks="hotTracks" :show-source="false" />
-          <p v-else class="section-empty">插件没有返回热门歌曲。</p>
+          <p v-else class="section-empty">{{ t("library.artist.noHotTracks") }}</p>
         </section>
 
         <section class="content-section">
-          <h2 class="wp-section-title">专辑</h2>
+          <h2 class="wp-section-title">{{ t("common.column.album") }}</h2>
           <div v-if="albums.length" class="album-grid">
             <MediaCard v-for="album in albums" :key="`${album.sourceId}:${album.id}`" kind="album" :album="album" />
           </div>
-          <p v-else-if="!albumsLoading" class="section-empty">插件没有返回这位歌手的专辑。</p>
+          <p v-else-if="!albumsLoading" class="section-empty">{{ t("library.artist.noAlbums") }}</p>
 
           <div ref="sentinel" class="load-sentinel">
             <div v-if="albumsLoading" class="loading-wrap compact">
               <ProgressRing :IsActive="true" :IsIndeterminate="true" :Width="24" :Height="24" />
             </div>
-            <p v-else-if="!albumHasMore && albums.length" class="section-empty">没有更多专辑了</p>
+            <p v-else-if="!albumHasMore && albums.length" class="section-empty">{{ t("library.artist.noMoreAlbums") }}</p>
           </div>
         </section>
       </template>

@@ -22,6 +22,25 @@
 - Rust：遵循 `rustfmt` 默认格式
 - 提交信息使用简洁的英文或中文描述，建议采用 `类型: 描述` 格式（如 `feat: 新增播放队列拖拽排序`）
 
+### 界面文案
+
+**不要在模板或脚本里写中文界面文案**，一律走 i18n 词条：
+
+```vue
+<script setup lang="ts">
+import { useI18n } from "@/i18n";
+const { t } = useI18n();
+</script>
+
+<template>
+  <button>{{ t("common.action.confirm") }}</button>
+</template>
+```
+
+词条按域放在 `src/i18n/locales/zh-CN/`，key 写错会在 `pnpm typecheck` 时报错。
+规范、命名、什么该翻什么不该翻见 [docs/I18N.md](docs/I18N.md)；
+`pnpm i18n:scan` 可以列出还剩多少硬编码文案。
+
 ## 插件贡献
 
 欢迎贡献示例插件（位于 `plugins/` 目录）！插件协议与开发指南见 [docs/PLUGIN-DEVELOPMENT.md](docs/PLUGIN-DEVELOPMENT.md)。

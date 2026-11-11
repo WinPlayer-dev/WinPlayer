@@ -5,11 +5,13 @@ import { ComboBox } from "@/components/winui";
 import { toast } from "@/services/toast";
 import { clearDataCache, dataCacheSize } from "@/services/cache";
 import { useSettingsStore, type CachePolicy } from "@/stores/settings";
+import { useI18n } from "@/i18n";
 import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 
 const settings = useSettingsStore();
+const { t } = useI18n();
 
 /** 缓存占用（进入本页与清理后重新统计） */
 const imageCount = ref(0);
@@ -20,10 +22,10 @@ const cacheLoading = ref(false);
 /* ------------------------------ 缓存项 ------------------------------ */
 
 const CACHE_OPTIONS: Array<{ label: string; value: CachePolicy }> = [
-  { label: "歌单", value: "playlist" },
-  { label: "图片", value: "images" },
-  { label: "歌单与图片", value: "both" },
-  { label: "不缓存", value: "none" },
+  { label: t("settings.data.cache.policy.options.playlist"), value: "playlist" },
+  { label: t("settings.data.cache.policy.options.images"), value: "images" },
+  { label: t("settings.data.cache.policy.options.both"), value: "both" },
+  { label: t("settings.data.cache.policy.options.none"), value: "none" },
 ];
 
 const cacheLabels = computed(() => CACHE_OPTIONS.map((option) => option.label));
@@ -37,7 +39,7 @@ function onCachePolicyChange(_sender: unknown, payload?: { AddedItems?: unknown[
   const option = CACHE_OPTIONS.find((entry) => entry.label === label);
   if (option && option.value !== settings.cachePolicy) {
     void settings.setCachePolicy(option.value);
-    toast("缓存设置已更新，已清除被关闭类型的缓存", "success");
+    toast(t("settings.data.cache.policy.updated"), "success");
     void refreshCacheStats();
   }
 }
@@ -66,10 +68,10 @@ async function clearCache(): Promise<void> {
   try {
     await invoke<CacheStats>("cache_clear");
     await clearDataCache();
-    toast("缓存已清除", "success");
+    toast(t("settings.data.cache.clear.done"), "success");
     await refreshCacheStats();
   } catch (error) {
-    toast(`清除缓存失败: ${error}`, "error");
+    toast(t("settings.data.cache.clear.failed", { error: String(error) }), "error");
   } finally {
     cacheLoading.value = false;
   }
@@ -87,9 +89,12 @@ function formatBytes(bytes: number): string {
   return `${value < 10 && unit > 0 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
 
-const cacheSummary = computed(
-  () =>
-    `封面图片 ${formatBytes(imageBytes.value)}（${imageCount.value} 张） · 页面数据 ${formatBytes(dataBytes.value)}`,
+const cacheSummary = computed(() =>
+  t("settings.data.cache.summary", {
+    size: formatBytes(imageBytes.value),
+    count: imageCount.value,
+    dataSize: formatBytes(dataBytes.value),
+  }),
 );
 
 onMounted(() => {
@@ -98,12 +103,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <SettingsSection id="data-cache" title="存储与缓存">
+  <SettingsSection id="data-cache" :title="t('settings.data.cache.section')">
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">缓存项</div>
+        <div class="card-header">{{ t("settings.data.cache.policy.title") }}</div>
         <div class="card-description">
-          选择需要缓存的内容（页面数据 / 封面图片）；切换后立即清除被关闭类型的缓存。
+          {{ t("settings.data.cache.policy.description") }}
         </div>
       </div>
       <ComboBox
@@ -115,13 +120,13 @@ onMounted(() => {
     </WpCard>
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">清除缓存</div>
+        <div class="card-header">{{ t("settings.data.cache.clear.title") }}</div>
         <div class="card-description">
-          当前占用：{{ cacheSummary }}。清除后将在下次访问时重新下载。
+          {{ t("settings.data.cache.clear.description", { summary: cacheSummary }) }}
         </div>
       </div>
       <WpButton variant="standard" class="small danger" :disabled="cacheLoading" @click="clearCache">
-        清除缓存
+        {{ t("settings.data.cache.clear.action") }}
       </WpButton>
     </WpCard>
   </SettingsSection>

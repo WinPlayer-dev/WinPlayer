@@ -13,6 +13,7 @@
  */
 
 import { categoryLabel, type SettingsCategoryKey } from "./categories";
+import { locale, t, type I18nKey } from "@/i18n";
 
 /* ------------------------------ 分组 ------------------------------ */
 
@@ -20,7 +21,13 @@ export interface SettingsSectionMeta {
   /** 全局唯一，同时是 `<SettingsSection id>` 与 DOM 上的 data-section-id */
   id: string;
   category: SettingsCategoryKey;
-  title: string;
+  /**
+   * 分组标题的**词条 key**，与模板里 `<SettingsSection :title>` 引用同一个 key。
+   *
+   * 这里存 key 而不是文案：分组标题在 chips、搜索归属行、漂移校验三处都要用，
+   * 抄一份字面量必然漏改。取文本用 `sectionTitle()`。
+   */
+  titleKey: I18nKey;
   /** 只在部分平台渲染：开发期漂移校验跳过「缺失」，chips 也按 DOM 过滤 */
   optional?: boolean;
 }
@@ -31,50 +38,51 @@ export interface SettingsSectionMeta {
  */
 export const SETTINGS_SECTIONS: Record<SettingsCategoryKey, SettingsSectionMeta[]> = {
   general: [
-    { id: "general-startup", category: "general", title: "启动与引导" },
-    { id: "general-window", category: "general", title: "窗口与系统", optional: true },
-    { id: "general-car", category: "general", title: "车载模式", optional: true },
-    { id: "general-feedback", category: "general", title: "触感反馈", optional: true },
-    { id: "general-search", category: "general", title: "搜索" },
-    { id: "general-privacy", category: "general", title: "隐私" },
-    { id: "general-update", category: "general", title: "更新" },
+    { id: "general-language", category: "general", titleKey: "settings.general.language.section" },
+    { id: "general-startup", category: "general", titleKey: "settings.general.startup.section" },
+    { id: "general-window", category: "general", titleKey: "settings.general.window.section", optional: true },
+    { id: "general-car", category: "general", titleKey: "settings.general.car.section", optional: true },
+    { id: "general-feedback", category: "general", titleKey: "settings.general.feedback.section", optional: true },
+    { id: "general-search", category: "general", titleKey: "settings.general.search.section" },
+    { id: "general-privacy", category: "general", titleKey: "settings.general.privacy.section" },
+    { id: "general-update", category: "general", titleKey: "settings.general.update.section" },
   ],
   shortcut: [
-    { id: "shortcut-app", category: "shortcut", title: "快捷键" },
-    { id: "shortcut-global", category: "shortcut", title: "全局快捷键", optional: true },
+    { id: "shortcut-app", category: "shortcut", titleKey: "settings.shortcut.app.section" },
+    { id: "shortcut-global", category: "shortcut", titleKey: "settings.shortcut.global.section", optional: true },
   ],
   appearance: [
-    { id: "appearance-colors", category: "appearance", title: "配色与材质" },
-    { id: "appearance-theme", category: "appearance", title: "主题" },
+    { id: "appearance-colors", category: "appearance", titleKey: "settings.appearance.colors.section" },
+    { id: "appearance-theme", category: "appearance", titleKey: "settings.appearance.theme.section" },
     // 只影响手机端列表页，桌面端不渲染该分组
-    { id: "appearance-layout", category: "appearance", title: "布局", optional: true },
+    { id: "appearance-layout", category: "appearance", titleKey: "settings.appearance.layout.section", optional: true },
     // 手机全屏页与桌面沉浸式正在播放页共用同一份配置
-    { id: "appearance-lyrics", category: "appearance", title: "歌词样式" },
-    { id: "appearance-font", category: "appearance", title: "字体" },
-    { id: "appearance-motion", category: "appearance", title: "动效" },
+    { id: "appearance-lyrics", category: "appearance", titleKey: "settings.appearance.lyrics.section" },
+    { id: "appearance-font", category: "appearance", titleKey: "settings.appearance.font.section" },
+    { id: "appearance-motion", category: "appearance", titleKey: "settings.appearance.motion.section" },
   ],
   playback: [
-    { id: "playback-source", category: "playback", title: "来源偏好" },
-    { id: "playback-gapless", category: "playback", title: "无缝播放" },
-    { id: "playback-lyrics", category: "playback", title: "桌面歌词", optional: true },
-    { id: "playback-output", category: "playback", title: "输出设备", optional: true },
-    { id: "playback-eq", category: "playback", title: "音效" },
+    { id: "playback-source", category: "playback", titleKey: "settings.playback.source.section" },
+    { id: "playback-gapless", category: "playback", titleKey: "settings.playback.gapless.section" },
+    { id: "playback-lyrics", category: "playback", titleKey: "settings.playback.desktopLyrics.section", optional: true },
+    { id: "playback-output", category: "playback", titleKey: "settings.playback.output.section", optional: true },
+    { id: "playback-eq", category: "playback", titleKey: "settings.playback.equalizer.section" },
   ],
-  plugins: [{ id: "plugins-market", category: "plugins", title: "插件市场" }],
+  plugins: [{ id: "plugins-market", category: "plugins", titleKey: "settings.plugins.market.section" }],
   data: [
-    { id: "data-cache", category: "data", title: "存储与缓存" },
-    { id: "data-download", category: "data", title: "下载与离线" },
-    { id: "data-backup", category: "data", title: "备份与还原" },
-    { id: "data-cloud", category: "data", title: "同步" },
+    { id: "data-cache", category: "data", titleKey: "settings.data.cache.section" },
+    { id: "data-download", category: "data", titleKey: "settings.data.download.section" },
+    { id: "data-backup", category: "data", titleKey: "settings.data.backup.section" },
+    { id: "data-cloud", category: "data", titleKey: "settings.data.cloud.section" },
   ],
   experimental: [
-    { id: "experimental-studio", category: "experimental", title: "录音棚" },
-    { id: "experimental-auto-playlist", category: "experimental", title: "听完自动加歌单" },
+    { id: "experimental-studio", category: "experimental", titleKey: "settings.experimental.studio.section" },
+    { id: "experimental-auto-playlist", category: "experimental", titleKey: "settings.experimental.autoPlaylist.section" },
   ],
   about: [
-    { id: "about-hero", category: "about", title: "版本信息" },
-    { id: "about-update", category: "about", title: "更新" },
-    { id: "about-notices", category: "about", title: "开源与致谢" },
+    { id: "about-hero", category: "about", titleKey: "settings.about.hero.section" },
+    { id: "about-update", category: "about", titleKey: "settings.about.update.section" },
+    { id: "about-notices", category: "about", titleKey: "settings.about.notices.section" },
   ],
 };
 
@@ -91,10 +99,16 @@ export interface SettingsItem {
   id: string;
   category: SettingsCategoryKey;
   sectionId: string;
-  /** 卡片标题，须与模板里的 `.card-header` 文案一致 */
-  title: string;
-  /** 卡片描述，用于命中匹配与搜索结果副标题 */
-  description: string;
+  /** 卡片标题的词条 key，与模板里的 `.card-header` 引用同一个 key */
+  titleKey: I18nKey;
+  /**
+   * 搜索摘要的词条 key。
+   *
+   * 注意它**不是**卡片描述：卡片描述讲「这个开关做什么」，搜索摘要讲「你为什么
+   * 会搜到它」（同义词、使用场景、别名），两者内容有意不同，见
+   * `locales/zh-CN/settings/searchHints.ts` 的说明。
+   */
+  descriptionKey: I18nKey;
   /** 用户可能搜的口语词（权重高于描述、低于标题） */
   aliases?: string[];
   /** 英文名 / 旧分类名 / 同义词 */
@@ -104,11 +118,20 @@ export interface SettingsItem {
 export const SETTINGS_ITEMS: readonly SettingsItem[] = [
   /* ---------- 通用 ---------- */
   {
+    id: "general.language.interface",
+    category: "general",
+    sectionId: "general-language",
+    titleKey: "settings.general.language.interface.title",
+    descriptionKey: "settings.general.language.interface.description",
+    aliases: ["语言", "语言设置", "中文", "英文", "汉化"],
+    keywords: ["language", "locale", "i18n", "lang"],
+  },
+  {
     id: "general.startup.page",
     category: "general",
     sectionId: "general-startup",
-    title: "打开时页面",
-    description: "每次启动应用后直接进入所选页面",
+    titleKey: "settings.general.startup.page.title",
+    descriptionKey: "settings.general.startup.page.description",
     aliases: ["启动页", "首页", "默认页面", "开机进入"],
     keywords: ["startup", "home"],
   },
@@ -116,8 +139,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "general.startup.onboarding",
     category: "general",
     sectionId: "general-startup",
-    title: "欢迎引导",
-    description: "重新查看欢迎页与添加播放源引导，不影响已装插件与现有设置",
+    titleKey: "settings.general.startup.onboarding.title",
+    descriptionKey: "settings.general.startup.onboarding.description",
     aliases: ["新手引导", "引导", "欢迎页", "教程"],
     keywords: ["onboarding", "welcome"],
   },
@@ -125,8 +148,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "general.window.remember",
     category: "general",
     sectionId: "general-window",
-    title: "记住窗口大小与位置",
-    description: "退出时记住窗口尺寸、位置与最大化状态，下次启动还原",
+    titleKey: "settings.general.window.remember.title",
+    descriptionKey: "settings.general.window.remember.description",
     aliases: ["窗口大小", "窗口位置", "重置窗口", "最大化"],
     keywords: ["window", "size", "position"],
   },
@@ -134,8 +157,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "general.window.closeBehavior",
     category: "general",
     sectionId: "general-window",
-    title: "关闭按钮行为",
-    description: "关闭窗口时收进托盘继续播放、最小化到任务栏或直接退出",
+    titleKey: "settings.general.window.closeBehavior.title",
+    descriptionKey: "settings.general.window.closeBehavior.description",
     aliases: ["托盘", "最小化到托盘", "关闭后退出", "关窗", "后台运行"],
     keywords: ["tray", "minimize", "quit", "close"],
   },
@@ -143,8 +166,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "general.window.backgroundOptimize",
     category: "general",
     sectionId: "general-window",
-    title: "后台优化",
-    description: "窗口隐藏时暂停动画与轮询以降低占用，播放不受影响",
+    titleKey: "settings.general.window.background.title",
+    descriptionKey: "settings.general.window.background.description",
     aliases: ["后台", "省电", "降低占用", "卡顿"],
     keywords: ["optimize", "background"],
   },
@@ -152,8 +175,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "general.window.smtc",
     category: "general",
     sectionId: "general-window",
-    title: "系统媒体传输控件（SMTC）",
-    description: "在系统媒体浮出窗、锁屏与蓝牙设备上显示曲目和进度，并响应系统播放控制",
+    titleKey: "settings.general.window.smtc.title",
+    descriptionKey: "settings.general.window.smtc.description",
     aliases: ["媒体控件", "锁屏", "蓝牙控制", "SMTC", "系统媒体"],
     keywords: ["smtc", "media", "thumbnail"],
   },
@@ -161,8 +184,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "general.car.lyrics",
     category: "general",
     sectionId: "general-car",
-    title: "歌词显示在媒体控件上",
-    description: "媒体控件标题显示当前歌词行，没有歌词时显示歌名；需开启系统媒体控件",
+    titleKey: "settings.general.car.lyrics.title",
+    descriptionKey: "settings.general.car.lyrics.description",
     aliases: ["车载", "车机", "媒体控件歌词"],
     keywords: ["car", "lyrics"],
   },
@@ -170,8 +193,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "general.feedback.haptics",
     category: "general",
     sectionId: "general-feedback",
-    title: "震动反馈",
-    description: "长按菜单、下拉刷新、收藏等操作时轻微震动",
+    titleKey: "settings.general.feedback.vibration.title",
+    descriptionKey: "settings.general.feedback.vibration.description",
     aliases: ["震动", "触感", "振动", "haptic"],
     keywords: ["haptics", "vibrate"],
   },
@@ -179,8 +202,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "general.search.aggregate",
     category: "general",
     sectionId: "general-search",
-    title: "聚合搜索",
-    description: "搜索页多出一个「全部」Tab，聚合所有插件的结果",
+    titleKey: "settings.general.search.aggregate.title",
+    descriptionKey: "settings.general.search.aggregate.description",
     aliases: ["全部Tab", "搜索聚合", "多源搜索"],
     keywords: ["aggregate", "search"],
   },
@@ -188,8 +211,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "general.privacy.history",
     category: "general",
     sectionId: "general-privacy",
-    title: "记录播放历史",
-    description: "记录播放次数与最近播放时间；关闭后不再记录，已有数据保留",
+    titleKey: "settings.general.privacy.history.title",
+    descriptionKey: "settings.general.privacy.history.description",
     aliases: ["播放历史", "听歌记录", "历史记录", "隐私"],
     keywords: ["history", "privacy"],
   },
@@ -197,9 +220,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "general.privacy.demoMode",
     category: "general",
     sectionId: "general-privacy",
-    title: "隐藏来源名与歌单",
-    description:
-      "录屏 / 截图时使用：播放源名称统一显示为「在线音乐」，侧边栏与「我的」页里的歌单、平台歌单入口一并隐藏",
+    titleKey: "settings.general.privacy.demoMode.title",
+    descriptionKey: "settings.searchHints.general.privacyDemoMode",
     aliases: ["演示模式", "录屏", "截图", "打码", "隐藏来源"],
     keywords: ["demo", "screenshot"],
   },
@@ -207,8 +229,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "general.update.autoCheck",
     category: "general",
     sectionId: "general-update",
-    title: "自动检查更新",
-    description: "启动时静默检查新版本，有更新时提示；关闭后仍可在「关于」页手动检查",
+    titleKey: "settings.general.update.auto.title",
+    descriptionKey: "settings.searchHints.general.updateAutoCheck",
     aliases: ["更新", "升级", "新版本", "自动升级"],
     keywords: ["update", "auto"],
   },
@@ -216,8 +238,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "general.update.frequency",
     category: "general",
     sectionId: "general-update",
-    title: "自动检查频率",
-    description: "「每次启动」每次打开都检查，「每 24 小时」每天只检查一次，「仅手动」只在「关于」页检查",
+    titleKey: "settings.general.update.frequency.title",
+    descriptionKey: "settings.searchHints.general.updateFrequency",
     aliases: ["检查频率", "多久检查一次", "每天检查"],
     keywords: ["frequency", "daily"],
   },
@@ -225,8 +247,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "general.update.prerelease",
     category: "general",
     sectionId: "general-update",
-    title: "接收预览版本（Beta）",
-    description: "同时检查预发布版本，可提前体验新功能，但可能不够稳定",
+    titleKey: "settings.general.update.prerelease.title",
+    descriptionKey: "settings.general.update.prerelease.description",
     aliases: ["内测", "beta", "预览版", "尝鲜"],
     keywords: ["prerelease", "beta", "nightly"],
   },
@@ -236,8 +258,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "shortcut.app.prev",
     category: "shortcut",
     sectionId: "shortcut-app",
-    title: "上一首",
-    description: "切换到播放队列中的上一首",
+    titleKey: "shortcuts.action.prev.label",
+    descriptionKey: "shortcuts.action.prev.description",
     aliases: ["上一个", "上曲", "切歌"],
     keywords: ["prev", "previous"],
   },
@@ -245,8 +267,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "shortcut.app.next",
     category: "shortcut",
     sectionId: "shortcut-app",
-    title: "下一首",
-    description: "切换到播放队列中的下一首",
+    titleKey: "shortcuts.action.next.label",
+    descriptionKey: "shortcuts.action.next.description",
     aliases: ["下一个", "下曲", "切歌"],
     keywords: ["next"],
   },
@@ -254,8 +276,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "shortcut.app.volumeUp",
     category: "shortcut",
     sectionId: "shortcut-app",
-    title: "音量加",
-    description: "提高播放音量（每次 5%）",
+    titleKey: "shortcuts.action.volumeUp.label",
+    descriptionKey: "shortcuts.action.volumeUp.description",
     aliases: ["大声", "调大音量"],
     keywords: ["volume", "up"],
   },
@@ -263,8 +285,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "shortcut.app.volumeDown",
     category: "shortcut",
     sectionId: "shortcut-app",
-    title: "音量减",
-    description: "降低播放音量（每次 5%）",
+    titleKey: "shortcuts.action.volumeDown.label",
+    descriptionKey: "shortcuts.action.volumeDown.description",
     aliases: ["小声", "调小音量"],
     keywords: ["volume", "down"],
   },
@@ -272,8 +294,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "shortcut.app.cycleMode",
     category: "shortcut",
     sectionId: "shortcut-app",
-    title: "播放模式切换",
-    description: "在顺序播放 / 列表循环 / 单曲循环 / 随机播放之间切换",
+    titleKey: "shortcuts.action.cycleMode.label",
+    descriptionKey: "shortcuts.action.cycleMode.description",
     aliases: ["循环", "单曲循环", "随机播放", "顺序播放"],
     keywords: ["mode", "repeat", "shuffle"],
   },
@@ -281,8 +303,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "shortcut.global.enabled",
     category: "shortcut",
     sectionId: "shortcut-global",
-    title: "启用全局快捷键",
-    description: "关闭后立即注销所有系统热键，仅保留窗口内快捷键；重新开启后按下面的设置恢复注册",
+    titleKey: "settings.shortcut.global.enabled.title",
+    descriptionKey: "settings.shortcut.global.enabled.description",
     aliases: ["全局热键", "系统热键", "后台快捷键"],
     keywords: ["global", "hotkey"],
   },
@@ -290,8 +312,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "shortcut.global.actions",
     category: "shortcut",
     sectionId: "shortcut-global",
-    title: "全局播放快捷键",
-    description: "播放 / 暂停、上一首、下一首的系统级热键，窗口在后台或托盘中也生效",
+    titleKey: "settings.shortcut.global.actionsTitle",
+    descriptionKey: "settings.shortcut.global.actionsHint",
     aliases: ["全局热键", "系统热键", "后台控制"],
     keywords: ["global", "hotkey", "media key"],
   },
@@ -301,8 +323,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.colors.scheme",
     category: "appearance",
     sectionId: "appearance-colors",
-    title: "配色模式",
-    description: "选择应用的亮 / 暗外观，默认跟随系统",
+    titleKey: "settings.appearance.colors.scheme.title",
+    descriptionKey: "settings.appearance.colors.scheme.description",
     aliases: ["深色模式", "浅色模式", "暗色", "日夜", "跟随系统"],
     keywords: ["theme", "dark", "light", "scheme"],
   },
@@ -310,8 +332,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.colors.material",
     category: "appearance",
     sectionId: "appearance-colors",
-    title: "窗口材质",
-    description: "使用系统 Mica / Acrylic 材质作为窗口背景；关闭则使用纯色背景",
+    titleKey: "settings.appearance.colors.material.title",
+    descriptionKey: "settings.appearance.colors.material.description",
     aliases: ["亚克力", "毛玻璃", "透明", "云母"],
     keywords: ["mica", "acrylic", "material"],
   },
@@ -319,8 +341,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.colors.coverAccent",
     category: "appearance",
     sectionId: "appearance-colors",
-    title: "封面取色",
-    description: "从当前封面提取主色作为强调色，按钮、进度条跟随变化",
+    titleKey: "settings.appearance.colors.coverAccent.title",
+    descriptionKey: "settings.appearance.colors.coverAccent.description",
     aliases: ["主题色", "主色", "强调色", "跟随封面变色"],
     keywords: ["accent", "color"],
   },
@@ -328,8 +350,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.colors.coverRatio",
     category: "appearance",
     sectionId: "appearance-colors",
-    title: "按封面原始比例",
-    description: "按原图比例显示封面，不再统一裁成正方形；卡片外框保持正方，多余区域用模糊封面填充",
+    titleKey: "settings.appearance.colors.coverNatural.title",
+    descriptionKey: "settings.appearance.colors.coverNatural.description",
     aliases: ["封面比例", "方形封面", "裁切", "封面形状"],
     keywords: ["cover", "ratio", "square"],
   },
@@ -337,8 +359,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.theme.current",
     category: "appearance",
     sectionId: "appearance-theme",
-    title: "当前主题",
-    description: "主题可改配色、圆角、背景，甚至重写标题栏 / 播放条等界面组件；切换后立即生效",
+    titleKey: "settings.appearance.theme.current.title",
+    descriptionKey: "settings.appearance.theme.current.description",
     aliases: ["主题皮肤", "皮肤", "换主题", "主题市场", "外观包"],
     keywords: ["theme", "skin"],
   },
@@ -346,8 +368,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.font.family",
     category: "appearance",
     sectionId: "appearance-font",
-    title: "全局字体",
-    description: "自定义应用字体，填入 CSS font-family 值（可含备选字体）；留空恢复默认，输入即预览",
+    titleKey: "settings.appearance.font.global.title",
+    descriptionKey: "settings.appearance.font.global.description",
     aliases: ["字体", "字号", "font", "改字体"],
     keywords: ["font", "family", "typeface"],
   },
@@ -355,9 +377,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.layout.songList",
     category: "appearance",
     sectionId: "appearance-layout",
-    title: "歌曲列表布局",
-    description:
-      "手机端歌单 / 专辑 / 歌手 / 我的喜欢 / 离线音乐等列表页的排版；「云端」会变成封面主色渐变头部 + 白色圆角面板",
+    titleKey: "settings.appearance.layout.songList.title",
+    descriptionKey: "settings.searchHints.appearance.layoutSongList",
     aliases: ["布局", "手机布局", "列表样式", "卡片样式", "云端布局", "云音乐布局"],
     keywords: ["layout", "list", "cloud", "card"],
   },
@@ -365,8 +386,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.preview",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "实时预览",
-    description: "手机全屏页与桌面正在播放页的歌词效果，调下面任一选项都会立即反映在这里",
+    titleKey: "settings.appearance.lyrics.preview.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsPreview",
     aliases: ["歌词预览", "效果预览", "预览"],
     keywords: ["lyrics", "preview"],
   },
@@ -374,8 +395,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.fontSize",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "歌词字号",
-    description: "全屏播放页歌词的字号，当前行按放大比例缩放",
+    titleKey: "settings.appearance.lyrics.fontSize.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsFontSize",
     aliases: ["歌词大小", "字太小", "字号", "字体大小"],
     keywords: ["fontsize", "lyrics", "size"],
   },
@@ -383,8 +404,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.align",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "对齐方式",
-    description: "歌词居中或靠左显示；短句适合居中，长句与说唱适合靠左",
+    titleKey: "settings.appearance.lyrics.align.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsAlign",
     aliases: ["对齐", "居中", "靠左", "左对齐"],
     keywords: ["align", "center", "left"],
   },
@@ -392,8 +413,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.position",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "当前行位置",
-    description: "当前正在唱的那一行停在播放页的靠上 / 居中 / 靠下位置；靠下适合回看刚唱过的句子",
+    titleKey: "settings.appearance.lyrics.anchor.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsPosition",
     aliases: ["位置", "歌词位置", "靠上", "靠下", "居中", "垂直位置"],
     keywords: ["position", "anchor", "top", "bottom", "center"],
   },
@@ -401,9 +422,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.scroll",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "歌词滚动",
-    description:
-      "切换歌词行时移动的快慢，以及放大 / 加粗 / 变淡的缓动曲线；速度越快，行切换也越利落",
+    titleKey: "settings.appearance.lyrics.scroll.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsScroll",
     aliases: ["滚动速度", "歌词动画", "动画速度", "滚太快", "滚太慢", "缓动", "缓入缓出", "曲线"],
     keywords: ["scroll", "animation", "speed", "duration", "smooth", "easing"],
   },
@@ -411,8 +431,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.font",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "歌词字体",
-    description: "歌词使用的字体：跟随应用、黑体、宋体、圆体、楷体、等宽，或填系统里已装的字体名",
+    titleKey: "settings.appearance.lyrics.font.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsFont",
     aliases: ["字体", "歌词字体", "宋体", "圆体", "楷体", "等宽"],
     keywords: ["font", "family", "typeface"],
   },
@@ -420,8 +440,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.weight",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "文字粗细",
-    description: "所有歌词行的基础字重：细 / 常规 / 中等 / 半粗 / 粗",
+    titleKey: "settings.appearance.lyrics.weight.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsWeight",
     aliases: ["字重", "粗细", "加粗", "变细"],
     keywords: ["weight", "bold"],
   },
@@ -429,8 +449,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.activeBold",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "当前行加粗",
-    description: "正在播放的那一句用更重的字重突出",
+    titleKey: "settings.appearance.lyrics.activeBold.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsActiveBold",
     aliases: ["当前行加粗", "高亮加粗"],
     keywords: ["active", "bold"],
   },
@@ -438,8 +458,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.enlarge",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "放大当前行",
-    description: "关闭后所有歌词一样大，只靠亮度区分当前行",
+    titleKey: "settings.appearance.lyrics.enlarge.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsEnlarge",
     aliases: ["放大", "当前行放大", "高亮"],
     keywords: ["enlarge", "scale", "active"],
   },
@@ -447,8 +467,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.scale",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "放大比例",
-    description: "当前行相对常规行的倍数，100% 等于不放大",
+    titleKey: "settings.appearance.lyrics.scale.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsScale",
     aliases: ["放大倍数", "放大多少"],
     keywords: ["scale", "ratio"],
   },
@@ -456,8 +476,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.blur",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "模糊非当前行",
-    description: "距离当前行越远越模糊，模拟视线焦点；关闭后仍按亮度分层",
+    titleKey: "settings.appearance.lyrics.blur.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsBlur",
     aliases: ["模糊", "虚化", "非当前行模糊", "焦点"],
     keywords: ["blur", "inactive"],
   },
@@ -465,8 +485,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.blurStrength",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "模糊强度",
-    description: "非当前行模糊的力度，调高会形成只有当前句清晰的强焦点效果",
+    titleKey: "settings.appearance.lyrics.blurStrength.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsBlurStrength",
     aliases: ["模糊程度", "虚化强度"],
     keywords: ["blur", "strength"],
   },
@@ -474,8 +494,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.dim",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "非当前行亮度",
-    description: "紧邻当前行那一句的不透明度，越远的行按比例更淡",
+    titleKey: "settings.appearance.lyrics.dim.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsDim",
     aliases: ["亮度", "透明度", "变暗", "压暗"],
     keywords: ["opacity", "dim"],
   },
@@ -483,8 +503,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.gap",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "行间距",
-    description: "每行歌词上下留白，越大越透气，一屏能看到的行数越少",
+    titleKey: "settings.appearance.lyrics.lineGap.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsGap",
     aliases: ["行距", "间距", "行高", "拥挤"],
     keywords: ["gap", "spacing"],
   },
@@ -492,8 +512,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.translation",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "显示翻译",
-    description: "有翻译的歌词在原文下方显示小字副行",
+    titleKey: "settings.appearance.lyrics.translation.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsTranslation",
     aliases: ["翻译", "双语", "对照"],
     keywords: ["translation", "bilingual"],
   },
@@ -501,8 +521,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.glow",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "当前行投影",
-    description: "给当前行加柔和投影，压在亮色封面上也看得清；调到 0 完全不加",
+    titleKey: "settings.appearance.lyrics.glow.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsGlow",
     aliases: ["投影", "阴影", "看不清歌词"],
     keywords: ["shadow", "glow"],
   },
@@ -510,8 +530,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.mask",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "上下边缘渐隐",
-    description: "歌词在歌词区上下边缘淡入淡出；关闭后是干净的裁切边缘",
+    titleKey: "settings.appearance.lyrics.maskFade.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsMask",
     aliases: ["渐隐", "边缘淡出", "遮罩"],
     keywords: ["mask", "fade"],
   },
@@ -519,8 +539,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.lyrics.reset",
     category: "appearance",
     sectionId: "appearance-lyrics",
-    title: "恢复默认",
-    description: "把歌词样式恢复成初始外观，不影响歌词来源与偏移",
+    titleKey: "settings.appearance.lyrics.reset.title",
+    descriptionKey: "settings.searchHints.appearance.lyricsReset",
     aliases: ["重置歌词样式", "恢复默认"],
     keywords: ["reset", "default"],
   },
@@ -528,8 +548,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.motion.spring",
     category: "appearance",
     sectionId: "appearance-motion",
-    title: "弹簧手感",
-    description: "把全站缓动换成带回弹的曲线：按钮、卡片、弹层、页面切换都会「Q 弹」一下；关闭则回到 WinUI 标准曲线",
+    titleKey: "settings.appearance.motion.spring.title",
+    descriptionKey: "settings.appearance.motion.spring.description",
     aliases: ["动效", "动画", "弹性", "回弹", "Q 弹", "灵动", "阻尼"],
     keywords: ["motion", "animation", "spring", "bounce", "easing", "transition"],
   },
@@ -537,8 +557,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "appearance.motion.strength",
     category: "appearance",
     sectionId: "appearance-motion",
-    title: "回弹幅度",
-    description: "到达终点后多冲出去一点再落回；越大幅度越夸张，调好后可在下面直接试手感",
+    titleKey: "settings.appearance.motion.strength.title",
+    descriptionKey: "settings.appearance.motion.strength.description",
     aliases: ["弹性强度", "回弹强度", "弹多狠", "动效强度"],
     keywords: ["strength", "overshoot", "spring", "bounce"],
   },
@@ -548,8 +568,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "playback.source.track",
     category: "playback",
     sectionId: "playback-source",
-    title: "歌曲信息源",
-    description: "搜索结果聚合时，该插件的结果排在前面",
+    titleKey: "settings.playback.source.track.title",
+    descriptionKey: "settings.playback.source.track.description",
     aliases: ["信息源", "搜索排序", "优先来源"],
     keywords: ["source", "track"],
   },
@@ -557,8 +577,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "playback.source.play",
     category: "playback",
     sectionId: "playback-source",
-    title: "播放源",
-    description: "播放时在该插件重新搜曲并取其直链；搜不到时回退歌曲自身来源",
+    titleKey: "settings.playback.source.play.title",
+    descriptionKey: "settings.playback.source.play.description",
     aliases: ["音源", "换源", "播放来源"],
     keywords: ["play", "url", "source"],
   },
@@ -566,8 +586,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "playback.source.lyrics",
     category: "playback",
     sectionId: "playback-source",
-    title: "歌词源",
-    description: "取歌词时在该插件重新搜曲后取词；取不到时回退歌曲自身来源",
+    titleKey: "settings.playback.source.lyrics.title",
+    descriptionKey: "settings.playback.source.lyrics.description",
     aliases: ["歌词来源", "拿歌词"],
     keywords: ["lyrics", "source"],
   },
@@ -575,8 +595,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "playback.source.avatar",
     category: "playback",
     sectionId: "playback-source",
-    title: "头像源",
-    description: "右上角头像优先从该插件获取，取不到时再试其他插件",
+    titleKey: "settings.playback.source.avatar.title",
+    descriptionKey: "settings.playback.source.avatar.description",
     aliases: ["头像", "用户头像来源"],
     keywords: ["avatar", "source"],
   },
@@ -584,8 +604,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "playback.source.searchFormat",
     category: "playback",
     sectionId: "playback-source",
-    title: "搜索格式",
-    description: "播放源、歌词源重新搜曲的关键词格式，支持 {歌曲名}、{歌手名}、{专辑名}、{别名}",
+    titleKey: "settings.playback.source.searchFormat.title",
+    descriptionKey: "settings.searchHints.playback.sourceSearchFormat",
     aliases: ["搜索模板", "关键词格式", "标题格式"],
     keywords: ["format", "keyword"],
   },
@@ -593,8 +613,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "playback.gapless.crossfade",
     category: "playback",
     sectionId: "playback-gapless",
-    title: "横向淡入淡出（Crossfade）",
-    description: "自动切歌前 6 秒开始淡出淡入，手动切歌不适用",
+    titleKey: "settings.playback.gapless.crossfade.title",
+    descriptionKey: "settings.playback.gapless.crossfade.description",
     aliases: ["淡入淡出", "交叉淡化", "mix", "混音过渡"],
     keywords: ["crossfade", "fade"],
   },
@@ -602,8 +622,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "playback.gapless.gapless",
     category: "playback",
     sectionId: "playback-gapless",
-    title: "无缝衔接（Gapless）",
-    description: "自动切歌零间隙接续下一曲，关闭淡入淡出后生效",
+    titleKey: "settings.playback.gapless.gapless.title",
+    descriptionKey: "settings.searchHints.playback.gaplessGapless",
     aliases: ["无缝", "零间隙", "连播"],
     keywords: ["gapless"],
   },
@@ -611,8 +631,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "playback.lyrics.enabled",
     category: "playback",
     sectionId: "playback-lyrics",
-    title: "显示桌面歌词",
-    description: "在桌面上显示一个置顶歌词窗，可拖动到任意位置（位置会被记住），不占任务栏",
+    titleKey: "settings.playback.desktopLyrics.enabled.title",
+    descriptionKey: "settings.playback.desktopLyrics.enabled.description",
     aliases: ["桌面歌词", "悬浮歌词", "置顶歌词"],
     keywords: ["desktop lyrics"],
   },
@@ -620,8 +640,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "playback.lyrics.style",
     category: "playback",
     sectionId: "playback-lyrics",
-    title: "外观",
-    description: "纯文字用描边投影，压在亮壁纸上也看得清；歌曲卡片带歌曲信息与封面模糊底色",
+    titleKey: "settings.playback.desktopLyrics.style.title",
+    descriptionKey: "settings.playback.desktopLyrics.style.description",
     aliases: ["歌词外观", "歌词样式", "纯文字", "歌曲卡片"],
     keywords: ["lyrics style"],
   },
@@ -629,8 +649,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "playback.lyrics.fontSize",
     category: "playback",
     sectionId: "playback-lyrics",
-    title: "字号",
-    description: "当前行字号，上下句按比例缩小",
+    titleKey: "settings.playback.desktopLyrics.fontSize.title",
+    descriptionKey: "settings.playback.desktopLyrics.fontSize.description",
     aliases: ["桌面歌词字号", "歌词大小", "歌词字体大小", "字太小"],
     keywords: ["fontsize"],
   },
@@ -638,8 +658,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "playback.lyrics.lock",
     category: "playback",
     sectionId: "playback-lyrics",
-    title: "锁定（鼠标穿透）",
-    description: "锁定后点击直接落到下面的窗口，歌词不再挡住操作；解锁请回到这里或播放条「更多」",
+    titleKey: "settings.playback.desktopLyrics.lock.title",
+    descriptionKey: "settings.playback.desktopLyrics.lock.description",
     aliases: ["穿透", "锁定歌词", "点不到桌面"],
     keywords: ["lock", "clickthrough"],
   },
@@ -647,8 +667,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "playback.output.device",
     category: "playback",
     sectionId: "playback-output",
-    title: "音频输出",
-    description: "选择声音输出设备，切换后立即在新设备上继续播放；插入新设备后点「刷新」",
+    titleKey: "settings.playback.output.device.title",
+    descriptionKey: "settings.playback.output.device.description",
     aliases: ["输出设备", "声卡", "扬声器", "耳机", "没声音"],
     keywords: ["output", "device", "speaker"],
   },
@@ -656,8 +676,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "playback.eq.enabled",
     category: "playback",
     sectionId: "playback-eq",
-    title: "均衡器",
-    description: "10 段均衡（31Hz ~ 16kHz），播放时实时调整音色；关闭后输出原声",
+    titleKey: "settings.playback.equalizer.enabled.title",
+    descriptionKey: "settings.playback.equalizer.enabled.description",
     aliases: ["EQ", "音效", "调音", "低音", "高音"],
     keywords: ["equalizer", "eq"],
   },
@@ -665,8 +685,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "playback.eq.preset",
     category: "playback",
     sectionId: "playback-eq",
-    title: "预设",
-    description: "快速套用常见音色，手动拖动滑杆后变为「自定义」",
+    titleKey: "settings.playback.equalizer.preset.title",
+    descriptionKey: "settings.playback.equalizer.preset.description",
     aliases: ["均衡器预设", "EQ预设", "音色预设", "流行", "摇滚"],
     keywords: ["preset", "equalizer"],
   },
@@ -676,8 +696,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "plugins.market.mirror",
     category: "plugins",
     sectionId: "plugins-market",
-    title: "GitHub 镜像源",
-    description: "为经 GitHub 下载的内容（插件安装、市场索引、图片）加速，例如 https://ghproxy.net/",
+    titleKey: "settings.plugins.market.mirror.title",
+    descriptionKey: "settings.searchHints.plugins.marketMirror",
     aliases: ["镜像", "加速", "ghproxy", "下载慢"],
     keywords: ["mirror", "github", "proxy"],
   },
@@ -685,8 +705,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "plugins.market.sources",
     category: "plugins",
     sectionId: "plugins-market",
-    title: "市场源列表",
-    description: "每个源是一个 JSON 索引地址，插件市场会聚合展示所有源",
+    titleKey: "settings.plugins.market.sources.title",
+    descriptionKey: "settings.searchHints.plugins.marketSources",
     aliases: ["市场源", "插件源", "索引地址", "第三方市场"],
     keywords: ["market", "source", "index"],
   },
@@ -696,8 +716,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "data.cache.policy",
     category: "data",
     sectionId: "data-cache",
-    title: "缓存项",
-    description: "选择需要缓存的内容（页面数据 / 封面图片）；切换后立即清除被关闭类型的缓存",
+    titleKey: "settings.data.cache.policy.title",
+    descriptionKey: "settings.searchHints.data.cachePolicy",
     aliases: ["缓存", "图片缓存", "歌单缓存", "占空间"],
     keywords: ["cache", "policy"],
   },
@@ -705,8 +725,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "data.cache.clear",
     category: "data",
     sectionId: "data-cache",
-    title: "清除缓存",
-    description: "清除封面图片与页面数据缓存，下次访问时重新下载",
+    titleKey: "settings.data.cache.clear.title",
+    descriptionKey: "settings.searchHints.data.cacheClear",
     aliases: ["清缓存", "清理缓存", "释放空间", "占多少空间"],
     keywords: ["clear", "cache"],
   },
@@ -714,8 +734,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "data.download.dir",
     category: "data",
     sectionId: "data-download",
-    title: "下载目录",
-    description: "下载的音频与歌词存放位置；修改目录不影响已下载的文件",
+    titleKey: "settings.data.download.dir.title",
+    descriptionKey: "settings.searchHints.data.downloadDir",
     aliases: ["保存位置", "下载路径", "存哪了", "换目录"],
     keywords: ["download", "dir", "folder"],
   },
@@ -723,8 +743,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "data.download.template",
     category: "data",
     sectionId: "data-download",
-    title: "文件名模板",
-    description: "用变量组合文件名，/ 可建立子目录（如 {artist}/{album}/{name}）；非法字符自动移除",
+    titleKey: "settings.data.download.template.title",
+    descriptionKey: "settings.searchHints.data.downloadTemplate",
     aliases: ["文件名", "命名规则", "命名格式", "改名"],
     keywords: ["filename", "template"],
   },
@@ -732,8 +752,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "data.download.tags",
     category: "data",
     sectionId: "data-download",
-    title: "写入歌曲标签",
-    description: "下载时把标题 / 歌手 / 专辑 / 封面 / 歌词写进音频文件，同时保存同名 .lrc",
+    titleKey: "settings.data.download.writeTags.title",
+    descriptionKey: "settings.searchHints.data.downloadTags",
     aliases: ["标签", "元数据", "ID3", "歌词文件"],
     keywords: ["tags", "metadata"],
   },
@@ -741,8 +761,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "data.download.offline",
     category: "data",
     sectionId: "data-download",
-    title: "离线音乐",
-    description: "查看已下载的曲库、导出文件或定位到文件夹",
+    titleKey: "settings.data.download.offline.title",
+    descriptionKey: "settings.searchHints.data.downloadOffline",
     aliases: ["已下载", "离线", "本地下载", "导出音频"],
     keywords: ["offline", "downloaded"],
   },
@@ -750,8 +770,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "data.backup.export",
     category: "data",
     sectionId: "data-backup",
-    title: "导出备份",
-    description: "把设置、歌单、喜欢的音乐、离线索引与播放队列导出为 JSON",
+    titleKey: "settings.data.backup.export.title",
+    descriptionKey: "settings.searchHints.data.backupExport",
     aliases: ["备份", "导出", "换机", "迁移"],
     keywords: ["backup", "export"],
   },
@@ -759,8 +779,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "data.backup.credentials",
     category: "data",
     sectionId: "data-backup",
-    title: "包含插件登录凭证",
-    description: "勾选后会把插件 Cookie / Token 一并写入备份。备份是明文 JSON，分享前请取消勾选",
+    titleKey: "settings.data.backup.credentials.title",
+    descriptionKey: "settings.searchHints.data.backupCredentials",
     aliases: ["凭证", "Cookie", "Token", "登录状态备份"],
     keywords: ["credential", "cookie"],
   },
@@ -768,8 +788,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "data.backup.import",
     category: "data",
     sectionId: "data-backup",
-    title: "导入备份",
-    description: "按名称合并歌单、按曲目去重；不会删除现有内容，重复导入也不会产生重复数据",
+    titleKey: "settings.data.backup.import.title",
+    descriptionKey: "settings.searchHints.data.backupImport",
     aliases: ["还原", "导入", "恢复备份"],
     keywords: ["import", "restore"],
   },
@@ -777,8 +797,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "data.cloud.server",
     category: "data",
     sectionId: "data-cloud",
-    title: "服务器地址",
-    description: "填你自建服务器（Docker 部署后就是 http://IP:3456）。地址存在本机，换服务器只需改这里重新登录",
+    titleKey: "settings.data.cloud.server.title",
+    descriptionKey: "settings.searchHints.data.cloudServer",
     aliases: ["自建服务器", "云服务地址", "音乐云"],
     keywords: ["server", "url", "cloud"],
   },
@@ -786,8 +806,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "data.cloud.account",
     category: "data",
     sectionId: "data-cloud",
-    title: "账号",
-    description: "同一个账号在多台设备登录后，喜欢、歌单、播放历史与歌曲自定义信息会互相同步",
+    titleKey: "settings.data.cloud.account.title",
+    descriptionKey: "settings.searchHints.data.cloudAccount",
     aliases: ["登录", "注册", "账号", "同步账号"],
     keywords: ["account", "login", "register"],
   },
@@ -795,8 +815,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "data.cloud.library",
     category: "data",
     sectionId: "data-cloud",
-    title: "曲库",
-    description: "上传本地文件到云端曲库，查看占用与已上传数量",
+    titleKey: "settings.data.cloud.library.title",
+    descriptionKey: "settings.searchHints.data.cloudLibrary",
     aliases: ["云端曲库", "上传音乐", "云盘"],
     keywords: ["library", "upload"],
   },
@@ -804,8 +824,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "data.cloud.sync",
     category: "data",
     sectionId: "data-cloud",
-    title: "账号数据同步",
-    description: "同步喜欢、歌单（含顺序）、播放历史与歌曲自定义信息",
+    titleKey: "settings.data.cloud.sync.title",
+    descriptionKey: "settings.searchHints.data.cloudSync",
     aliases: ["同步", "立即同步", "多端同步", "重置同步"],
     keywords: ["sync", "cloud"],
   },
@@ -815,8 +835,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "experimental.studio.enabled",
     category: "experimental",
     sectionId: "experimental-studio",
-    title: "显示录音棚入口",
-    description: "开启后侧边栏与「更多」菜单出现「录音棚」，可用当前歌曲伴奏录人声并混音；关闭只隐藏入口，作品仍保留",
+    titleKey: "settings.experimental.studio.enabled.title",
+    descriptionKey: "settings.experimental.studio.enabled.description",
     aliases: ["录音棚", "录音", "翻唱", "录歌"],
     keywords: ["studio", "record"],
   },
@@ -824,8 +844,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "experimental.autoPlaylist.enabled",
     category: "experimental",
     sectionId: "experimental-auto-playlist",
-    title: "自然播完后自动整理",
-    description: "一首歌播放到结尾后按下面的规则加入本地歌单，手动切歌不计入",
+    titleKey: "settings.experimental.autoPlaylist.enabled.title",
+    descriptionKey: "settings.searchHints.experimental.autoPlaylistEnabled",
     aliases: ["自动加歌单", "听完自动收藏", "自动归档"],
     keywords: ["auto playlist"],
   },
@@ -833,8 +853,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "experimental.autoPlaylist.mode",
     category: "experimental",
     sectionId: "experimental-auto-playlist",
-    title: "添加方式",
-    description: "固定歌单适合把所有听完的歌攒在一起；自动分类会按歌词与歌手判断语种和类型",
+    titleKey: "settings.experimental.autoPlaylist.mode.title",
+    descriptionKey: "settings.experimental.autoPlaylist.mode.description",
     aliases: ["自动分类", "固定歌单", "按语种分类"],
     keywords: ["mode"],
   },
@@ -842,8 +862,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "experimental.autoPlaylist.target",
     category: "experimental",
     sectionId: "experimental-auto-playlist",
-    title: "目标歌单",
-    description: "听完的歌全部加入这个歌单，本地歌单与已登录平台的个人歌单都能选",
+    titleKey: "settings.experimental.autoPlaylist.target.title",
+    descriptionKey: "settings.experimental.autoPlaylist.target.description",
     aliases: ["加进哪个歌单", "目标歌单"],
     keywords: ["target"],
   },
@@ -851,8 +871,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "experimental.autoPlaylist.groups",
     category: "experimental",
     sectionId: "experimental-auto-playlist",
-    title: "分类歌单",
-    description: "给每个语种 / 类型各选一个歌单，选「不自动添加」表示这一类不处理",
+    titleKey: "settings.experimental.autoPlaylist.groups.title",
+    descriptionKey: "settings.searchHints.experimental.autoPlaylistGroups",
     aliases: ["华语歌单", "日韩歌单", "Vocaloid 歌单", "纯音乐"],
     keywords: ["language", "genre"],
   },
@@ -860,8 +880,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "experimental.autoPlaylist.keywords",
     category: "experimental",
     sectionId: "experimental-auto-playlist",
-    title: "Vocaloid 自定义关键词",
-    description: "在内置词表之外追加：按歌名、歌手与专辑做子串匹配，命中就只进 Vocaloid 歌单",
+    titleKey: "settings.experimental.autoPlaylist.keywords.title",
+    descriptionKey: "settings.searchHints.experimental.autoPlaylistKeywords",
     aliases: ["Vocaloid", "术力口", "自定义关键词"],
     keywords: ["keywords", "vocaloid"],
   },
@@ -869,8 +889,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "experimental.autoPlaylist.reset",
     category: "experimental",
     sectionId: "experimental-auto-playlist",
-    title: "已处理记录",
-    description: "清空记录不会动歌单内容，只是让之后听完的歌重新走一次判定",
+    titleKey: "settings.experimental.autoPlaylist.reset.title",
+    descriptionKey: "settings.searchHints.experimental.autoPlaylistReset",
     aliases: ["处理记录", "重新判定", "清空记录"],
     keywords: ["reset"],
   },
@@ -880,8 +900,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "about.hero.version",
     category: "about",
     sectionId: "about-hero",
-    title: "版本号",
-    description: "点击可复制版本号，反馈问题时常用",
+    titleKey: "settings.about.hero.versionTitle",
+    descriptionKey: "settings.about.hero.versionHint",
     aliases: ["版本", "版本信息", "当前版本"],
     keywords: ["version"],
   },
@@ -889,8 +909,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "about.hero.links",
     category: "about",
     sectionId: "about-hero",
-    title: "Github 主页与反馈",
-    description: "打开项目主页或提交 issue",
+    titleKey: "settings.about.hero.linksTitle",
+    descriptionKey: "settings.about.hero.linksHint",
     aliases: ["反馈", "issue", "github", "提意见", "开源地址"],
     keywords: ["repo", "issues"],
   },
@@ -898,8 +918,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "about.update.check",
     category: "about",
     sectionId: "about-update",
-    title: "软件更新",
-    description: "手动检查新版本，或前往 Release 页面下载",
+    titleKey: "settings.about.update.software.title",
+    descriptionKey: "settings.searchHints.about.updateCheck",
     aliases: ["检查更新", "手动更新", "下载新版本"],
     keywords: ["update", "release"],
   },
@@ -907,8 +927,8 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     id: "about.notices.thirdParty",
     category: "about",
     sectionId: "about-notices",
-    title: "第三方组件",
-    description: "主要依赖 Tauri、Vue 的协议信息与完整声明",
+    titleKey: "settings.about.notices.thirdParty.title",
+    descriptionKey: "settings.searchHints.about.noticesThirdParty",
     aliases: ["开源协议", "致谢", "许可", "License"],
     keywords: ["notices", "license", "third party"],
   },
@@ -916,6 +936,27 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
 
 export const ITEM_BY_ID = new Map(SETTINGS_ITEMS.map((item) => [item.id, item]));
 export const SECTION_BY_ITEM_ID = new Map(SETTINGS_ITEMS.map((item) => [item.id, item.sectionId]));
+
+/* ------------------------------ 取文本 ------------------------------ */
+
+/**
+ * 索引里存的是 key，文本在这里统一取。
+ *
+ * 三个 helper 都直接调 `t()`（而不是缓存结果），这样切语种时用到的地方会跟着重算。
+ */
+export function sectionTitle(section: SettingsSectionMeta): string {
+  return t(section.titleKey);
+}
+
+/** 设置项标题：与面板卡片的 `.card-header` 引用同一个 key */
+export function itemTitle(item: SettingsItem): string {
+  return t(item.titleKey);
+}
+
+/** 搜索摘要：与卡片描述**不是**同一句话，见 `SettingsItem.descriptionKey` */
+export function itemDescription(item: SettingsItem): string {
+  return t(item.descriptionKey);
+}
 
 /* ------------------------------ 搜索 ------------------------------ */
 
@@ -932,18 +973,41 @@ function normalize(value: string): string {
   return value.toLowerCase().replace(/\s+/g, "");
 }
 
-/** 预编译一次：每条记录的标题 / 别名 / 分类分组 / 描述都归一化好 */
-const COMPILED = SETTINGS_ITEMS.map((item, order) => {
-  const sectionTitle = SECTION_BY_ID.get(item.sectionId)?.title ?? "";
-  return {
-    item,
-    order,
-    title: normalize(item.title),
-    alias: [...(item.aliases ?? []), ...(item.keywords ?? [])].map(normalize),
-    group: normalize(`${categoryLabel(item.category)}${sectionTitle}`),
-    description: normalize(item.description),
-  };
-});
+interface CompiledRow {
+  item: SettingsItem;
+  order: number;
+  title: string;
+  alias: string[];
+  group: string;
+  description: string;
+}
+
+let compiledLocale: string | null = null;
+let compiledRows: CompiledRow[] = [];
+
+/**
+ * 搜索用的归一化索引：标题 / 别名 / 分类分组 / 摘要都先归一化好。
+ *
+ * 按语种**懒重建**而不是模块加载时算一次——文案来自词条，切到另一种语言后
+ * 若沿用旧索引，新语言下的界面文案一个都搜不到（中文关键词也搜不到）。
+ * 重建只在语种变化时发生一次，击键路径上只是一次字符串比较。
+ */
+function compiled(): CompiledRow[] {
+  if (compiledLocale === locale.value) return compiledRows;
+  compiledRows = SETTINGS_ITEMS.map((item, order) => {
+    const section = SECTION_BY_ID.get(item.sectionId);
+    return {
+      item,
+      order,
+      title: normalize(itemTitle(item)),
+      alias: [...(item.aliases ?? []), ...(item.keywords ?? [])].map(normalize),
+      group: normalize(`${categoryLabel(item.category)}${section ? sectionTitle(section) : ""}`),
+      description: normalize(itemDescription(item)),
+    };
+  });
+  compiledLocale = locale.value;
+  return compiledRows;
+}
 
 /** 命中权重：标题 > 别名/同义词 > 分类与分组名 > 描述 */
 const WEIGHT_TITLE = 100;
@@ -967,7 +1031,7 @@ export function searchSettings(raw: string, limit = 24): SettingsSearchHit[] {
   if (!terms.length) return [];
 
   const hits: SettingsSearchHit[] = [];
-  for (const row of COMPILED) {
+  for (const row of compiled()) {
     let score = 0;
     for (const term of terms) {
       if (row.title.includes(term)) score += WEIGHT_TITLE;
@@ -988,7 +1052,8 @@ export function searchSettings(raw: string, limit = 24): SettingsSearchHit[] {
 /** 「分类 › 分组」，搜索结果的归属行与 chips 的无障碍标签共用 */
 export function sectionPath(item: SettingsItem): string {
   const label = categoryLabel(item.category);
-  const title = SECTION_BY_ID.get(item.sectionId)?.title ?? "";
+  const section = SECTION_BY_ID.get(item.sectionId);
+  const title = section ? sectionTitle(section) : "";
   return title ? `${label} › ${title}` : label;
 }
 

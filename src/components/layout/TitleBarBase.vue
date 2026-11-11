@@ -7,7 +7,9 @@ import { PersonPicture } from "@/components/winui";
 import CachedImage from "@/components/common/CachedImage.vue";
 import { pluginDisplayName, usePluginsStore, type AppAvatar } from "@/stores/plugins";
 import { useSettingsStore } from "@/stores/settings";
+import { useI18n } from "@/i18n";
 
+const { t } = useI18n();
 const router = useRouter();
 const appWindow = getCurrentWindow();
 const plugins = usePluginsStore();
@@ -21,10 +23,10 @@ const avatar = ref<AppAvatar | null>(null);
 
 const avatarUrl = computed(() => avatar.value?.image ?? "");
 const avatarTitle = computed(() => {
-  if (!avatar.value) return "账户";
+  if (!avatar.value) return t("layout.titleBar.account");
   const name = pluginDisplayName(plugins.records, avatar.value.sourceId);
   const label = avatar.value.label?.trim();
-  return [label, name].filter(Boolean).join(" · ") || "账户";
+  return [label, name].filter(Boolean).join(" · ") || t("layout.titleBar.account");
 });
 
 async function loadAvatar() {
@@ -95,7 +97,7 @@ function submitSearch() {
           v-model="query"
           class="search-input"
           type="text"
-          placeholder="搜索音乐、歌单"
+          :placeholder="t('layout.titleBar.searchPlaceholder')"
           @keydown.enter="submitSearch"
         />
       </div>
@@ -110,13 +112,17 @@ function submitSearch() {
       </div>
 
       <div class="caption-buttons">
-        <button class="caption-button" title="最小化" @click="appWindow.minimize()">
+        <button class="caption-button" :title="t('layout.titleBar.minimize')" @click="appWindow.minimize()">
           <span class="wp-icon">&#xEBCF;</span>
         </button>
-        <button class="caption-button" :title="maximized ? '还原' : '最大化'" @click="toggleMaximize">
+        <button
+          class="caption-button"
+          :title="maximized ? t('layout.titleBar.restore') : t('layout.titleBar.maximize')"
+          @click="toggleMaximize"
+        >
           <span class="wp-icon">{{ maximized ? "&#xEB95;" : "&#xF533;" }}</span>
         </button>
-        <button class="caption-button close" title="关闭" @click="appWindow.close()">
+        <button class="caption-button close" :title="t('common.action.close')" @click="appWindow.close()">
           <span class="wp-icon">&#xF368;</span>
         </button>
       </div>

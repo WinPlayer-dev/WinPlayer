@@ -23,6 +23,7 @@ import { codecOfPath, readLocalLyrics } from "@/services/localMusic";
 import { srtToLrc } from "@/services/lrc";
 import { PLUGIN_API_VERSION } from "@/types/plugin";
 import type { PluginEntry, PluginManifest } from "@/types/plugin";
+import { t } from "@/i18n";
 
 /** 内置源通用接口（与 `PluginHost` 的运行时接口同形，便于在 store 里统一持有） */
 export interface BuiltinSourceHost {
@@ -59,9 +60,9 @@ export interface BuiltinSourceDef {
 
 const LOCAL_MANIFEST: PluginManifest = {
   id: LOCAL_MUSIC_SOURCE_ID,
-  name: "本地音乐",
-  version: "内置",
-  description: "播放本机文件夹里的音乐，可读取 ID3 / FLAC / MP4 标签、内嵌封面与同名 SRT / LRC 歌词",
+  name: t("plugins.builtin.local.name"),
+  version: t("plugins.builtin.badge"),
+  description: t("plugins.builtin.local.manifestDescription"),
   author: "WinPlayer",
   apiVersion: PLUGIN_API_VERSION,
   // 声明 search 才能在搜索页出现 Tab、才能被设为「歌曲信息源 / 播放源」；
@@ -71,9 +72,9 @@ const LOCAL_MANIFEST: PluginManifest = {
 
 const WEBDAV_MANIFEST: PluginManifest = {
   id: WEBDAV_SOURCE_ID,
-  name: "WebDAV",
-  version: "内置",
-  description: "连接你自己的 WebDAV 服务器，把远程曲库当作播放源；支持同名 LRC / SRT 歌词与封面",
+  name: t("plugins.builtin.webdav.name"),
+  version: t("plugins.builtin.badge"),
+  description: t("plugins.builtin.webdav.manifestDescription"),
   author: "WinPlayer",
   apiVersion: PLUGIN_API_VERSION,
   capabilities: ["search", "songUrl", "lyrics", "album", "artist"],
@@ -81,9 +82,9 @@ const WEBDAV_MANIFEST: PluginManifest = {
 
 const CLOUD_MANIFEST: PluginManifest = {
   id: CLOUD_SOURCE_ID,
-  name: "同频服务器",
-  version: "内置",
-  description: "把你上传到自建 WinPlayer 同频服务器的歌当播放源；同一账号下的喜欢、歌单、自定义信息也会跟着同步",
+  name: t("plugins.builtin.cloud.name"),
+  version: t("plugins.builtin.badge"),
+  description: t("plugins.builtin.cloud.manifestDescription"),
   author: "WinPlayer",
   apiVersion: PLUGIN_API_VERSION,
   capabilities: ["search", "songUrl", "lyrics", "album", "artist"],
@@ -97,8 +98,8 @@ export const BUILTIN_CLOUD_MANIFEST = CLOUD_MANIFEST;
 export const BUILTIN_SOURCE_DEFS: BuiltinSourceDef[] = [
   {
     id: LOCAL_MUSIC_SOURCE_ID,
-    name: "本地音乐",
-    description: "播放本机文件夹里的音乐，读取标签、内嵌封面与同名 SRT / LRC 歌词；子文件夹自动收录。",
+    name: t("plugins.builtin.local.name"),
+    description: t("plugins.builtin.local.description"),
     // Fluent 图标字体（bundled）的真实码位：folder_24_regular
     icon: "\uF419",
     accent: "linear-gradient(135deg, #5b8cff, #7b5cff)",
@@ -110,8 +111,8 @@ export const BUILTIN_SOURCE_DEFS: BuiltinSourceDef[] = [
         // 本地音乐始终可用：没文件夹时只是曲库为空，不算「未配置」
         configured: true,
         summary: folders
-          ? `${folders} 个文件夹 · ${store.trackCount} 首`
-          : "未添加文件夹",
+          ? t("plugins.builtin.local.folderSummary", { folders, tracks: store.trackCount })
+          : t("plugins.builtin.local.noFolder"),
         tracks: store.trackCount,
         albums: store.albumCount,
         artists: store.artistCount,
@@ -120,8 +121,8 @@ export const BUILTIN_SOURCE_DEFS: BuiltinSourceDef[] = [
   },
   {
     id: WEBDAV_SOURCE_ID,
-    name: "WebDAV",
-    description: "连接自己的 WebDAV 服务器（群晖 / 坚果云 / Nextcloud 等），把远程曲库当作播放源。",
+    name: t("plugins.builtin.webdav.name"),
+    description: t("plugins.builtin.webdav.description"),
     // cloud_24_regular
     icon: "\uF2E5",
     accent: "linear-gradient(135deg, #22b8a6, #1f9bd1)",
@@ -130,13 +131,22 @@ export const BUILTIN_SOURCE_DEFS: BuiltinSourceDef[] = [
       const store = useWebdavStore();
       const configured = store.configured;
       if (!configured) {
-        return { configured: false, summary: "未配置", tracks: 0, albums: 0, artists: 0 };
+        return {
+          configured: false,
+          summary: t("plugins.builtin.webdav.unconfigured"),
+          tracks: 0,
+          albums: 0,
+          artists: 0,
+        };
       }
       return {
         configured: true,
         summary: store.trackCount
-          ? `${store.displayName} · ${store.trackCount} 首`
-          : `${store.displayName} · 待扫描`,
+          ? t("plugins.builtin.webdav.trackSummary", {
+              name: store.displayName,
+              count: store.trackCount,
+            })
+          : t("plugins.builtin.webdav.pendingScan", { name: store.displayName }),
         tracks: store.trackCount,
         albums: store.albumCount,
         artists: store.artistCount,
@@ -145,8 +155,8 @@ export const BUILTIN_SOURCE_DEFS: BuiltinSourceDef[] = [
   },
   {
     id: CLOUD_SOURCE_ID,
-    name: "同频服务器",
-    description: "连接自建的 WinPlayer 同频服务器服务器：歌存在自己的服务器上，换设备也不用重传。",
+    name: t("plugins.builtin.cloud.name"),
+    description: t("plugins.builtin.cloud.description"),
     // music_note_2_24_regular（Fluent 真实码位，别抄 MDL2 的）
     icon: "\uE855",
     accent: "linear-gradient(135deg, #4f7cff, #22b8a6)",
@@ -155,13 +165,22 @@ export const BUILTIN_SOURCE_DEFS: BuiltinSourceDef[] = [
       const store = useCloudStore();
       const configured = store.configured;
       if (!configured) {
-        return { configured: false, summary: "未登录", tracks: 0, albums: 0, artists: 0 };
+        return {
+          configured: false,
+          summary: t("plugins.builtin.cloud.unconfigured"),
+          tracks: 0,
+          albums: 0,
+          artists: 0,
+        };
       }
       return {
         configured: true,
         summary: store.trackCount
-          ? `${store.displayName} · ${store.trackCount} 首`
-          : `${store.displayName} · 曲库为空`,
+          ? t("plugins.builtin.cloud.trackSummary", {
+              name: store.displayName,
+              count: store.trackCount,
+            })
+          : t("plugins.builtin.cloud.emptyLibrary", { name: store.displayName }),
         tracks: store.trackCount,
         albums: store.albumCount,
         artists: store.artistCount,

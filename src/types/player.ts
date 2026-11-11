@@ -1,13 +1,14 @@
+import { t } from "@/i18n";
 import type { UnifiedTrack } from "./plugin";
 
 /** 播放模式 */
 export type PlayMode = "sequential" | "loop-all" | "loop-one" | "shuffle";
 
 export const PLAY_MODE_LABEL: Record<PlayMode, string> = {
-  sequential: "顺序播放",
-  "loop-all": "列表循环",
-  "loop-one": "单曲循环",
-  shuffle: "随机播放",
+  sequential: t("player.mode.sequential"),
+  "loop-all": t("player.mode.loopAll"),
+  "loop-one": t("player.mode.loopOne"),
+  shuffle: t("player.mode.shuffle"),
 };
 
 /** 播放模式图标（Fluent Icons 码点实体）；顺序播放借用播放图标，避免与循环混淆 */
@@ -78,9 +79,9 @@ export function formatTime(seconds: number): string {
 
 /** 曲目显示名：歌名 - 艺术家 */
 export function trackTitle(track: UnifiedTrack): string {
-  return track.name || "未知歌曲";
+  return track.name || t("common.state.unknown");
 }
 
 export function trackArtist(track: UnifiedTrack): string {
-  return track.artists?.length ? track.artists.join(" / ") : "未知艺术家";
+  return track.artists?.length ? track.artists.join(" / ") : t("common.state.unknownArtist");
 }

@@ -19,6 +19,7 @@ import WpButton from "@/components/theme/WpButton.vue";
 import { TextBox } from "@/components/winui";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { useSongListLayout } from "@/composables/useSongListLayout";
+import { useI18n } from "@/i18n";
 import { builtinSourceDef } from "@/services/builtinSources";
 import {
   albumGroupToUnified,
@@ -36,6 +37,7 @@ import { WEBDAV_SOURCE_ID, useWebdavStore } from "@/stores/webdav";
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 const player = usePlayerStore();
 const isMobile = useIsMobile();
 /** 云端布局（设置 → 外观 → 布局）：只有在手机端选中时生效 */
@@ -53,9 +55,9 @@ const def = computed(() => builtinSourceDef(sourceId.value));
 type LibraryView = "tracks" | "albums" | "artists";
 
 const VIEWS: { key: LibraryView; label: string }[] = [
-  { key: "tracks", label: "曲目" },
-  { key: "albums", label: "专辑" },
-  { key: "artists", label: "歌手" },
+  { key: "tracks", label: t("library.library.viewTracks") },
+  { key: "albums", label: t("library.library.viewAlbums") },
+  { key: "artists", label: t("library.library.viewArtists") },
 ];
 
 const view = ref<LibraryView>("tracks");
@@ -85,11 +87,10 @@ const lib = computed(() => {
         | null,
       /** 有可用的数据源（本地音乐永远可用，只是曲库可能为空） */
       ready: true,
-      emptyTitle: "还没有添加音乐文件夹",
-      emptyDescription:
-        "添加本机文件夹后会自动扫描其中的音频文件（含子文件夹），读取标签、内嵌封面与同名 SRT / LRC 歌词。",
-      placeholder: "搜索本地曲库（标题 / 歌手 / 专辑）",
-      searchTip: "曲库还是空的，试试重新扫描",
+      emptyTitle: t("library.library.empty.localTitle"),
+      emptyDescription: t("library.library.empty.localDescription"),
+      placeholder: t("library.library.search.localPlaceholder"),
+      searchTip: t("library.library.search.emptyTip"),
     };
   }
 
@@ -109,12 +110,14 @@ const lib = computed(() => {
     addFolders: null,
     removeFolder: null,
     ready: webdav.configured,
-    emptyTitle: webdav.configured ? "曲库还是空的" : "还没有配置 WebDAV 服务器",
+    emptyTitle: webdav.configured
+      ? t("library.library.empty.webdavEmptyTitle")
+      : t("library.library.empty.webdavUnconfiguredTitle"),
     emptyDescription: webdav.configured
-      ? "远程目录里没有找到可播放的音频文件，或者上次扫描没有完成。可以重新扫描一次。"
-      : "在播放源管理里填好服务器地址与账号密码后，这里就能浏览远程曲库。",
-    placeholder: "搜索远程曲库（标题 / 歌手 / 专辑）",
-    searchTip: "曲库还是空的，试试重新扫描",
+      ? t("library.library.empty.webdavEmptyDescription")
+      : t("library.library.empty.webdavUnconfiguredDescription"),
+    placeholder: t("library.library.search.remotePlaceholder"),
+    searchTip: t("library.library.search.emptyTip"),
   };
 });
 
@@ -170,7 +173,7 @@ async function addFolders(): Promise<void> {
   if (!lib.value.addFolders) return;
   const added = await lib.value.addFolders();
   if (added) {
-    toast(`已添加 ${added} 个文件夹`, "success");
+    toast(t("library.library.toast.foldersAdded", { count: added }), "success");
     managing.value = true;
   }
 }
@@ -178,7 +181,7 @@ async function addFolders(): Promise<void> {
 async function removeFolder(folder: string): Promise<void> {
   if (!lib.value.removeFolder) return;
   await lib.value.removeFolder(folder);
-  toast("已移除文件夹及其曲库记录", "success");
+  toast(t("library.library.toast.folderRemoved"), "success");
 }
 
 async function rescan(): Promise<void> {
@@ -188,7 +191,7 @@ async function rescan(): Promise<void> {
     toast(webdav.error, "error");
     return;
   }
-  toast(`扫描完成，共 ${lib.value.trackCount} 首`, "success");
+  toast(t("library.library.toast.scanCompleted", { count: lib.value.trackCount }), "success");
 }
 
 function openSourceConfig(): void {
@@ -213,35 +216,41 @@ onMounted(async () => {
         <span class="wp-icon">{{ def?.icon }}</span>
       </div>
       <div class="header-meta">
-        <h1 class="wp-page-title">{{ isWebdav ? webdav.displayName : def?.name || "曲库" }}</h1>
+        <h1 class="wp-page-title">{{ isWebdav ? webdav.displayName : def?.name || t("library.library.title") }}</h1>
         <div class="header-sub">
-          {{ lib.trackCount }} 首 · {{ lib.albumCount }} 张专辑 · {{ lib.artistCount }} 位歌手
-          <template v-if="lib.scanning"> · 正在扫描…</template>
+          {{
+            t("library.library.subtitle", {
+              tracks: lib.trackCount,
+              albums: lib.albumCount,
+              artists: lib.artistCount,
+            })
+          }}
+          <template v-if="lib.scanning"> · {{ t("library.library.scanning") }}</template>
         </div>
       </div>
       <div class="header-actions">
         <WpButton :disabled="!filteredTracks.length" @click="playAll" variant="accent">
-          <span class="wp-icon filled">&#xF610;</span>播放全部
+          <span class="wp-icon filled">&#xF610;</span>{{ t("library.shared.playAll") }}
         </WpButton>
         <WpButton :disabled="!filteredTracks.length" @click="shufflePlay" variant="standard">
-          <span class="wp-icon">&#xEF37;</span>随机播放
+          <span class="wp-icon">&#xEF37;</span>{{ t("common.action.shuffle") }}
         </WpButton>
       </div>
     </div>
 
     <!-- 还没准备好：本地音乐缺文件夹 / WebDAV 未配置 -->
     <EmptyState v-if="!lib.ready" :icon="def?.icon || '&#xF419;'" :title="lib.emptyTitle" :description="lib.emptyDescription">
-      <WpButton v-if="isLocal" variant="accent" @click="addFolders">添加文件夹</WpButton>
-      <WpButton v-else variant="accent" @click="openSourceConfig">去配置 WebDAV</WpButton>
+      <WpButton v-if="isLocal" variant="accent" @click="addFolders">{{ t("library.library.action.addFolder") }}</WpButton>
+      <WpButton v-else variant="accent" @click="openSourceConfig">{{ t("library.library.action.configureWebdav") }}</WpButton>
     </EmptyState>
 
     <EmptyState
       v-else-if="isLocal && !lib.folders.length"
       icon="&#xF419;"
-      title="还没有添加音乐文件夹"
+      :title="t('library.library.empty.localTitle')"
       :description="lib.emptyDescription"
     >
-      <WpButton variant="accent" @click="addFolders">添加文件夹</WpButton>
+      <WpButton variant="accent" @click="addFolders">{{ t("library.library.action.addFolder") }}</WpButton>
     </EmptyState>
 
     <template v-else>
@@ -268,12 +277,12 @@ onMounted(async () => {
         />
         <div class="toolbar-actions">
           <WpButton class="small" :disabled="lib.scanning" variant="standard" @click="rescan">
-            {{ lib.scanning ? "扫描中…" : "重新扫描" }}
+            {{ lib.scanning ? t("library.library.action.rescanning") : t("library.library.action.rescan") }}
           </WpButton>
           <template v-if="lib.addFolders">
-            <WpButton class="small" variant="standard" @click="addFolders">添加文件夹</WpButton>
+            <WpButton class="small" variant="standard" @click="addFolders">{{ t("library.library.action.addFolder") }}</WpButton>
             <WpButton class="small" variant="standard" @click="managing = !managing">
-              {{ managing ? "收起文件夹" : "管理文件夹" }}
+              {{ managing ? t("library.library.action.collapseFolders") : t("library.library.action.manageFolders") }}
             </WpButton>
           </template>
         </div>
@@ -284,8 +293,8 @@ onMounted(async () => {
         <div v-for="folder in lib.folders" :key="folder" class="folder-row">
           <span class="wp-icon folder-icon">&#xF419;</span>
           <span class="folder-path" :title="folder">{{ folder }}</span>
-          <span class="folder-count">{{ lib.folderCounts.get(folder) ?? 0 }} 首</span>
-          <button class="folder-remove" @click="removeFolder(folder)">移除</button>
+          <span class="folder-count">{{ t("common.unit.track", { count: lib.folderCounts.get(folder) ?? 0 }) }}</span>
+          <button class="folder-remove" @click="removeFolder(folder)">{{ t("common.action.remove") }}</button>
         </div>
       </div>
 
@@ -293,19 +302,19 @@ onMounted(async () => {
       <SongTable
         v-if="view === 'tracks'"
         :tracks="filteredTracks"
-        :empty-text="keyword ? '没有匹配的曲目' : lib.searchTip"
+        :empty-text="keyword ? t('library.library.empty.noMatch') : lib.searchTip"
       />
 
       <!-- 专辑 -->
       <div v-else-if="view === 'albums'" class="media-grid">
         <MediaCard v-for="album in albums" :key="album.id" kind="album" :album="album" />
-        <div v-if="!albums.length" class="empty-hint">曲库里还没有专辑</div>
+        <div v-if="!albums.length" class="empty-hint">{{ t("library.library.empty.noAlbums") }}</div>
       </div>
 
         <!-- 歌手 -->
         <div v-else class="media-grid">
           <MediaCard v-for="artist in artists" :key="artist.id" kind="artist" :artist="artist" />
-          <div v-if="!artists.length" class="empty-hint">曲库里还没有歌手</div>
+          <div v-if="!artists.length" class="empty-hint">{{ t("library.library.empty.noArtists") }}</div>
         </div>
       </div>
     </template>

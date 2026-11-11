@@ -12,11 +12,13 @@ import { ComboBox, TextBox } from "@/components/winui";
 import { DEFAULT_SOURCE_SEARCH_FORMAT, useSettingsStore } from "@/stores/settings";
 import { usePluginsStore } from "@/stores/plugins";
 import type { PluginCapability } from "@/types/plugin";
+import { useI18n } from "@/i18n";
 import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 
 const settings = useSettingsStore();
 const pluginsStore = usePluginsStore();
+const { t } = useI18n();
 
 interface SourceKindConfig {
   key: "trackSourceId" | "playSourceId" | "lyricsSourceId" | "avatarSourceId";
@@ -29,26 +31,26 @@ interface SourceKindConfig {
 const SOURCE_KINDS: SourceKindConfig[] = [
   {
     key: "trackSourceId",
-    title: "歌曲信息源",
-    description: "搜索结果聚合时，该插件的结果排在前面",
+    title: t("settings.playback.source.track.title"),
+    description: t("settings.playback.source.track.description"),
     capabilities: ["search"],
   },
   {
     key: "playSourceId",
-    title: "播放源",
-    description: "播放时在该插件重新搜曲并取其直链；搜不到时回退歌曲自身来源",
+    title: t("settings.playback.source.play.title"),
+    description: t("settings.playback.source.play.description"),
     capabilities: ["search", "songUrl"],
   },
   {
     key: "lyricsSourceId",
-    title: "歌词源",
-    description: "取歌词时在该插件重新搜曲后取词；取不到时回退歌曲自身来源",
+    title: t("settings.playback.source.lyrics.title"),
+    description: t("settings.playback.source.lyrics.description"),
     capabilities: ["search", "lyrics"],
   },
   {
     key: "avatarSourceId",
-    title: "头像源",
-    description: "右上角头像优先从该插件获取，取不到时再试其他插件",
+    title: t("settings.playback.source.avatar.title"),
+    description: t("settings.playback.source.avatar.description"),
     capabilities: ["avatar"],
   },
 ];
@@ -62,7 +64,7 @@ interface SourceOption {
 /** 各来源下拉框选项：默认 + 按能力过滤后的已启用插件 */
 const sourceOptions = computed(() =>
   SOURCE_KINDS.map((kind) => {
-    const options: SourceOption[] = [{ label: "默认", value: "" }];
+    const options: SourceOption[] = [{ label: t("settings.playback.source.options.default"), value: "" }];
     for (const record of pluginsStore.enabledRecords) {
       if (kind.capabilities.every((capability) => pluginsStore.hasCapability(record, capability))) {
         options.push({ label: record.entry.manifest.name, value: record.entry.id });
@@ -114,7 +116,7 @@ function onFormatChange(value: unknown): void {
 </script>
 
 <template>
-  <SettingsSection id="playback-source" title="来源偏好">
+  <SettingsSection id="playback-source" :title="t('settings.playback.source.section')">
     <WpCard variant="row" v-for="{ kind, options, onSelect } in sourceRows" :key="kind.key">
       <div class="card-content">
         <div class="card-header">{{ kind.title }}</div>
@@ -130,10 +132,13 @@ function onFormatChange(value: unknown): void {
 
     <WpCard variant="column" v-if="showSearchFormat">
       <div class="card-content">
-        <div class="card-header">搜索格式</div>
+        <div class="card-header">{{ t("settings.playback.source.searchFormat.title") }}</div>
         <div class="card-description">
-          播放源、歌词源重新搜曲的关键词格式，支持 {歌曲名}、{歌手名}、{专辑名}、{别名}；
-          留空使用默认「{{ DEFAULT_SOURCE_SEARCH_FORMAT }}」。
+          {{
+            t("settings.playback.source.searchFormat.description", {
+              placeholder: DEFAULT_SOURCE_SEARCH_FORMAT,
+            })
+          }}
         </div>
       </div>
       <TextBox

@@ -11,8 +11,11 @@
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { TextBox } from "@/components/winui";
+import { useI18n } from "@/i18n";
 import {
   highlightSegments,
+  itemDescription,
+  itemTitle,
   searchSettings,
   sectionPath,
   type SettingsItem,
@@ -21,6 +24,8 @@ import {
 const props = withDefaults(defineProps<{ mobile?: boolean }>(), { mobile: false });
 
 const emit = defineEmits<{ select: [item: SettingsItem] }>();
+
+const { t } = useI18n();
 
 const rootRef = ref<HTMLElement | null>(null);
 const query = ref("");
@@ -132,8 +137,8 @@ onBeforeUnmount(() => {
       v-if="mobile && !expanded"
       type="button"
       class="search-trigger"
-      title="搜索设置（Ctrl+F）"
-      aria-label="搜索设置"
+      :title="t('settings.shell.search.shortcut')"
+      :aria-label="t('settings.shell.search.label')"
       @click="focusInput"
     >
       <span class="wp-icon">&#xF690;</span>
@@ -144,15 +149,15 @@ onBeforeUnmount(() => {
         <span class="wp-icon search-icon" aria-hidden="true">&#xF690;</span>
         <TextBox
           :Text="query"
-          PlaceholderText="搜索设置项，如「托盘」「歌词字号」"
+          :PlaceholderText="t('settings.shell.search.placeholder')"
           @update:Text="(value: unknown) => (query = String(value ?? ''))"
         />
         <button
           v-if="query"
           type="button"
           class="search-clear"
-          title="清除"
-          aria-label="清除"
+          :title="t('common.action.clear')"
+          :aria-label="t('common.action.clear')"
           @click="clear"
         >
           <span class="wp-icon">&#xF36A;</span>
@@ -177,13 +182,13 @@ onBeforeUnmount(() => {
                 {{ sectionPath(hit.item) }}
               </span>
               <span class="hit-title">
-                <template v-for="(segment, i) in segmentsOf(hit.item.title)" :key="i">
+                <template v-for="(segment, i) in segmentsOf(itemTitle(hit.item))" :key="i">
                   <mark v-if="segment.hit">{{ segment.text }}</mark>
                   <template v-else>{{ segment.text }}</template>
                 </template>
               </span>
               <span class="hit-desc">
-                <template v-for="(segment, i) in segmentsOf(hit.item.description)" :key="i">
+                <template v-for="(segment, i) in segmentsOf(itemDescription(hit.item))" :key="i">
                   <mark v-if="segment.hit">{{ segment.text }}</mark>
                   <template v-else>{{ segment.text }}</template>
                 </template>
@@ -192,7 +197,7 @@ onBeforeUnmount(() => {
           </button>
         </template>
         <p v-else class="search-empty">
-          没有匹配的设置项。换个说法试试，比如「托盘」「缓存」「歌词」「均衡器」。
+          {{ t("settings.shell.search.empty") }}
         </p>
       </div>
     </template>

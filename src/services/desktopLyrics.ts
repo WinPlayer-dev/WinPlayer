@@ -16,6 +16,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { emitTo, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { watch, type WatchStopHandle } from "vue";
+import { t } from "@/i18n";
 import { getAudioEngine } from "./audio";
 import { cachedImgUrl } from "./imageCache";
 import { findLyricIndex } from "./lrc";
@@ -111,9 +112,9 @@ function buildState(): DesktopLyricsState {
   let text = line?.text ?? "";
   if (!hasLyrics) {
     if (!track) text = "WinPlayer";
-    else if (store.lyricsLoading) text = "歌词加载中…";
+    else if (store.lyricsLoading) text = t("player.lyrics.loading");
     // 卡片外观上方已经有歌名 / 歌手了，这里只提示没有歌词
-    else text = config.desktopLyricsStyle === "glass" ? "暂无歌词" : `${title} — ${artist}`;
+    else text = config.desktopLyricsStyle === "glass" ? t("player.lyrics.empty") : `${title} — ${artist}`;
   }
 
   const previous = index > 0 ? lines[index - 1] : undefined;
@@ -176,7 +177,7 @@ async function openWindow(): Promise<void> {
     await invoke("lyrics_window_open", { style: settings?.desktopLyricsStyle });
   } catch (error) {
     console.warn("[desktop-lyrics] 打开歌词窗口失败", error);
-    toast("无法打开桌面歌词窗口", "error");
+    toast(t("errors.generic.desktopLyricsOpenFailed"), "error");
     // 开关回落：否则界面停在「已开启」但桌面上什么都没有
     await settings?.setDesktopLyricsEnabled(false);
     return;

@@ -4,6 +4,7 @@
  * 通过 openPlaylistPicker(track) 打开，本地歌单 + 各插件的平台个人歌单可选
  */
 import { ref, watch } from "vue";
+import { useI18n } from "@/i18n";
 import { ContentDialog } from "@/components/winui";
 import CachedImage from "@/components/common/CachedImage.vue";
 import { useLibraryStore } from "@/stores/library";
@@ -30,6 +31,7 @@ interface PickerDialogRef {
   Hide: () => void;
 }
 
+const { t } = useI18n();
 const library = useLibraryStore();
 const plugins = usePluginsStore();
 const trackMeta = useTrackMetaStore();
@@ -51,7 +53,9 @@ watch(
     pickerOptions.value = library.playlists.map((p) => ({
       key: `local:${p.id}`,
       name: p.name,
-      meta: p.trackCount ? `${p.trackCount} 首 · 本地` : "本地歌单",
+      meta: p.trackCount
+        ? t("components.trackPicker.trackCountLocal", { count: p.trackCount })
+        : t("components.trackPicker.localPlaylist"),
       cover: p.cover ?? "",
       kind: "local",
       playlistId: String(p.id),
@@ -75,7 +79,7 @@ watch(
             name: p.name,
             meta: [
               group.record.entry.manifest.name,
-              p.trackCount ? `${p.trackCount} 首` : "",
+              p.trackCount ? t("common.unit.track", { count: p.trackCount }) : "",
             ]
               .filter(Boolean)
               .join(" · "),
@@ -106,7 +110,7 @@ async function pickPlaylist(option: PlaylistOption) {
     } else if (option.sourceId) {
       await plugins.addToUserPlaylist(option.sourceId, option.playlistId, track.id);
     }
-    toast(`已添加到「${option.name}」`, "success");
+    toast(t("components.trackPicker.added", { name: option.name }), "success");
     closePlaylistPicker();
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error), "error");
@@ -117,13 +121,19 @@ async function pickPlaylist(option: PlaylistOption) {
 </script>
 
 <template>
-  <ContentDialog ref="dialogRef" Title="添加到歌单" CloseButtonText="取消">
+  <ContentDialog
+    ref="dialogRef"
+    :Title="t('components.trackPicker.title')"
+    :CloseButtonText="t('common.action.cancel')"
+  >
     <div class="picker">
       <div v-if="playlistPickerState.track" class="picker-track ellipsis">
         {{ trackTitle(trackMeta.decorate(playlistPickerState.track)) }}
       </div>
-      <div v-if="pickerLoading" class="picker-hint">正在加载平台歌单…</div>
-      <div v-else-if="!pickerOptions.length" class="picker-hint">还没有可用的歌单</div>
+      <div v-if="pickerLoading" class="picker-hint">{{ t("components.trackPicker.loading") }}</div>
+      <div v-else-if="!pickerOptions.length" class="picker-hint">
+        {{ t("components.empty.noPlaylists") }}
+      </div>
       <div v-else class="picker-list">
         <button
           v-for="option in pickerOptions"

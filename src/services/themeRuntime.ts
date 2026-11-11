@@ -21,6 +21,7 @@
 import { parse, compileScript, compileTemplate, compileStyleAsync } from "@vue/compiler-sfc";
 import type { BindingMetadata } from "@vue/compiler-sfc";
 import type { Component } from "vue";
+import { t } from "@/i18n";
 
 /** 单个组件编译后的结果 */
 export interface CompiledThemeComponent {
@@ -38,7 +39,7 @@ export class ThemeCompileError extends Error {
     message: string,
     readonly component: string,
   ) {
-    super(`主题组件「${component}」编译失败：${message}`);
+    super(t("themes.theme.compile.componentFailed", { component, message }));
     this.name = "ThemeCompileError";
   }
 }
@@ -102,7 +103,7 @@ export function resolveThemeRelativePath(fromPath: string, specifier: string): s
   const baseDir = fromPath.includes("/") ? fromPath.slice(0, fromPath.lastIndexOf("/")) : "";
   const combined = baseDir ? `${baseDir}/${specifier}` : specifier;
   const resolved = normalizeThemePath(combined);
-  if (!resolved) throw new Error(`非法相对路径：${specifier}`);
+  if (!resolved) throw new Error(t("themes.theme.compile.invalidRelativePath", { path: specifier }));
   return resolved;
 }
 
@@ -143,7 +144,7 @@ export function rewriteModuleSyntax(code: string): string {
   output = output.replace(/\bexport\s+(async\s+function|function|const|let|var|class)\b/g, "$1");
 
   if (/\bexport\b/.test(output)) {
-    throw new Error("主题组件只支持 `export default` 或 `<script setup>`，不支持其它 export 语法");
+    throw new Error(t("themes.theme.compile.unsupportedExport"));
   }
   return output;
 }
@@ -168,7 +169,7 @@ function importClauseToConst(clause: string, specifier: string): string {
 
   const after = clause.slice(braces);
   const closes = after.lastIndexOf("}");
-  if (closes === -1) throw new Error(`无法解析 import 语句：${clause}`);
+  if (closes === -1) throw new Error(t("themes.theme.compile.unparsableImport", { clause }));
   const inner = after.slice(1, closes).trim();
 
   if (inner) {
@@ -211,7 +212,7 @@ export async function compileThemeComponent(
   const cached = ctx.cache.get(path);
   if (cached) return cached;
   if (ctx.compiling.has(path)) {
-    throw new ThemeCompileError(`检测到循环引用：${path}`, component);
+    throw new ThemeCompileError(t("themes.theme.compile.circular", { path }), component);
   }
   ctx.compiling.add(path);
 
@@ -235,11 +236,11 @@ async function compileSource(
 
   const { descriptor, errors } = parse(source, { filename: path });
   if (errors.length) throw new ThemeCompileError(describeThemeError(errors[0]), component);
-  if (!descriptor.template) throw new ThemeCompileError("缺少 <template>", component);
+  if (!descriptor.template) throw new ThemeCompileError(t("themes.theme.compile.missingTemplate"), component);
 
   if (descriptor.scriptSetup?.lang === "ts" || descriptor.script?.lang === "ts") {
     throw new ThemeCompileError(
-      '主题组件暂不支持 lang="ts"（浏览器内没有类型擦除器），请改用普通 JavaScript',
+      t("themes.theme.compile.noTypeScript"),
       component,
     );
   }
@@ -257,11 +258,17 @@ async function compileSource(
     if (!specifier.startsWith(".")) continue;
     const targetPath = resolveThemeRelativePath(path, specifier);
     if (!targetPath.endsWith(".vue")) {
-      throw new ThemeCompileError(`只支持导入 .vue 组件，收到：${targetPath}`, component);
+      throw new ThemeCompileError(
+        t("themes.theme.compile.onlyVueImport", { path: targetPath }),
+        component,
+      );
     }
     const text = await ctx.readFile(targetPath);
     if (text === null) {
-      throw new ThemeCompileError(`找不到依赖文件：${targetPath}`, component);
+      throw new ThemeCompileError(
+        t("themes.theme.compile.missingDependency", { path: targetPath }),
+        component,
+      );
     }
     const dependency = await compileThemeComponent(
       targetPath.split("/").pop() ?? targetPath,
@@ -360,7 +367,7 @@ function evaluate(
     const resolved = ctx.resolveModule(specifier);
     if (!resolved) {
       throw new Error(
-        `不允许导入模块「${specifier}」。主题只能使用宿主提供的模块或主题包内的 .vue 文件，详见 docs/THEME-DEVELOPMENT.md`,
+        t("themes.theme.compile.moduleNotAllowed", { specifier }),
       );
     }
     return resolved;
@@ -377,12 +384,15 @@ return __theme_base__;`;
   try {
     factory = new Function("__theme_require__", body) as typeof factory;
   } catch (error) {
-    throw new ThemeCompileError(`生成组件代码失败：${describeThemeError(error)}`, component);
+    throw new ThemeCompileError(
+      t("themes.theme.compile.generateFailed", { error: describeThemeError(error) }),
+      component,
+    );
   }
 
   const result = factory(requireModule);
   if (!result || typeof result !== "object") {
-    throw new ThemeCompileError("编译产物不是有效的组件对象（是否缺少默认导出？）", component);
+    throw new ThemeCompileError(t("themes.theme.compile.invalidComponentObject"), component);
   }
   return result;
 }

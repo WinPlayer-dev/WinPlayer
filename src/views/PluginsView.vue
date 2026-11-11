@@ -13,6 +13,7 @@ import BuiltinSourcesTab from "@/views/plugins/BuiltinSourcesTab.vue";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { ComboBox, ContentDialog, NumberBox, TextBox, ToggleSwitch } from "@/components/winui";
 import WpButton from "@/components/theme/WpButton.vue";
+import { useI18n, type I18nKey } from "@/i18n";
 import type {
   LoginPollResult,
   LoginProfile,
@@ -25,6 +26,7 @@ const plugins = usePluginsStore();
 const isMobile = useIsMobile();
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 
 /**
  * 标签页：内置播放源（宿主自带，始终存在）→ 已安装的插件 → 插件市场 → 主题。
@@ -108,20 +110,21 @@ const draftTimers = new Map<string, number>();
 const DRAFT_DEBOUNCE_MS = 600;
 
 function capabilityLabel(capability: string): string {
-  const map: Record<string, string> = {
-    search: "搜索",
-    songUrl: "播放直链",
-    playlist: "歌单",
-    album: "专辑",
-    artist: "歌手",
-    recommend: "推荐",
-    lyrics: "歌词",
-    hotKeywords: "热搜词",
-    login: "账号登录",
-    avatar: "头像",
-    myPlaylists: "个人歌单",
+  const map: Record<string, I18nKey> = {
+    search: "plugins.detail.capability.search",
+    songUrl: "plugins.detail.capability.songUrl",
+    playlist: "plugins.detail.capability.playlist",
+    album: "plugins.detail.capability.album",
+    artist: "plugins.detail.capability.artist",
+    recommend: "plugins.detail.capability.recommend",
+    lyrics: "plugins.detail.capability.lyrics",
+    hotKeywords: "plugins.detail.capability.hotKeywords",
+    login: "plugins.detail.capability.login",
+    avatar: "plugins.detail.capability.avatar",
+    myPlaylists: "plugins.detail.capability.myPlaylists",
   };
-  return map[capability] ?? capability;
+  const key = map[capability];
+  return key ? t(key) : capability;
 }
 
 function draftKey(record: PluginRecord, item: PluginSettingItem): string {
@@ -220,7 +223,9 @@ function isLoggedIn(id: string): boolean {
 
 function loginName(id: string): string {
   const nickname = loginStates.value[id]?.profile?.nickname;
-  return nickname ? `已登录 · ${nickname}` : "已登录";
+  return nickname
+    ? t("plugins.detail.loggedInAs", { name: nickname })
+    : t("plugins.detail.loggedIn");
 }
 
 function loginAvatar(id: string): string {
@@ -279,11 +284,11 @@ async function startQrLogin(record: PluginRecord): Promise<void> {
   clearQr(id);
   delete loginErrors.value[id];
   loginBusy.value[id] = true;
-  loginStatus.value[id] = "正在获取二维码…";
+  loginStatus.value[id] = t("plugins.detail.qrFetching");
 
   try {
     const qr = await plugins.getLoginQr(id);
-    if (!qr?.content) throw new Error("插件未返回登录二维码");
+    if (!qr?.content) throw new Error(t("plugins.error.noQr"));
 
     const image = await QRCode.toDataURL(qr.content, {
       margin: 1,
@@ -292,7 +297,7 @@ async function startQrLogin(record: PluginRecord): Promise<void> {
     });
 
     loginQr.value[id] = { image, key: qr.key };
-    loginStatus.value[id] = qr.hint ?? "等待扫码";
+    loginStatus.value[id] = qr.hint ?? t("plugins.detail.qrWaiting");
     startPolling(record, qr.key, qr.expiresIn ?? record.entry.manifest.login?.expiresIn ?? 120000);
   } catch (error) {
     loginQr.value[id] = null;
@@ -339,24 +344,24 @@ function startPolling(record: PluginRecord, key: string | undefined, expiresIn: 
 
     switch (result.status) {
       case "waiting":
-        loginStatus.value[id] = "等待扫码";
+        loginStatus.value[id] = t("plugins.detail.qrWaiting");
         delete loginErrors.value[id];
         break;
       case "confirming":
-        loginStatus.value[id] = "已扫码，请在手机上确认";
+        loginStatus.value[id] = t("plugins.detail.qrScanned");
         delete loginErrors.value[id];
         break;
       case "expired":
-        clearQr(id, "二维码已过期，请重新获取");
+        clearQr(id, t("plugins.detail.qrExpired"));
         return;
       case "success": {
         clearQr(id);
-        toast(`「${record.entry.manifest.name}」登录成功`, "success");
+        toast(t("plugins.detail.loginSuccess", { name: record.entry.manifest.name }), "success");
         await refreshLoginState(record, result.profile);
         return;
       }
       default:
-        clearQr(id, result.message ?? "登录失败");
+        clearQr(id, result.message ?? t("plugins.detail.qrFailed"));
         return;
     }
     schedule();
@@ -366,7 +371,7 @@ function startPolling(record: PluginRecord, key: string | undefined, expiresIn: 
   // 服务端返回 800 之前就到期时的兜底
   expiryTimers.set(
     id,
-    window.setTimeout(() => clearQr(id, "二维码已过期，请重新获取"), expiresIn),
+    window.setTimeout(() => clearQr(id, t("plugins.detail.qrExpired")), expiresIn),
   );
 }
 
@@ -389,8 +394,8 @@ async function confirmLogout(record: PluginRecord): Promise<void> {
   try {
     await plugins.logout(id);
     loginStates.value[id] = { loggedIn: false };
-    loginStatus.value[id] = "已退出登录";
-    toast(`「${record.entry.manifest.name}」已退出登录`, "success");
+    loginStatus.value[id] = t("plugins.detail.loggedOut");
+    toast(t("plugins.detail.logoutSuccess", { name: record.entry.manifest.name }), "success");
   } catch (error) {
     loginErrors.value[id] = error instanceof Error ? error.message : String(error);
   }
@@ -412,7 +417,7 @@ async function openUrlDialog() {
   if (result !== "Primary") return;
   const url = urlValue.value.trim();
   if (!url) {
-    toast("请输入插件地址", "error");
+    toast(t("plugins.install.urlRequired"), "error");
     return;
   }
   await plugins.installFromUrl(url);
@@ -434,7 +439,7 @@ async function loadMarket() {
   try {
     marketEntries.value = await plugins.fetchMarketEntries();
   } catch (error) {
-    toast(`加载插件市场失败: ${error}`, "error");
+    toast(t("plugins.market.loadFailed", { error: String(error) }), "error");
   } finally {
     marketLoading.value = false;
   }
@@ -536,30 +541,37 @@ onUnmounted(() => {
 <template>
   <div class="wp-page plugins-page" :class="{ mobile: isMobile }">
     <div class="wp-page-header">
-      <h1 class="wp-page-title">播放源管理</h1>
-      <span class="page-sub">内置 {{ plugins.builtinRecords.length }} 个 · 已安装 {{ installedCount }} 个</span>
+      <h1 class="wp-page-title">{{ t("plugins.page.title") }}</h1>
+      <span class="page-sub">
+        {{
+          t("plugins.page.subtitle", {
+            builtin: plugins.builtinRecords.length,
+            installed: installedCount,
+          })
+        }}
+      </span>
     </div>
 
     <!-- 标签页 -->
     <div class="tabs">
       <button class="tab" :class="{ active: tab === 'builtin' }" @click="tab = 'builtin'">
-        内置播放源
+        {{ t("plugins.page.tabBuiltin") }}
       </button>
       <button class="tab" :class="{ active: tab === 'installed' }" @click="tab = 'installed'">
-        已安装的插件
+        {{ t("plugins.page.tabInstalled") }}
       </button>
       <button class="tab" :class="{ active: tab === 'market' }" @click="tab = 'market'">
-        插件市场
+        {{ t("plugins.page.tabMarket") }}
       </button>
       <button class="tab" :class="{ active: tab === 'themes' }" @click="tab = 'themes'">
-        主题
+        {{ t("plugins.page.tabThemes") }}
       </button>
       <div v-if="tab === 'installed' || tab === 'market'" class="tab-actions">
         <WpButton class="small" @click="installFromFile" variant="standard">
-          <span class="wp-icon">&#xF42F;</span>从本地安装
+          <span class="wp-icon">&#xF42F;</span>{{ t("plugins.page.installFromFile") }}
         </WpButton>
         <WpButton class="small" @click="openUrlDialog" variant="standard">
-          <span class="wp-icon">&#xF4E5;</span>从 URL 安装
+          <span class="wp-icon">&#xF4E5;</span>{{ t("plugins.page.installFromUrl") }}
         </WpButton>
       </div>
     </div>
@@ -569,15 +581,19 @@ onUnmounted(() => {
 
     <!-- 已安装的插件 -->
     <template v-else-if="tab === 'installed'">
-      <div v-if="plugins.loading" class="hint">加载中…</div>
+      <div v-if="plugins.loading" class="hint">{{ t("plugins.page.loading") }}</div>
       <EmptyState
         v-else-if="!plugins.installedRecords.length"
         icon="&#xF137;"
-        title="尚未安装任何插件"
-        description="插件决定音乐来自哪里。你可以从本地导入 .zip/.json 插件包、通过 URL 安装，或在插件市场中浏览。"
+        :title="t('plugins.page.emptyTitle')"
+        :description="t('plugins.page.emptyDescription')"
       >
-        <WpButton @click="installFromFile" variant="accent">从本地安装</WpButton>
-        <WpButton @click="tab = 'market'" variant="standard">浏览市场</WpButton>
+        <WpButton @click="installFromFile" variant="accent">{{
+          t("plugins.page.installFromFile")
+        }}</WpButton>
+        <WpButton @click="tab = 'market'" variant="standard">{{
+          t("plugins.page.browseMarket")
+        }}</WpButton>
       </EmptyState>
 
       <div v-else class="plugin-list">
@@ -591,18 +607,22 @@ onUnmounted(() => {
             <div class="plugin-title-row">
               <span class="plugin-name">{{ record.entry.manifest.name }}</span>
               <span class="plugin-version">v{{ record.entry.manifest.version }}</span>
-              <span v-if="record.entry.kind === 'file'" class="plugin-kind">单文件</span>
+              <span v-if="record.entry.kind === 'file'" class="plugin-kind">{{
+                t("plugins.detail.singleFile")
+              }}</span>
               <!-- 折叠后看不到错误详情，用红点 + 悬浮提示兜底 -->
               <span
                 v-if="isCollapsed(record.entry.id) && record.error"
                 class="plugin-dot error"
-                :title="`运行错误：${record.error}`"
+                :title="t('plugins.detail.runtimeError', { error: record.error })"
               ></span>
             </div>
             <!-- 正文区：折叠时靠 grid-template-rows 收成 0 高（纯 CSS 过渡，不靠 JS 测高） -->
             <div class="plugin-body">
               <div class="plugin-body-inner">
-                <div class="plugin-desc">{{ record.entry.manifest.description || "无描述" }}</div>
+                <div class="plugin-desc">
+                  {{ record.entry.manifest.description || t("plugins.detail.noDescription") }}
+                </div>
                 <div class="plugin-chips">
                   <span
                     v-for="capability in record.entry.manifest.capabilities ?? []"
@@ -613,10 +633,14 @@ onUnmounted(() => {
                   </span>
                 </div>
                 <div class="plugin-meta">
-                  <span v-if="record.entry.manifest.author">作者：{{ record.entry.manifest.author }}</span>
+                  <span v-if="record.entry.manifest.author">{{
+                    t("plugins.detail.author", { name: record.entry.manifest.author })
+                  }}</span>
                   <span class="plugin-id">ID: {{ record.entry.id }}</span>
                 </div>
-                <div v-if="record.error" class="plugin-error">运行错误：{{ record.error }}</div>
+                <div v-if="record.error" class="plugin-error">
+                  {{ t("plugins.detail.runtimeError", { error: record.error }) }}
+                </div>
               </div>
             </div>
           </div>
@@ -627,8 +651,16 @@ onUnmounted(() => {
               <button
                 type="button"
                 class="collapse-btn"
-                :title="isCollapsed(record.entry.id) ? '展开' : '折叠'"
-                :aria-label="isCollapsed(record.entry.id) ? '展开插件卡片' : '折叠插件卡片'"
+                :title="
+                  isCollapsed(record.entry.id)
+                    ? t('plugins.detail.expand')
+                    : t('plugins.detail.collapse')
+                "
+                :aria-label="
+                  isCollapsed(record.entry.id)
+                    ? t('plugins.detail.expandCard')
+                    : t('plugins.detail.collapseCard')
+                "
                 :aria-expanded="!isCollapsed(record.entry.id)"
                 @click="toggleCollapse(record.entry.id)"
               >
@@ -641,7 +673,7 @@ onUnmounted(() => {
               @click="confirmUninstall(record)"
               variant="standard"
             >
-              卸载
+              {{ t("plugins.detail.uninstall") }}
             </WpButton>
           </div>
 
@@ -662,26 +694,36 @@ onUnmounted(() => {
                     {{ statusText(record.entry.id) }}
                   </span>
                 </div>
-                <WpButton class="small" @click="confirmLogout(record)" variant="standard">退出登录</WpButton>
+                <WpButton class="small" @click="confirmLogout(record)" variant="standard">{{
+                  t("plugins.detail.logout")
+                }}</WpButton>
               </template>
 
               <template v-else-if="qrActive(record.entry.id)">
                 <div class="qr-box">
-                  <img class="qr-image" :src="qrImage(record.entry.id)" alt="登录二维码" />
+                  <img
+                    class="qr-image"
+                    :src="qrImage(record.entry.id)"
+                    :alt="t('plugins.detail.qrAlt')"
+                  />
                 </div>
                 <div class="qr-side">
-                  <div class="login-name">{{ statusText(record.entry.id) || "等待扫码" }}</div>
+                  <div class="login-name">
+                    {{ statusText(record.entry.id) || t("plugins.detail.qrWaiting") }}
+                  </div>
                   <div v-if="errorText(record.entry.id)" class="login-error">
                     {{ errorText(record.entry.id) }}
                   </div>
-                  <WpButton class="small" @click="cancelQr(record)" variant="standard">取消</WpButton>
+                  <WpButton class="small" @click="cancelQr(record)" variant="standard">{{
+                    t("common.action.cancel")
+                  }}</WpButton>
                 </div>
               </template>
 
               <template v-else>
                 <div class="login-idle">
-                  <div class="login-name">未登录</div>
-                  <div class="login-desc">扫码登录后可播放 VIP / 受限歌曲</div>
+                  <div class="login-name">{{ t("plugins.detail.notLoggedIn") }}</div>
+                  <div class="login-desc">{{ t("plugins.detail.loginHint") }}</div>
                   <div v-if="statusText(record.entry.id)" class="login-sub">
                     {{ statusText(record.entry.id) }}
                   </div>
@@ -693,7 +735,11 @@ onUnmounted(() => {
                   :disabled="loginBusyNow(record.entry.id)"
                   @click="startQrLogin(record)"
                  variant="accent">
-                  {{ loginBusyNow(record.entry.id) ? "获取中…" : "扫码登录" }}
+                  {{
+                    loginBusyNow(record.entry.id)
+                      ? t("plugins.detail.qrLoading")
+                      : t("plugins.detail.qrStart")
+                  }}
                 </WpButton>
               </template>
             </div>
@@ -758,11 +804,15 @@ onUnmounted(() => {
     <template v-else-if="tab === 'market'">
       <div class="market-toolbar">
         <WpButton class="small" :disabled="marketLoading" @click="loadMarket" variant="standard">
-          <span class="wp-icon">&#xF13E;</span>{{ marketLoading ? "加载中…" : "刷新市场" }}
+          <span class="wp-icon">&#xF13E;</span>{{
+            marketLoading ? t("plugins.page.loading") : t("plugins.market.refresh")
+          }}
         </WpButton>
       </div>
       <div v-if="!marketEntries.length" class="hint">
-        {{ marketLoading ? "正在加载市场索引…" : "市场索引为空或加载失败" }}
+        {{
+          marketLoading ? t("plugins.market.loadingIndex") : t("plugins.market.indexEmpty")
+        }}
       </div>
       <div v-else class="market-grid">
         <div v-for="entry in marketEntries" :key="entry.id + entry.url" class="market-card">
@@ -775,34 +825,50 @@ onUnmounted(() => {
               <span class="market-name">{{ entry.name }}</span>
               <span v-if="entry.author" class="market-author">{{ entry.author }}</span>
             </div>
-            <div class="market-desc">{{ entry.description || "无简介" }}</div>
+            <div class="market-desc">
+              {{ entry.description || t("plugins.market.noDescription") }}
+            </div>
             <div class="market-foot">
               <span
                 class="market-version"
-                :title="marketStatus(entry) === 'updatable' ? `本地 v${localVersionOf(entry)}` : ''"
+                :title="
+                  marketStatus(entry) === 'updatable'
+                    ? t('plugins.market.localVersion', { version: localVersionOf(entry) })
+                    : ''
+                "
               >
-                {{ entry.version ? `v${entry.version}` : "版本未知" }}
+                {{ entry.version ? `v${entry.version}` : t("plugins.market.versionUnknown") }}
               </span>
               <div class="market-actions">
                 <WpButton class="small" @click="openEntrySource(entry)" variant="standard">
-                  来源
+                  {{ t("plugins.market.source") }}
                 </WpButton>
                 <WpButton
                   v-if="marketStatus(entry) === 'updatable' || marketStatus(entry) === 'none'" class="small"
                   :disabled="installingId === entry.id + entry.url"
                   @click="installFromMarket(entry)"
                  variant="accent">
-                  {{ installingId === entry.id + entry.url ? "安装中…" : marketStatus(entry) === "updatable" ? "更新" : "安装" }}
+                  {{
+                    installingId === entry.id + entry.url
+                      ? t("plugins.install.installing")
+                      : marketStatus(entry) === "updatable"
+                        ? t("plugins.market.update")
+                        : t("plugins.install.button")
+                  }}
                 </WpButton>
                 <WpButton
                   v-else-if="marketStatus(entry) === 'unknown'" class="small"
                   :disabled="installingId === entry.id + entry.url"
                   @click="installFromMarket(entry)"
                  variant="standard">
-                  {{ installingId === entry.id + entry.url ? "安装中…" : "重新安装" }}
+                  {{
+                    installingId === entry.id + entry.url
+                      ? t("plugins.install.installing")
+                      : t("plugins.install.reinstall")
+                  }}
                 </WpButton>
                 <WpButton v-else class="small" @click="uninstallFromMarket(entry)" variant="standard">
-                  卸载
+                  {{ t("plugins.detail.uninstall") }}
                 </WpButton>
               </div>
             </div>
@@ -816,9 +882,9 @@ onUnmounted(() => {
 
     <ContentDialog
       ref="urlDialogRef"
-      Title="从 URL 安装插件"
-      PrimaryButtonText="安装"
-      CloseButtonText="取消"
+      :Title="t('plugins.install.dialogTitle')"
+      :PrimaryButtonText="t('plugins.install.button')"
+      :CloseButtonText="t('common.action.cancel')"
     >
       <div class="dialog-form">
         <TextBox
@@ -827,18 +893,22 @@ onUnmounted(() => {
           @update:Text="urlValue = String($event ?? '')"
         />
         <div class="dialog-hint">
-          支持 .zip 插件包、单文件 .json 插件或 GitHub 仓库地址（自动下载仓库代码安装）
+          {{ t("plugins.install.urlHint") }}
         </div>
       </div>
     </ContentDialog>
 
     <ContentDialog
       ref="uninstallDialogRef"
-      :Title="`卸载插件「${uninstallTarget?.entry.manifest.name ?? ''}」`"
-      PrimaryButtonText="卸载"
-      CloseButtonText="取消"
+      :Title="
+        t('plugins.install.uninstallTitle', {
+          name: uninstallTarget?.entry.manifest.name ?? '',
+        })
+      "
+      :PrimaryButtonText="t('plugins.detail.uninstall')"
+      :CloseButtonText="t('common.action.cancel')"
     >
-      <div class="dialog-hint">卸载后将删除插件本体与其存储的数据，此操作不可撤销。</div>
+      <div class="dialog-hint">{{ t("plugins.install.uninstallConfirm") }}</div>
     </ContentDialog>
   </div>
 </template>

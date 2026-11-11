@@ -23,9 +23,11 @@ import { useRefreshable } from "@/composables/useRefreshable";
 import { useTrackList, trackIdentity } from "@/composables/useTrackList";
 import { formatDuration } from "@/types/player";
 import { toast } from "@/services/toast";
+import { useI18n } from "@/i18n";
 import type { UnifiedTrack } from "@/types/plugin";
 
 const router = useRouter();
+const { t } = useI18n();
 const history = useHistoryStore();
 const player = usePlayerStore();
 const isMobile = useIsMobile();
@@ -100,7 +102,7 @@ async function clearHistory(): Promise<void> {
   const result = await clearDialogRef.value?.ShowAsync();
   if (result !== "Primary") return;
   await history.clear();
-  toast("播放历史已清空", "success");
+  toast(t("library.history.toastCleared"), "success");
 }
 
 /** 从历史中移除单曲 */
@@ -119,24 +121,29 @@ async function onRemove(track: UnifiedTrack): Promise<void> {
           <span class="wp-icon filled">&#xF2A1;</span>
         </div>
         <div class="header-meta">
-          <h1 class="wp-page-title">最近播放</h1>
+          <h1 class="wp-page-title">{{ t("library.history.title") }}</h1>
           <div class="header-sub">
-            {{ totals.tracks }} 首 · 累计播放 {{ totals.plays }} 次 · 共
-            {{ formatDuration(totals.duration) }}
+            {{
+              t("library.history.subtitle", {
+                tracks: totals.tracks,
+                plays: totals.plays,
+                duration: formatDuration(totals.duration),
+              })
+            }}
           </div>
         </div>
         <div class="header-actions">
           <WpButton @click="playAll" variant="accent">
-            <span class="wp-icon filled">&#xF610;</span>播放全部
+            <span class="wp-icon filled">&#xF610;</span>{{ t("library.shared.playAll") }}
           </WpButton>
           <WpButton @click="shufflePlay" variant="standard">
-            <span class="wp-icon">&#xEF37;</span>随机播放
+            <span class="wp-icon">&#xEF37;</span>{{ t("common.action.shuffle") }}
           </WpButton>
           <WpButton @click="addAllToQueue" variant="standard">
-            <span class="wp-icon">&#xF10A;</span>加入队列
+            <span class="wp-icon">&#xF10A;</span>{{ t("library.shared.addToQueue") }}
           </WpButton>
           <WpButton @click="clearHistory" variant="standard" class="danger-button">
-            <span class="wp-icon">&#xF34D;</span>清空
+            <span class="wp-icon">&#xF34D;</span>{{ t("library.history.clear") }}
           </WpButton>
         </div>
       </div>
@@ -144,7 +151,7 @@ async function onRemove(track: UnifiedTrack): Promise<void> {
       <!-- 云端布局：白色圆角面板（桌面端 / 默认布局时只是个普通容器） -->
       <div class="list-panel">
         <!-- 视图切换：最近播放 / 最常听 -->
-        <div class="view-tabs" role="tablist" aria-label="历史视图">
+        <div class="view-tabs" role="tablist" :aria-label="t('library.history.viewAria')">
           <button
             class="view-tab"
             :class="{ active: view === 'recent' }"
@@ -152,7 +159,7 @@ async function onRemove(track: UnifiedTrack): Promise<void> {
             :aria-selected="view === 'recent'"
             @click="switchView('recent')"
           >
-            最近播放
+            {{ t("library.history.title") }}
           </button>
           <button
             class="view-tab"
@@ -161,7 +168,7 @@ async function onRemove(track: UnifiedTrack): Promise<void> {
             :aria-selected="view === 'most'"
             @click="switchView('most')"
           >
-            最常听
+            {{ t("library.history.mostPlayed") }}
           </button>
         </div>
 
@@ -179,10 +186,10 @@ async function onRemove(track: UnifiedTrack): Promise<void> {
         <EmptyState
           v-else-if="filtering"
           icon="&#xF4A3;"
-          title="没有匹配的歌曲"
-          :description="`「${query}」在播放历史里没有找到。试试歌名、歌手或专辑名的一部分。`"
+          :title="t('library.shared.noMatchingSongs')"
+          :description="t('library.history.noMatchDescription', { keyword: query })"
         >
-        <WpButton @click="clearQuery" variant="standard">清空搜索</WpButton>
+        <WpButton @click="clearQuery" variant="standard">{{ t("components.trackToolbar.clearSearch") }}</WpButton>
         </EmptyState>
       </div>
     </template>
@@ -190,18 +197,18 @@ async function onRemove(track: UnifiedTrack): Promise<void> {
     <EmptyState
       v-else
       icon="&#xF2A1;"
-      title="还没有播放记录"
-      description="播放过的歌曲会自动出现在这里，按最近播放与播放次数排列，方便找回之前听过的东西。"
+      :title="t('library.history.empty.title')"
+      :description="t('library.history.empty.description')"
     >
-      <WpButton @click="router.push('/')" variant="accent">去发现音乐</WpButton>
+      <WpButton @click="router.push('/')" variant="accent">{{ t("library.shared.discoverMusic") }}</WpButton>
     </EmptyState>
 
     <ContentDialog
       ref="clearDialogRef"
-      Title="清空播放历史"
-      Content="清空后播放次数与最近播放记录都会丢失，但不会影响歌单与喜欢的音乐。确定继续吗？"
-      PrimaryButtonText="清空"
-      CloseButtonText="取消"
+      :Title="t('library.history.clearDialog.title')"
+      :Content="t('library.history.clearDialog.content')"
+      :PrimaryButtonText="t('library.history.clear')"
+      :CloseButtonText="t('common.action.cancel')"
     />
   </div>
 </template>

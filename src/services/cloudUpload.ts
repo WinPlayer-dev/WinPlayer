@@ -12,6 +12,7 @@
  */
 
 import { useCloudStore } from "@/stores/cloud";
+import { t } from "@/i18n";
 import { useDownloadsStore } from "@/stores/downloads";
 import { usePluginsStore } from "@/stores/plugins";
 import { CLOUD_SOURCE_ID, type CloudUploadSource } from "@/services/cloud";
@@ -64,12 +65,12 @@ export async function uploadTrackToCloud(track: UnifiedTrack): Promise<void> {
   const plugins = usePluginsStore();
 
   if (!cloud.configured) {
-    toast("请先在 设置 → 同步 登录", "error");
+    toast(t("cloud.session.loginFirst"), "error");
     return;
   }
   const key = `${track.sourceId ?? ""}:${track.id}`;
   if (inFlight.has(key)) {
-    toast("这首歌正在上传", "info");
+    toast(t("cloud.upload.inFlight"), "info");
     return;
   }
   inFlight.add(key);
@@ -103,7 +104,7 @@ export async function uploadTrackToCloud(track: UnifiedTrack): Promise<void> {
     // 4. 插件源：解析直链（带请求头）
     if (!source) {
       const result = await plugins.getSongUrl(track);
-      if (!result?.url) throw new Error("这个播放源没有返回可用的直链");
+      if (!result?.url) throw new Error(t("cloud.upload.noDirectUrl"));
       if (result.url.startsWith("local://")) {
         const path = result.url.slice("local://".length);
         source = { kind: "path", path };
@@ -129,17 +130,22 @@ export async function uploadTrackToCloud(track: UnifiedTrack): Promise<void> {
       /* 没歌词也能传 */
     }
 
-    toast(`正在上传《${track.name}》…`, "info");
+    toast(t("cloud.upload.uploading", { track: track.name }), "info");
     const result = await cloud.upload({ filename, source, lyrics });
 
     if (result.duplicate) {
-      toast(`《${track.name}》已在同频服务器里（内容相同，未重复占用空间）`, "info");
+      toast(t("cloud.upload.duplicate", { track: track.name }), "info");
     } else {
-      toast(`已上传《${track.name}》到同频服务器`, "success");
+      toast(t("cloud.upload.done", { track: track.name }), "success");
     }
     await cloud.refresh();
   } catch (error) {
-    toast(`上传失败：${error instanceof Error ? error.message : String(error)}`, "error");
+    toast(
+      t("cloud.upload.failed", {
+        error: error instanceof Error ? error.message : String(error),
+      }),
+      "error",
+    );
   } finally {
     inFlight.delete(key);
   }

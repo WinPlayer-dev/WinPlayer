@@ -12,6 +12,7 @@
 
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
+import { t } from "@/i18n";
 import { getDb, getSetting, setSetting } from "@/services/db";
 import {
   CLOUD_SOURCE_ID,
@@ -86,7 +87,7 @@ export const useCloudStore = defineStore("cloud", () => {
   const uploads = ref<CloudUploadItem[]>([]);
 
   const configured = computed(() => Boolean(config.value.url && session.value?.token));
-  const displayName = computed(() => config.value.serverName || "同频服务器");
+  const displayName = computed(() => config.value.serverName || t("cloud.server.defaultName"));
   const trackCount = computed(() => tracks.value.length);
   const albumGroups = computed<LibraryAlbumGroup[]>(() => buildAlbumGroups(tracks.value));
   const artistGroups = computed<LibraryArtistGroup[]>(() => buildArtistGroups(tracks.value));
@@ -176,7 +177,7 @@ export const useCloudStore = defineStore("cloud", () => {
       config.value = {
         url: base,
         username: result.user.username,
-        serverName: config.value.serverName || "同频服务器",
+        serverName: config.value.serverName || t("cloud.server.defaultName"),
       };
       await persistConfig();
     });
@@ -208,9 +209,9 @@ export const useCloudStore = defineStore("cloud", () => {
   /** 统一包装：带上有效 token 执行请求 */
   async function withSession<T>(action: (base: string, token: string) => Promise<T>): Promise<T> {
     const base = config.value.url;
-    if (!base) throw new Error("未配置服务器地址");
+    if (!base) throw new Error(t("cloud.session.notConfigured"));
     const active = await ensureSession();
-    if (!active?.token) throw new Error("未登录同频服务器");
+    if (!active?.token) throw new Error(t("cloud.session.notLoggedIn"));
     return action(base, active.token);
   }
 
@@ -218,7 +219,7 @@ export const useCloudStore = defineStore("cloud", () => {
 
   async function loadServerInfo(rawUrl: string): Promise<CloudServerInfo> {
     const base = normalizeCloudUrl(rawUrl);
-    if (!base) throw new Error("请先填写服务器地址");
+    if (!base) throw new Error(t("cloud.session.missingUrl"));
     const info = await fetchServerInfo(base);
     serverInfo.value = info;
     return info;
@@ -226,7 +227,7 @@ export const useCloudStore = defineStore("cloud", () => {
 
   async function login(rawUrl: string, username: string, password: string): Promise<void> {
     const base = normalizeCloudUrl(rawUrl);
-    if (!base) throw new Error("请先填写服务器地址");
+    if (!base) throw new Error(t("cloud.session.missingUrl"));
     error.value = "";
     try {
       const info = await fetchServerInfo(base);
@@ -250,7 +251,7 @@ export const useCloudStore = defineStore("cloud", () => {
     inviteCode?: string,
   ): Promise<void> {
     const base = normalizeCloudUrl(rawUrl);
-    if (!base) throw new Error("请先填写服务器地址");
+    if (!base) throw new Error(t("cloud.session.missingUrl"));
     error.value = "";
     try {
       const info = await fetchServerInfo(base);
@@ -297,7 +298,7 @@ export const useCloudStore = defineStore("cloud", () => {
     if (refreshing.value) return;
     if (!loaded.value) await load();
     if (!configured.value) {
-      error.value = "尚未登录同频服务器";
+      error.value = t("cloud.session.notLoggedInShort");
       return;
     }
     refreshing.value = true;
@@ -319,7 +320,7 @@ export const useCloudStore = defineStore("cloud", () => {
       error.value = message;
       if (statusOf(refreshError) === 401) {
         await persistSession(null);
-        toast("同频服务器登录已失效，请重新登录", "error");
+        toast(t("cloud.session.expired"), "error");
       }
     } finally {
       refreshing.value = false;

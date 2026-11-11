@@ -18,6 +18,7 @@ import { useLibraryStore } from "@/stores/library";
 import { usePluginsStore } from "@/stores/plugins";
 import { toast } from "@/services/toast";
 import { countProcessedTracks, resetProcessedTracks } from "@/services/autoPlaylist";
+import { useI18n } from "@/i18n";
 import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 import WpCard from "@/components/theme/WpCard.vue";
@@ -25,13 +26,30 @@ import WpCard from "@/components/theme/WpCard.vue";
 const settings = useSettingsStore();
 const library = useLibraryStore();
 const plugins = usePluginsStore();
+const { t } = useI18n();
 
 /** 歌单下拉的「不添加」项：放在第 0 位，其余按本地歌单 → 平台歌单的顺序排 */
-const NO_PLAYLIST_LABEL = "不自动添加";
+const NO_PLAYLIST_LABEL = computed(() => t("settings.experimental.autoPlaylist.options.noPlaylist"));
 
-const MODE_LABELS = ["添加到指定歌单", "按语种和类型自动分类"] as const;
+const MODE_LABELS = computed(() => [
+  t("settings.experimental.autoPlaylist.options.mode.fixed"),
+  t("settings.experimental.autoPlaylist.options.mode.auto"),
+]);
 /** 模板里直接用稳定引用，避免每次渲染都生成新数组导致下拉框重建 */
-const modeOptions = [...MODE_LABELS];
+const modeOptions = computed(() => [...MODE_LABELS.value]);
+
+/** 语种标签：与 AUTO_PLAYLIST_LANGUAGES 的 value 一一对应 */
+const LANGUAGE_LABEL_KEYS = {
+  english: "settings.experimental.autoPlaylist.options.languages.english",
+  chinese: "settings.experimental.autoPlaylist.options.languages.chinese",
+  japanese: "settings.experimental.autoPlaylist.options.languages.japanese",
+  korean: "settings.experimental.autoPlaylist.options.languages.korean",
+  other: "settings.experimental.autoPlaylist.options.languages.other",
+} as const;
+
+function languageLabel(language: AutoPlaylistLanguage): string {
+  return t(LANGUAGE_LABEL_KEYS[language]);
+}
 
 /** 平台个人歌单（从各插件实时拉取，未登录 / 离线时为空） */
 interface RemotePlaylistEntry {
@@ -84,9 +102,15 @@ async function loadRemotePlaylists(): Promise<void> {
       }
     }
     remotePlaylists.value = list;
-    if (failures.length) remoteError.value = `${failures.join("、")}的歌单加载失败，可稍后重新打开本页重试`;
+    if (failures.length) {
+      remoteError.value = t("settings.experimental.autoPlaylist.loadFailed", {
+        sources: failures.join(t("settings.experimental.autoPlaylist.listSeparator")),
+      });
+    }
   } catch (error) {
-    remoteError.value = `平台歌单加载失败：${error instanceof Error ? error.message : String(error)}`;
+    remoteError.value = t("settings.experimental.autoPlaylist.platformLoadFailed", {
+      message: error instanceof Error ? error.message : String(error),
+    });
   } finally {
     remoteLoading.value = false;
   }
@@ -103,7 +127,7 @@ const selectedTargets = computed<AutoPlaylistTarget[]>(() => {
   const config = settings.autoPlaylist;
   return [
     config.fixedTarget,
-    ...AUTO_PLAYLIST_LANGUAGES.map((item) => config.languageTargets[item.value]),
+    ...AUTO_PLAYLIST_LANGUAGES.map((item) => config.languageTargets[item]),
     config.vocaloidTarget,
   ].filter((target): target is AutoPlaylistTarget => Boolean(target));
 });
@@ -117,8 +141,8 @@ const selectedTargets = computed<AutoPlaylistTarget[]>(() => {
  * 这样下拉框仍显示用户当初的选择，而不是看起来被清空。
  */
 const targetOptions = computed<TargetOption[]>(() => {
-  const options: TargetOption[] = [{ label: NO_PLAYLIST_LABEL, target: null }];
-  const used = new Set<string>([NO_PLAYLIST_LABEL]);
+  const options: TargetOption[] = [{ label: NO_PLAYLIST_LABEL.value, target: null }];
+  const used = new Set<string>([NO_PLAYLIST_LABEL.value]);
 
   const add = (base: string, target: AutoPlaylistTarget): void => {
     let label = base;
@@ -147,8 +171,12 @@ const targetOptions = computed<TargetOption[]>(() => {
   for (const target of selectedTargets.value) {
     if (known.has(autoPlaylistTargetKey(target))) continue;
     known.add(autoPlaylistTargetKey(target));
-    const fallback = target.name || (target.kind === "remote" ? "平台歌单" : "已删除的歌单");
-    add(`${fallback}（不可用）`, target);
+    const fallback =
+      target.name ||
+      (target.kind === "remote"
+        ? t("settings.experimental.autoPlaylist.options.remotePlaylist")
+        : t("settings.experimental.autoPlaylist.options.deletedPlaylist"));
+    add(t("settings.experimental.autoPlaylist.unavailable", { name: fallback }), target);
   }
   return options;
 });
@@ -245,7 +273,7 @@ function onAutoPlaylistModeChange(
   payload?: { AddedItems?: unknown[] },
 ): void {
   const label = String(payload?.AddedItems?.[0] ?? "");
-  void settings.setAutoPlaylist({ mode: label === MODE_LABELS[1] ? "auto" : "fixed" });
+  void settings.setAutoPlaylist({ mode: label === MODE_LABELS.value[1] ? "auto" : "fixed" });
 }
 
 function onFixedTargetChange(_sender: unknown, payload?: { AddedItems?: unknown[] }): void {
@@ -267,18 +295,17 @@ function onLanguageTargetChange(
 async function onResetProcessed(): Promise<void> {
   await resetProcessedTracks();
   processedCount.value = 0;
-  toast("已清空自动歌单处理记录", "info");
+  toast(t("settings.experimental.autoPlaylist.reset.done"), "info");
 }
 </script>
 
 <template>
-  <SettingsSection id="experimental-auto-playlist" title="听完自动加歌单">
+  <SettingsSection id="experimental-auto-playlist" :title="t('settings.experimental.autoPlaylist.section')">
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">自然播完后自动整理</div>
+        <div class="card-header">{{ t("settings.experimental.autoPlaylist.enabled.title") }}</div>
         <div class="card-description">
-          一首歌播放到结尾后按下面的规则加入本地歌单，手动切歌不计入。
-          每首歌只会处理一次，处理过的歌不会再被自动添加
+          {{ t("settings.experimental.autoPlaylist.enabled.description") }}
         </div>
       </div>
       <ToggleSwitch :IsOn="settings.autoPlaylist.enabled" @Toggled="onAutoPlaylistToggle" />
@@ -287,9 +314,9 @@ async function onResetProcessed(): Promise<void> {
     <template v-if="settings.autoPlaylist.enabled">
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">添加方式</div>
+          <div class="card-header">{{ t("settings.experimental.autoPlaylist.mode.title") }}</div>
           <div class="card-description">
-            固定歌单适合把所有听完的歌攒在一起；自动分类会按歌词与歌手判断语种和类型
+            {{ t("settings.experimental.autoPlaylist.mode.description") }}
           </div>
         </div>
         <ComboBox
@@ -303,9 +330,9 @@ async function onResetProcessed(): Promise<void> {
       <!-- 固定歌单 -->
       <WpCard v-if="settings.autoPlaylist.mode === 'fixed'" variant="row">
         <div class="card-content">
-          <div class="card-header">目标歌单</div>
+          <div class="card-header">{{ t("settings.experimental.autoPlaylist.target.title") }}</div>
           <div class="card-description">
-            听完的歌全部加入这个歌单，本地歌单与已登录平台的个人歌单都能选
+            {{ t("settings.experimental.autoPlaylist.target.description") }}
           </div>
         </div>
         <ComboBox
@@ -319,37 +346,35 @@ async function onResetProcessed(): Promise<void> {
       <!-- 按语种 / 类型自动分类 -->
       <WpCard v-else variant="column">
         <div class="card-content">
-          <div class="card-header">分类歌单</div>
+          <div class="card-header">{{ t("settings.experimental.autoPlaylist.groups.title") }}</div>
           <div class="card-description">
-            给每个语种 / 类型各选一个歌单（本地或平台个人歌单），选「不自动添加」表示这一类不处理。
-            识别为 Vocaloid 的歌只进类型歌单，不再按语种分流；没有歌词时按歌名、歌手与专辑判断。
-            平台歌单只接收同一来源的歌曲
+            {{ t("settings.experimental.autoPlaylist.groups.description") }}
           </div>
         </div>
 
         <div class="auto-groups">
           <div class="auto-group">
-            <div class="auto-group-title">语种</div>
+            <div class="auto-group-title">{{ t("settings.experimental.autoPlaylist.groups.language") }}</div>
             <div
               v-for="item in AUTO_PLAYLIST_LANGUAGES"
-              :key="item.value"
+              :key="item"
               class="auto-row"
             >
-              <span class="auto-label">{{ item.label }}</span>
+              <span class="auto-label">{{ languageLabel(item) }}</span>
               <ComboBox
                 class="auto-select"
                 :ItemsSource="playlistOptions"
-                :SelectedIndex="targetIndex(settings.autoPlaylist.languageTargets[item.value])"
+                :SelectedIndex="targetIndex(settings.autoPlaylist.languageTargets[item])"
                 @SelectionChanged="
                   (sender: unknown, payload: { AddedItems: unknown[] }) =>
-                    onLanguageTargetChange(item.value, sender, payload)
+                    onLanguageTargetChange(item, sender, payload)
                 "
               />
             </div>
           </div>
 
           <div class="auto-group">
-            <div class="auto-group-title">类型</div>
+            <div class="auto-group-title">{{ t("settings.experimental.autoPlaylist.groups.type") }}</div>
             <div class="auto-row">
               <span class="auto-label">Vocaloid</span>
               <ComboBox
@@ -366,42 +391,47 @@ async function onResetProcessed(): Promise<void> {
       <!-- Vocaloid 自定义关键词：补内置词表漏掉的新声库 / P 主写法 -->
       <WpCard v-if="settings.autoPlaylist.mode === 'auto'" variant="column">
         <div class="card-content">
-          <div class="card-header">Vocaloid 自定义关键词</div>
+          <div class="card-header">{{ t("settings.experimental.autoPlaylist.keywords.title") }}</div>
           <div class="card-description">
-            在内置词表之外追加：按歌名、歌手与专辑做子串匹配（忽略大小写），命中就只进 Vocaloid 歌单。
-            多个词用逗号、顿号或换行分隔，输入后自动保存
+            {{ t("settings.experimental.autoPlaylist.keywords.description") }}
           </div>
         </div>
         <TextBox
           class="keyword-input"
           :Text="keywordDraft"
-          PlaceholderText="例如：Fukase、v flower、星尘Infinity"
+          :PlaceholderText="t('settings.experimental.autoPlaylist.keywords.placeholder')"
           :MaxLength="600"
           @update:Text="onKeywordsInput"
         />
         <div class="keyword-summary">
-          已保存 {{ settings.autoPlaylist.vocaloidKeywords.length }} 个自定义关键词
-          <span class="keyword-tip">（与内置词表同时生效）</span>
+          {{
+            t("settings.experimental.autoPlaylist.keywords.saved", {
+              count: settings.autoPlaylist.vocaloidKeywords.length,
+            })
+          }}
+          <span class="keyword-tip">{{ t("settings.experimental.autoPlaylist.keywords.tip") }}</span>
         </div>
       </WpCard>
 
       <!-- 处理记录：清空后听完的歌会重新判定 -->
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">已处理记录</div>
+          <div class="card-header">{{ t("settings.experimental.autoPlaylist.reset.title") }}</div>
           <div class="card-description">
-            共 {{ processedCount }} 首。清空记录不会动歌单内容，只是让之后听完的歌重新走一次判定
+            {{
+              t("settings.experimental.autoPlaylist.reset.description", { count: processedCount })
+            }}
           </div>
         </div>
         <WpButton class="small" variant="standard" @click="onResetProcessed">
-          清空记录
+          {{ t("settings.experimental.autoPlaylist.reset.action") }}
         </WpButton>
       </WpCard>
 
-      <p v-if="remoteLoading" class="auto-empty">正在加载平台歌单…</p>
+      <p v-if="remoteLoading" class="auto-empty">{{ t("settings.experimental.autoPlaylist.loading") }}</p>
       <p v-else-if="remoteError" class="auto-empty">{{ remoteError }}</p>
       <p v-if="!library.playlists.length && !remotePlaylists.length" class="auto-empty">
-        还没有可选歌单：先在「我的 → 歌单」里创建一个本地歌单，或在插件里登录平台账号。
+        {{ t("settings.experimental.autoPlaylist.empty") }}
       </p>
     </template>
   </SettingsSection>

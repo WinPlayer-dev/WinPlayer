@@ -14,6 +14,7 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
+import { t } from "@/i18n";
 import { getDb, getSetting, setSetting } from "@/services/db";
 import {
   scanLocalMusic,
@@ -225,7 +226,7 @@ export const useLocalMusicStore = defineStore("localMusic", () => {
     const picked = await open({
       multiple: true,
       directory: true,
-      title: "选择音乐文件夹",
+      title: t("errors.file.pickMusicFolder"),
     });
     if (!picked) return 0;
     const list = (Array.isArray(picked) ? picked : [picked]).filter(

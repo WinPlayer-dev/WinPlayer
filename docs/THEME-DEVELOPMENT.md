@@ -311,6 +311,7 @@ const title = computed(() => (player.currentTrack ? trackTitle(player.currentTra
 | `@theme/base`（各 `*Base.vue`） | 内置实现的「原件」，可「包一层再改一点」，不会递归 |
 | `@/composables/useIsMobile` | `useIsMobile` / `useIsWindows` |
 | `@/composables/useLongPress` | `useLongPress` |
+| `@/i18n` | `useI18n` / `t` / `n` / `d`：取词条与本地化格式。**主题里不要写死界面文案**，用 `t("nav.page.settings")` 这类词条；词条 key 见 `src/i18n/locales/zh-CN/` |
 | `@theme/host` | `asset()` / `themeId()` / `scheme()` / `setScheme()` / `manifest()` |
 | `@theme/ui` | 同上（语义化别名） |
 

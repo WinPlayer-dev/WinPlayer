@@ -5,11 +5,13 @@ import { useSettingsStore } from "@/stores/settings";
 import { OFFICIAL_MARKET_SOURCE } from "@/stores/plugins";
 import { toast } from "@/services/toast";
 import type { MarketSource } from "@/types/plugin";
+import { useI18n } from "@/i18n";
 import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 
 const settings = useSettingsStore();
+const { t } = useI18n();
 
 const newSourceName = ref("");
 const newSourceUrl = ref("");
@@ -25,7 +27,7 @@ function addSource() {
   const name = newSourceName.value.trim();
   const url = newSourceUrl.value.trim();
   if (!url) {
-    toast("请输入市场源地址", "error");
+    toast(t("settings.plugins.market.errors.urlRequired"), "error");
     return;
   }
   const source: MarketSource = { name: name || url, url };
@@ -41,18 +43,18 @@ function removeSource(index: number) {
 
 function saveMirror() {
   void settings.setGithubMirror(mirrorDraft.value).then(() =>
-    toast("GitHub 镜像源已保存", "success"),
+    toast(t("settings.plugins.market.mirror.saved"), "success"),
   );
 }
 </script>
 
 <template>
-  <SettingsSection id="plugins-market" title="插件市场">
+  <SettingsSection id="plugins-market" :title="t('settings.plugins.market.section')">
     <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">GitHub 镜像源</div>
+          <div class="card-header">{{ t("settings.plugins.market.mirror.title") }}</div>
           <div class="card-description">
-            为经 GitHub 下载的内容（插件安装、市场索引、图片）加速，例如 https://ghproxy.net/ ；留空直连。
+            {{ t("settings.plugins.market.mirror.description") }}
           </div>
         </div>
         <div class="mirror-edit">
@@ -62,15 +64,15 @@ function saveMirror() {
             PlaceholderText="https://ghproxy.net/"
             @update:Text="mirrorDraft = String($event ?? '')"
           />
-          <WpButton variant="standard" class="small" @click="saveMirror">保存</WpButton>
+          <WpButton variant="standard" class="small" @click="saveMirror">{{ t("common.action.save") }}</WpButton>
         </div>
       </WpCard>
 
       <WpCard variant="column">
         <div class="card-content">
-          <div class="card-header">市场源列表</div>
+          <div class="card-header">{{ t("settings.plugins.market.sources.title") }}</div>
           <div class="card-description">
-            每个源是一个 JSON 索引地址（格式见 docs/PLUGIN-DEVELOPMENT.md），插件市场会聚合展示所有源。
+            {{ t("settings.plugins.market.sources.description") }}
           </div>
         </div>
 
@@ -79,7 +81,7 @@ function saveMirror() {
             <div class="source-info">
               <div class="source-name">
                 {{ OFFICIAL_MARKET_SOURCE.name }}
-                <span class="builtin-badge">内置</span>
+                <span class="builtin-badge">{{ t("settings.plugins.market.sources.builtin") }}</span>
               </div>
               <div class="source-url ellipsis">{{ OFFICIAL_MARKET_SOURCE.url }}</div>
             </div>
@@ -89,7 +91,7 @@ function saveMirror() {
               <div class="source-name">{{ source.name }}</div>
               <div class="source-url ellipsis">{{ source.url }}</div>
             </div>
-            <WpButton variant="standard" class="small danger" @click="removeSource(index)">移除</WpButton>
+            <WpButton variant="standard" class="small danger" @click="removeSource(index)">{{ t("common.action.remove") }}</WpButton>
           </li>
         </ul>
 
@@ -97,7 +99,7 @@ function saveMirror() {
           <TextBox
             class="source-input"
             :Text="newSourceName"
-            PlaceholderText="名称（可选）"
+            :PlaceholderText="t('settings.plugins.market.sources.namePlaceholder')"
             @update:Text="newSourceName = String($event ?? '')"
           />
           <TextBox
@@ -106,7 +108,7 @@ function saveMirror() {
             PlaceholderText="https://example.com/market-index.json"
             @update:Text="newSourceUrl = String($event ?? '')"
           />
-          <WpButton variant="standard" class="small" @click="addSource">添加</WpButton>
+          <WpButton variant="standard" class="small" @click="addSource">{{ t("common.action.add") }}</WpButton>
         </div>
       </WpCard>
   </SettingsSection>

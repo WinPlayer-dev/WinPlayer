@@ -12,6 +12,7 @@ import PageShell from "@/components/layout/PageShell.vue";
 import TitleBar from "@/components/layout/TitleBar.vue";
 import { themeSlot } from "@/components/theme/themeSlot";
 import { useIsMobile } from "@/composables/useIsMobile";
+import { useI18n } from "@/i18n";
 import { useSongListLayout } from "@/composables/useSongListLayout";
 import ToastHost from "@/components/common/ToastHost.vue";
 import ContextMenuHost from "@/components/common/ContextMenuHost.vue";
@@ -62,6 +63,7 @@ const history = useHistoryStore();
 const shortcuts = useShortcutsStore();
 const updater = useUpdaterStore();
 const isMobile = useIsMobile();
+const { t } = useI18n();
 /** 云端布局（仅手机端）：同时驱动 <html data-song-layout> 与设置页卡片选中态 */
 const cloudSongList = useSongListLayout();
 
@@ -197,14 +199,14 @@ onMounted(async () => {
     void updater.init().then(() => updater.maybeAutoCheck());
     // Android 返回键：全局只在这里接管一次，其余页面通过拦截器插入
     if (isMobile) {
-      void installBackButton(router, () => toast("再按一次返回键退出应用", "info"));
+      void installBackButton(router, () => toast(t("common.hint.androidExitHint"), "info"));
     }
     document.addEventListener("visibilitychange", onVisibilityChange);
     document.addEventListener("focus", onWindowFocus);
   } catch (error) {
     // 初始化（数据库 / 插件目录）出错也要放行首屏，不能把用户停在一片空白上
     console.error("[app] 初始化失败：", error);
-    toast("初始化未完全成功，部分数据可能不可用", "error");
+    toast(t("common.hint.initPartialFailed"), "error");
   } finally {
     // 首屏闸门：首次引导判定结束（或初始化失败）后才渲染真正的页面
     booting.value = false;

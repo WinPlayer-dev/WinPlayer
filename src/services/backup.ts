@@ -15,6 +15,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import { t } from "@/i18n";
 import { getDb, getSetting, setSetting } from "@/services/db";
 import { toast } from "@/services/toast";
 import { useUpdaterStore } from "@/stores/updater";
@@ -148,9 +149,9 @@ export async function exportBackupToFile(options: ExportOptions = {}): Promise<b
     .replace(/[-:T]/g, "")
     .slice(0, 12);
   const target = await save({
-    title: "导出 WinPlayer 备份",
+    title: t("errors.file.backup.saveTitle"),
     defaultPath: `winplayer-backup-${stamp}.json`,
-    filters: [{ name: "WinPlayer 备份", extensions: ["json"] }],
+    filters: [{ name: t("errors.file.backup.filter"), extensions: ["json"] }],
   });
   if (!target) return false;
 
@@ -166,14 +167,14 @@ export async function exportBackupToFile(options: ExportOptions = {}): Promise<b
 export async function readBackupFile(): Promise<BackupPayload | null> {
   const { open } = await import("@tauri-apps/plugin-dialog");
   const picked = await open({
-    title: "选择 WinPlayer 备份文件",
+    title: t("errors.file.backup.openTitle"),
     multiple: false,
     directory: false,
-    filters: [{ name: "WinPlayer 备份", extensions: ["json"] }],
+    filters: [{ name: t("errors.file.backup.filter"), extensions: ["json"] }],
   });
   if (!picked || Array.isArray(picked)) return null;
   const text = await invoke<string | null>("download_read_text", { path: picked });
-  if (!text) throw new Error("备份文件为空或无法读取");
+  if (!text) throw new Error(t("errors.file.backup.emptyOrUnreadable"));
   return parseBackup(text);
 }
 
@@ -183,14 +184,19 @@ export function parseBackup(text: string): BackupPayload {
   try {
     payload = JSON.parse(text);
   } catch {
-    throw new Error("不是合法的 JSON 文件");
+    throw new Error(t("errors.file.invalidJson"));
   }
-  if (!payload || typeof payload !== "object") throw new Error("备份内容为空");
+  if (!payload || typeof payload !== "object") throw new Error(t("errors.file.backup.empty"));
   const data = payload as Partial<BackupPayload>;
-  if (data.app !== "WinPlayer") throw new Error("这不是 WinPlayer 的备份文件");
-  if (typeof data.version !== "number") throw new Error("备份缺少版本号");
+  if (data.app !== "WinPlayer") throw new Error(t("errors.file.backup.notWinPlayer"));
+  if (typeof data.version !== "number") throw new Error(t("errors.file.backup.missingVersion"));
   if (data.version > BACKUP_VERSION) {
-    throw new Error(`备份版本 ${data.version} 高于当前应用支持的 ${BACKUP_VERSION}，请先升级`);
+    throw new Error(
+      t("errors.file.backup.versionTooNew", {
+        version: data.version,
+        supported: BACKUP_VERSION,
+      }),
+    );
   }
   return data as BackupPayload;
 }
@@ -251,7 +257,7 @@ export async function restoreBackup(payload: BackupPayload): Promise<ImportSumma
     );
     if (existing.length) {
       idMap.set(oldId, existing[0].id);
-      summary.skipped.push(`歌单「${name}」已存在，已合并曲目`);
+      summary.skipped.push(t("errors.file.backup.skipPlaylistExists", { name }));
       continue;
     }
     const now = Date.now();
@@ -280,7 +286,7 @@ export async function restoreBackup(payload: BackupPayload): Promise<ImportSumma
     const oldPlaylistId = Number(row.playlist_id);
     const newPlaylistId = idMap.get(oldPlaylistId);
     if (!newPlaylistId) {
-      summary.skipped.push(`曲目所属歌单（#${oldPlaylistId}）不在备份中，已跳过`);
+      summary.skipped.push(t("errors.file.backup.skipOrphanTracks", { id: oldPlaylistId }));
       continue;
     }
     const track = typeof row.track === "string" ? row.track : "";
@@ -376,24 +382,33 @@ export async function restoreBackup(payload: BackupPayload): Promise<ImportSumma
 /** 导入后的一次性提示文案 */
 export function describeImport(summary: ImportSummary): string {
   const parts: string[] = [];
-  if (summary.settings) parts.push(`${summary.settings} 项设置`);
-  if (summary.likedSongs) parts.push(`${summary.likedSongs} 首喜欢`);
-  if (summary.playlists) parts.push(`${summary.playlists} 个歌单`);
-  if (summary.playlistTracks) parts.push(`${summary.playlistTracks} 首歌单曲目`);
-  if (summary.offlineSongs) parts.push(`${summary.offlineSongs} 条离线索引`);
-  if (summary.playHistory) parts.push(`${summary.playHistory} 条播放历史`);
-  if (summary.trackMeta) parts.push(`${summary.trackMeta} 首自定义信息`);
-  if (summary.queue) parts.push("播放队列");
-  return parts.length ? `已恢复：${parts.join("、")}` : "备份里没有可恢复的内容";
+  if (summary.settings)
+    parts.push(t("errors.file.backup.summary.settings", { count: summary.settings }));
+  if (summary.likedSongs)
+    parts.push(t("errors.file.backup.summary.liked", { count: summary.likedSongs }));
+  if (summary.playlists)
+    parts.push(t("errors.file.backup.summary.playlists", { count: summary.playlists }));
+  if (summary.playlistTracks)
+    parts.push(t("errors.file.backup.summary.playlistTracks", { count: summary.playlistTracks }));
+  if (summary.offlineSongs)
+    parts.push(t("errors.file.backup.summary.offline", { count: summary.offlineSongs }));
+  if (summary.playHistory)
+    parts.push(t("errors.file.backup.summary.history", { count: summary.playHistory }));
+  if (summary.trackMeta)
+    parts.push(t("errors.file.backup.summary.trackMeta", { count: summary.trackMeta }));
+  if (summary.queue) parts.push(t("errors.file.backup.summary.queue"));
+  return parts.length
+    ? t("errors.file.backup.restored", { parts: parts.join("、") })
+    : t("errors.file.backup.nothingToRestore");
 }
 
 /** 导出失败/成功与否的统一提示（供设置页调用） */
 export async function runExport(options: ExportOptions = {}): Promise<void> {
   try {
     const saved = await exportBackupToFile(options);
-    if (saved) toast("备份已导出", "success");
+    if (saved) toast(t("errors.file.backup.exported"), "success");
   } catch (error) {
-    toast(`导出失败: ${error}`, "error");
+    toast(t("errors.file.backup.exportFailed", { error: String(error) }), "error");
   }
 }
 
@@ -407,11 +422,17 @@ export async function runImport(): Promise<ImportSummary | null> {
     await useTrackMetaStore().load();
     toast(describeImport(summary), "success");
     if (summary.skipped.length) {
-      toast(`有 ${summary.skipped.length} 项被跳过：${summary.skipped[0]}`, "info");
+      toast(
+        t("errors.file.backup.skippedCount", {
+          count: summary.skipped.length,
+          first: summary.skipped[0],
+        }),
+        "info",
+      );
     }
     return summary;
   } catch (error) {
-    toast(`导入失败: ${error}`, "error");
+    toast(t("errors.file.backup.importFailed", { error: String(error) }), "error");
     return null;
   }
 }

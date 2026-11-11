@@ -7,12 +7,15 @@
  */
 import StudioSection from "@/views/settings/experimental/StudioSection.vue";
 import AutoPlaylistSection from "@/views/settings/experimental/AutoPlaylistSection.vue";
+import { useI18n } from "@/i18n";
+
+const { t } = useI18n();
 </script>
 
 <template>
   <div>
     <p class="panel-note">
-      这些功能仍在打磨，界面与行为可能随版本调整。关闭开关只是隐藏入口，已有数据不会删除。
+      {{ t("settings.experimental.note") }}
     </p>
     <StudioSection />
     <AutoPlaylistSection />

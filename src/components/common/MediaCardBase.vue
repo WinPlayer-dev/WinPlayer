@@ -12,6 +12,7 @@
  */
 import { computed } from "vue";
 import { useRouter } from "vue-router";
+import { useI18n } from "@/i18n";
 import { pluginDisplayName, usePluginsStore } from "@/stores/plugins";
 import { useLibraryStore } from "@/stores/library";
 import { toast } from "@/services/toast";
@@ -30,6 +31,7 @@ const props = defineProps<{
   artist?: UnifiedArtist;
 }>();
 
+const { t } = useI18n();
 const router = useRouter();
 const plugins = usePluginsStore();
 const library = useLibraryStore();
@@ -50,9 +52,11 @@ const cover = computed(() => {
   return playlist.value?.cover ?? "";
 });
 
-const title = computed(() => item.value?.name || "未命名");
+const title = computed(() => item.value?.name || t("components.empty.untitled"));
 const sourceName = computed(() =>
-  sourceId.value ? pluginDisplayName(plugins.records, sourceId.value) : "本地",
+  sourceId.value
+    ? pluginDisplayName(plugins.records, sourceId.value)
+    : t("components.mediaCard.localSource"),
 );
 
 const placeholderIcon = computed(() => (props.kind === "artist" ? "\uE77B" : "\uE8FD"));
@@ -61,17 +65,25 @@ const subtitle = computed(() => {
   if (album.value) {
     const names = (album.value.artistNames ?? []).filter(Boolean);
     if (names.length) return names.join(" / ");
-    if (album.value.trackCount) return `${album.value.trackCount} 首`;
+    if (album.value.trackCount) {
+      return t("common.unit.track", { count: album.value.trackCount });
+    }
     return sourceName.value;
   }
   if (artist.value) {
     const parts: string[] = [];
-    if (artist.value.songCount) parts.push(`${artist.value.songCount} 首`);
-    if (artist.value.albumCount) parts.push(`${artist.value.albumCount} 张专辑`);
+    if (artist.value.songCount) {
+      parts.push(t("common.unit.track", { count: artist.value.songCount }));
+    }
+    if (artist.value.albumCount) {
+      parts.push(t("common.unit.album", { count: artist.value.albumCount }));
+    }
     return parts.length ? parts.join(" · ") : sourceName.value;
   }
   const parts: string[] = [];
-  if (playlist.value?.trackCount) parts.push(`${playlist.value.trackCount} 首`);
+  if (playlist.value?.trackCount) {
+    parts.push(t("common.unit.track", { count: playlist.value.trackCount }));
+  }
   parts.push(sourceName.value);
   return parts.join(" · ");
 });
@@ -100,18 +112,21 @@ function open() {
 /** 把插件来源歌单整体复制为一个本地歌单 */
 async function copyToLocal(p: UnifiedPlaylist) {
   if (!p.sourceId) return;
-  toast(`正在复制「${p.name}」到本地…`, "info");
+  toast(t("components.mediaCard.copyingToLocal", { name: p.name }), "info");
   try {
     const detail = await plugins.getPlaylistDetail(p.sourceId, p.id);
     const tracks = detail?.tracks ?? [];
     if (!tracks.length) {
-      toast("该歌单没有可复制的歌曲", "error");
+      toast(t("components.mediaCard.noTracksToCopy"), "error");
       return;
     }
     const created = await library.createPlaylist(detail?.name || p.name);
     if (!created) return;
     const added = await library.addTracksToPlaylist(created.id, tracks);
-    toast(`已复制 ${added} 首歌曲到本地歌单「${created.name}」`, "success");
+    toast(
+      t("components.mediaCard.copiedToLocal", { count: added, name: created.name }),
+      "success",
+    );
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error), "error");
   }
@@ -123,16 +138,16 @@ function menuItems(p: UnifiedPlaylist): ContextMenuItem[] {
   if (p.sourceId) {
     items.push({
       key: "copy-local",
-      label: "复制到本地",
+      label: t("components.contextMenu.copyToLocal"),
       icon: "&#xF151;",
       action: () => copyToLocal(p),
     });
   }
   items.push({
     key: "copy-name",
-    label: "复制歌单名",
+    label: t("components.contextMenu.copyPlaylistName"),
     icon: "&#xF32C;",
-    action: () => copyText(p.name, "歌单名"),
+    action: () => copyText(p.name, t("components.mediaCard.copyPlaylistNameLabel")),
   });
   return items;
 }

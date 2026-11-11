@@ -11,6 +11,7 @@
  */
 
 import type { ThemeEntry, ThemeManifest } from "@/types/theme";
+import { t } from "@/i18n";
 
 /** 内置主题的源码文件表：相对路径 → 文本内容 */
 export type BuiltinThemeFiles = Record<string, string>;
@@ -58,7 +59,7 @@ export const BUILTIN_THEMES: BuiltinThemeDescriptor[] = [
   {
     id: "com.winplayer.theme.md3",
     name: "Material You",
-    description: "基于 MDUI 的 Material Design 3 主题：导航轨、药丸按钮、FAB 播放键与动态取色",
+    description: t("themes.theme.md3Description"),
     load: rawLoader(
       import.meta.glob("../themes/md3/**/*", { query: "?raw", import: "default" }),
       "../themes/md3/",

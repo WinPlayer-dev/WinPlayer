@@ -25,6 +25,7 @@ import {
   type RecordingItem,
 } from "@/services/recorder";
 import { toast } from "@/services/toast";
+import { useI18n } from "@/i18n";
 import { formatDuration, formatTime, trackArtist, trackTitle } from "@/types/player";
 import type { UnifiedTrack } from "@/types/plugin";
 
@@ -37,13 +38,14 @@ const recorder = useRecorderStore();
 const settings = useSettingsStore();
 const router = useRouter();
 const isMobile = useIsMobile();
+const { t, d } = useI18n();
 
 // 展示版曲目：录音棚顶部的歌名 / 封面、录音作品的标题都用用户自定义后的信息
 const currentTrack = computed(() => player.displayTrack);
 
 /* ------------------------------ 麦克风 / 监听 ------------------------------ */
 
-const deviceItems = computed(() => ["系统默认", ...recorder.devices]);
+const deviceItems = computed(() => [t("layout.playerBar.systemDefault"), ...recorder.devices]);
 const deviceIndex = computed(() => {
   if (!recorder.device) return 0;
   const index = recorder.devices.indexOf(recorder.device);
@@ -52,7 +54,7 @@ const deviceIndex = computed(() => {
 
 function onDeviceChange(_sender: HTMLElement | null, payload: { AddedItems: unknown[] }): void {
   const label = String(payload.AddedItems[0] ?? "");
-  recorder.device = label === "系统默认" ? null : label;
+  recorder.device = label === t("layout.playerBar.systemDefault") ? null : label;
   recorder.persist();
   // 换了麦克风，之前的试音结论不再适用
   recorder.probeReport = null;
@@ -84,7 +86,7 @@ const levelPercent = computed(() =>
 );
 
 function dbText(peak: number): string {
-  if (!Number.isFinite(peak) || peak <= 0.0001) return "静音";
+  if (!Number.isFinite(peak) || peak <= 0.0001) return t("studio.record.silent");
   return `${(20 * Math.log10(peak)).toFixed(0)} dB`;
 }
 
@@ -93,26 +95,29 @@ function dbText(peak: number): string {
  * 只有电平能区分「没权限」与「没说话」——所以这个提示必须给到位。
  */
 const probeHint = computed<{ kind: "busy" | "bad" | "weak" | "ok"; text: string } | null>(() => {
-  if (recorder.probing) return { kind: "busy", text: "正在采集，请对着麦克风说句话…" };
+  if (recorder.probing) return { kind: "busy", text: t("studio.record.probeBusy") };
   const report = recorder.probeReport;
   if (!report) return null;
   if (report.peak < 0.002) {
     return {
       kind: "bad",
-      text: "没有收到任何声音：系统可能没允许应用使用麦克风，或当前设备选错了",
+      text: t("studio.record.probeNoSound"),
     };
   }
   if (report.peak < 0.02) {
-    return { kind: "weak", text: `有声音但偏小（峰值 ${dbText(report.peak)}），可以离麦克风近一点` };
+    return {
+      kind: "weak",
+      text: t("studio.record.probeWeak", { db: dbText(report.peak) }),
+    };
   }
-  return { kind: "ok", text: `麦克风正常（峰值 ${dbText(report.peak)}）` };
+  return { kind: "ok", text: t("studio.record.probeOk", { db: dbText(report.peak) }) };
 });
 
 async function runProbe(): Promise<void> {
   if (recorder.recording || recorder.probing) return;
   const report = await recorder.probe();
   if (report && report.peak < 0.002) {
-    toast("麦克风没有收到声音，请检查系统麦克风权限或换一个输入设备", "error");
+    toast(t("studio.error.noSound"), "error");
   }
 }
 
@@ -138,12 +143,14 @@ async function toggleRecord(): Promise<void> {
     const item = await recorder.stop();
     // 停录即停伴奏：继续放着容易在暂停点留下半句录音
     if (player.playing) player.togglePlay();
-    if (item) toast(`录音已保存 · ${formatDuration(item.durationMs)}`, "success");
+    if (item) {
+      toast(t("studio.record.savedWithDuration", { time: formatDuration(item.durationMs) }), "success");
+    }
     return;
   }
 
   if (isRecordingPlayback.value) {
-    toast("现在放的是录音成品，换一首歌再录", "info");
+    toast(t("studio.error.playbackAsBacking"), "info");
     return;
   }
 
@@ -183,9 +190,9 @@ function isLoadedItem(item: RecordingItem): boolean {
 function recordingTrack(item: RecordingItem): UnifiedTrack {
   return {
     id: item.id,
-    name: item.title || "未命名录音",
-    artists: [item.artist || "清唱"],
-    album: "录音棚",
+    name: item.title || t("studio.record.untitled"),
+    artists: [item.artist || t("studio.record.acapella")],
+    album: t("studio.page.title"),
     cover: item.cover ?? undefined,
     duration: item.durationMs,
     sourceId: RECORDING_SOURCE_ID,
@@ -256,7 +263,8 @@ async function reveal(item: RecordingItem): Promise<void> {
 function formatDate(ms: number): string {
   const date = new Date(ms);
   const pad = (value: number) => value.toString().padStart(2, "0");
-  return `${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  // 月/日交给 Intl（各语种写法不同），时分保持定宽两位
+  return `${d(date, { month: "numeric", day: "numeric" })} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 /* ------------------------------ 生命周期 ------------------------------ */
@@ -286,19 +294,19 @@ onMounted(() => {
 
 <template>
   <div class="wp-page studio-page" :class="{ 'is-mobile': isMobile }">
-    <MobilePageHeader title="录音棚（实验性）" />
+    <MobilePageHeader :title="t('studio.page.mobileTitle')" />
 
     <div class="wp-page-header">
       <div class="header-cover" :class="{ live: recorder.recording }">
         <span class="wp-icon">&#xE7FA;</span>
       </div>
       <div class="header-meta">
-        <h1 class="wp-page-title">录音棚<span class="title-experimental">（实验性）</span></h1>
+        <h1 class="wp-page-title">{{ t("studio.page.title") }}<span class="title-experimental">{{ t("studio.page.experimental") }}</span></h1>
         <div class="header-sub">
           <template v-if="recorder.recording">
-            <span class="live-dot" />正在录音 · {{ formatTime(recorder.elapsed / 1000) }}
+            <span class="live-dot" />{{ t("studio.record.liveWithTime", { time: formatTime(recorder.elapsed / 1000) }) }}
           </template>
-          <template v-else>用当前播放的歌曲当伴奏，唱完直接混成一条音轨</template>
+          <template v-else>{{ t("studio.page.subtitle") }}</template>
         </div>
       </div>
     </div>
@@ -313,12 +321,12 @@ onMounted(() => {
           </div>
           <div class="np-meta">
             <div class="np-title ellipsis">
-              {{ currentTrack ? trackTitle(currentTrack) : "还没有选择伴奏" }}
+              {{ currentTrack ? trackTitle(currentTrack) : t("studio.playback.noTrack") }}
             </div>
             <div class="np-sub ellipsis">
-              <template v-if="isRecordingPlayback">录音回放 · 换一首歌才能继续录</template>
+              <template v-if="isRecordingPlayback">{{ t("studio.record.playbackBlocked") }}</template>
               <template v-else-if="currentTrack">{{ trackArtist(currentTrack) }}</template>
-              <template v-else>在播放器里挑一首歌，它就会出现在这里</template>
+              <template v-else>{{ t("studio.playback.pickHint") }}</template>
             </div>
           </div>
         </div>
@@ -339,14 +347,14 @@ onMounted(() => {
             </p>
           </div>
           <div v-else class="lyric-empty">
-            {{ player.lyricsLoading ? "歌词加载中…" : "这首歌暂无歌词" }}
+            {{ player.lyricsLoading ? t("player.lyrics.loading") : t("player.lyrics.empty") }}
           </div>
         </div>
       </div>
 
       <div class="deck-controls">
         <div class="control-field">
-          <span class="field-label">麦克风</span>
+          <span class="field-label">{{ t("studio.record.microphone") }}</span>
           <ComboBox
             :ItemsSource="deviceItems"
             :SelectedIndex="deviceIndex"
@@ -358,14 +366,14 @@ onMounted(() => {
         <!-- 输入电平 + 试音：麦克风到底出不出声，只能靠这个看出来 -->
         <div class="control-field">
           <div class="field-head">
-            <span class="field-label">输入电平</span>
+            <span class="field-label">{{ t("studio.record.inputLevel") }}</span>
             <button
               type="button"
               class="probe-button"
               :disabled="recorder.recording || recorder.probing"
               @click="runProbe"
             >
-              {{ recorder.probing ? "试音中…" : "试音" }}
+              {{ recorder.probing ? t("studio.record.probing") : t("studio.record.probe") }}
             </button>
           </div>
           <div
@@ -386,22 +394,22 @@ onMounted(() => {
               class="probe-link"
               @click="recorder.showMicSettings()"
             >
-              打开系统设置
+              {{ t("studio.record.openSystemSettings") }}
             </button>
           </div>
         </div>
 
         <div class="control-field inline">
           <div class="field-text">
-            <span class="field-label">耳机监听</span>
-            <span class="field-hint">戴耳机再开，避免啸叫</span>
+            <span class="field-label">{{ t("studio.record.monitor") }}</span>
+            <span class="field-hint">{{ t("studio.record.monitorHint") }}</span>
           </div>
           <ToggleSwitch :IsOn="recorder.monitor" @Toggled="onMonitorToggle" />
         </div>
 
         <div v-if="recorder.monitor" class="control-field">
           <div class="field-head">
-            <span class="field-label">监听音量</span>
+            <span class="field-label">{{ t("studio.record.monitorVolume") }}</span>
             <span class="field-value">{{ Math.round(recorder.monitorVolume) }}%</span>
           </div>
           <Slider
@@ -425,12 +433,12 @@ onMounted(() => {
         <div class="record-caption">
           {{
             recorder.busy
-              ? "处理中…"
+              ? t("common.state.processing")
               : recorder.recording
-                ? `点击结束并混音 · ${formatTime(recorder.elapsed / 1000)}`
+                ? t("studio.record.stopWithTime", { time: formatTime(recorder.elapsed / 1000) })
                 : isRecordingPlayback
-                  ? "当前是录音回放，不能当伴奏"
-                  : "点击开始录音"
+                  ? t("studio.record.playbackBlockedShort")
+                  : t("studio.record.startHint")
           }}
         </div>
       </div>
@@ -439,15 +447,15 @@ onMounted(() => {
     <!-- 作品列表 -->
     <section class="recordings">
       <div class="section-head">
-        <h2 class="wp-section-title">我的录音</h2>
+        <h2 class="wp-section-title">{{ t("studio.page.recordings") }}</h2>
         <span v-if="recorder.items.length" class="section-count">
-          {{ recorder.items.length }} 条
+          {{ t("studio.page.recordingsCount", { count: recorder.items.length }) }}
         </span>
       </div>
 
       <div v-if="!recorder.items.length" class="empty-hint">
         <span class="wp-icon">&#xE7FA;</span>
-        <p>还没有录音。选一首歌，点上面的按钮开始唱。</p>
+        <p>{{ t("studio.page.empty") }}</p>
       </div>
 
       <ul v-else class="rec-list">
@@ -456,7 +464,7 @@ onMounted(() => {
             type="button"
             class="rec-play"
             :class="{ playing: isPlayingItem(item) }"
-            :title="isPlayingItem(item) ? '暂停' : '播放'"
+            :title="isPlayingItem(item) ? t('common.action.pause') : t('common.action.play')"
             @click="togglePlayItem(item)"
           >
             <span class="wp-icon">{{ isPlayingItem(item) ? "&#xF5A2;" : "&#xF606;" }}</span>
@@ -468,23 +476,23 @@ onMounted(() => {
           </div>
 
           <div class="rec-meta">
-            <div class="rec-title ellipsis">{{ item.title || "未命名录音" }}</div>
+            <div class="rec-title ellipsis">{{ item.title || t("studio.record.untitled") }}</div>
             <div class="rec-sub ellipsis">
-              {{ item.artist || "清唱" }} · {{ formatDate(item.createdAt) }} ·
+              {{ item.artist || t("studio.record.acapella") }} · {{ formatDate(item.createdAt) }} ·
               {{ formatDuration(item.durationMs) }}
-              <span v-if="!item.hasSong" class="tag">无人声伴奏</span>
+              <span v-if="!item.hasSong" class="tag">{{ t("studio.record.noVocalTag") }}</span>
             </div>
           </div>
 
           <div class="rec-actions">
             <WpButton size="small" variant="standard" @click.stop="openMixDialog(item)">
-              混音
+              {{ t("studio.export.open") }}
             </WpButton>
             <button
               v-if="!isMobile"
               type="button"
               class="icon-button"
-              title="在文件夹中显示"
+              :title="t('studio.export.reveal')"
               @click.stop="reveal(item)"
             >
               <span class="wp-icon">&#xF584;</span>
@@ -492,7 +500,7 @@ onMounted(() => {
             <button
               type="button"
               class="icon-button danger"
-              title="删除"
+              :title="t('common.action.delete')"
               @click.stop="openDeleteDialog(item)"
             >
               <span class="wp-icon">&#xF34D;</span>
@@ -505,17 +513,17 @@ onMounted(() => {
     <!-- 混音调整 -->
     <ContentDialog
       ref="mixDialogRef"
-      Title="混音调整"
-      PrimaryButtonText="重新生成"
-      CloseButtonText="取消"
+      :Title="t('studio.export.dialogTitle')"
+      :PrimaryButtonText="t('studio.export.regenerate')"
+      :CloseButtonText="t('common.action.cancel')"
     >
       <div class="dialog-form">
         <p class="dialog-hint">
-          人声与伴奏已经按录音时间戳自动对齐，如果听起来「人声偏早/偏晚」，用对齐微调补一点。
+          {{ t("studio.export.hint") }}
         </p>
         <div class="mix-field">
           <div class="field-head">
-            <span class="field-label">对齐微调</span>
+            <span class="field-label">{{ t("studio.export.offset") }}</span>
             <span class="field-value">{{ Math.round(mixOffset) }} ms</span>
           </div>
           <Slider
@@ -528,7 +536,7 @@ onMounted(() => {
         </div>
         <div class="mix-field">
           <div class="field-head">
-            <span class="field-label">人声</span>
+            <span class="field-label">{{ t("studio.export.voice") }}</span>
             <span class="field-value">{{ mixVoiceGain > 0 ? "+" : "" }}{{ mixVoiceGain.toFixed(1) }} dB</span>
           </div>
           <Slider
@@ -541,7 +549,7 @@ onMounted(() => {
         </div>
         <div class="mix-field">
           <div class="field-head">
-            <span class="field-label">伴奏</span>
+            <span class="field-label">{{ t("studio.export.song") }}</span>
             <span class="field-value">{{ mixSongGain > 0 ? "+" : "" }}{{ mixSongGain.toFixed(1) }} dB</span>
           </div>
           <Slider
@@ -557,10 +565,14 @@ onMounted(() => {
 
     <ContentDialog
       ref="deleteDialogRef"
-      Title="删除录音"
-      :Content="`删除后无法恢复，确定要删除「${pendingDelete?.title || '这条录音'}」吗？`"
-      PrimaryButtonText="删除"
-      CloseButtonText="取消"
+      :Title="t('studio.export.deleteTitle')"
+      :Content="
+        t('studio.export.deleteConfirm', {
+          name: pendingDelete?.title || t('studio.export.deleteFallbackName'),
+        })
+      "
+      :PrimaryButtonText="t('common.action.delete')"
+      :CloseButtonText="t('common.action.cancel')"
     />
   </div>
 </template>

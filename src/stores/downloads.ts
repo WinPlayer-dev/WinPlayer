@@ -18,6 +18,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { getDb } from "@/services/db";
 import { toast } from "@/services/toast";
+import { t } from "@/i18n";
 import { useSettingsStore, DEFAULT_DOWNLOAD_NAME_TEMPLATE } from "./settings";
 import { pluginDisplayName, usePluginsStore } from "./plugins";
 import { useTrackMetaStore } from "./trackMeta";
@@ -106,7 +107,7 @@ function offlineKey(track: UnifiedTrack): string {
 
 /** 曲目在下载列表里的展示名（用于单曲下载的分组名） */
 function trackGroupName(track: UnifiedTrack): string {
-  return track.name || "单曲";
+  return track.name || t("errors.download.singleTrack");
 }
 
 /** 写进文件标签的元数据（歌手按「A / B」拼接，与重建时的拆分对应） */
@@ -136,7 +137,7 @@ function buildTrack(
   const fallback: UnifiedTrack = {
     id: row.track_id,
     sourceId: row.source_id || undefined,
-    name: stored?.name || "未知曲目",
+    name: stored?.name || t("errors.download.unknownTrack"),
     artists: stored?.artists ?? [],
     album: stored?.album,
     cover: stored?.cover,
@@ -431,14 +432,14 @@ export const useDownloadsStore = defineStore("downloads", () => {
       added += 1;
     }
     if (added) {
-      const suffix = skipped ? `（${skipped} 首已下载，自动跳过）` : "";
-      toast(`已加入 ${added} 首到下载队列${suffix}`, "success");
+      const suffix = skipped ? t("errors.download.skippedSuffix", { count: skipped }) : "";
+      toast(t("errors.download.added", { count: added }) + suffix, "success");
       queuePaused.value = false;
       void pump();
     } else if (skipped) {
-      toast("所选歌曲均已下载", "info");
+      toast(t("errors.download.allDownloaded"), "info");
     } else {
-      toast("没有可下载的歌曲", "info");
+      toast(t("errors.download.nothingToDownload"), "info");
     }
   }
 
@@ -614,7 +615,7 @@ export const useDownloadsStore = defineStore("downloads", () => {
     try {
       await deleteDownload(song.path);
     } catch (error) {
-      toast(`删除文件失败: ${error}`, "error");
+      toast(t("errors.download.deleteFailed", { error: String(error) }), "error");
       return;
     }
     try {
@@ -629,7 +630,7 @@ export const useDownloadsStore = defineStore("downloads", () => {
     songs.value = songs.value.filter(
       (item) => !(item.sourceId === song.sourceId && item.trackId === song.trackId),
     );
-    toast("已从离线音乐移除", "success");
+    toast(t("errors.download.removed"), "success");
   }
 
   /** 清理文件已丢失的索引项 */
@@ -680,9 +681,9 @@ export const useDownloadsStore = defineStore("downloads", () => {
       const dest = await save({ defaultPath: defaultName });
       if (!dest) return;
       await copyDownload(song.path, dest);
-      toast("已导出所选文件", "success");
+      toast(t("errors.download.exported"), "success");
     } catch (error) {
-      toast(`导出失败: ${error}`, "error");
+      toast(t("errors.download.exportFailed", { error: String(error) }), "error");
     }
   }
 

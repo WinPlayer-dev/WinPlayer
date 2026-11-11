@@ -34,7 +34,9 @@ import {
   trackArtist,
   trackTitle,
 } from "@/types/player";
+import { useI18n } from "@/i18n";
 
+const { t } = useI18n();
 const player = usePlayerStore();
 const trackMeta = useTrackMetaStore();
 const library = useLibraryStore();
@@ -77,7 +79,7 @@ const abRange = computed(() => {
 const abLabel = computed(() => {
   if (player.abEnabled) return `${formatTime(player.abPointA!)} – ${formatTime(player.abPointB!)}`;
   if (player.abPointA !== null) return `A ${formatTime(player.abPointA)}`;
-  return "未设置";
+  return t("layout.playerBar.notSet");
 });
 
 /** 打点：没有 A 打 A，有 A 没 B 打 B，都已设置则重设 A */
@@ -97,7 +99,7 @@ function selectRate(value: number): void {
 const sleepTimer = useSleepTimer();
 /** 面板入口的摘要文案 */
 const sleepSummary = computed(() => {
-  if (sleepTimer.mode.value === "after-track") return "播完当前曲";
+  if (sleepTimer.mode.value === "after-track") return t("layout.playerBar.sleepAfterTrack");
   if (!sleepTimer.countingDown.value) return "";
   return sleepTimer.remainingLabel.value;
 });
@@ -107,7 +109,7 @@ const sleepSummary = computed(() => {
 const quality = useQualityControl(() => player.currentTrack);
 const qualityLabel = computed(() => {
   const info = quality.support.value;
-  if (!info) return "默认";
+  if (!info) return t("layout.playerBar.defaultQuality");
   return info.options.find((option) => option.value === info.current)?.label ?? info.current;
 });
 
@@ -693,7 +695,7 @@ onBeforeUnmount(() => {
       </div>
       <WpIconButton
         class="mini-action"
-        :title="liked ? '取消喜欢' : '添加到我喜欢'"
+        :title="liked ? t('layout.playerBar.unlike') : t('layout.playerBar.like')"
         @click.stop="toggleLikeCurrent"
         @pointerdown="onLikePointerDown"
         @pointermove="likeLongPress.move"
@@ -705,14 +707,14 @@ onBeforeUnmount(() => {
           <span class="wp-icon" :class="{ filled: liked }" :key="liked ? 'liked' : 'unliked'">{{ liked ? "&#xF47E;" : "&#xF47A;" }}</span>
         </transition>
       </WpIconButton>
-      <WpIconButton class="mini-action" :title="player.playing ? '暂停' : '播放'" @click.stop="player.togglePlay">
+      <WpIconButton class="mini-action" :title="player.playing ? t('common.action.pause') : t('common.action.play')" @click.stop="player.togglePlay">
         <transition name="icon-pop" mode="out-in">
           <span v-if="player.loading" key="loading" class="wp-icon">&#xF709;</span>
           <span v-else-if="player.playing" key="play" class="wp-icon filled">&#xF5AC;</span>
           <span v-else key="pause" class="wp-icon filled">&#xF610;</span>
         </transition>
       </WpIconButton>
-      <WpIconButton class="mini-action" title="下一首" :disabled="!player.queue.length" @click.stop="player.next()">
+      <WpIconButton class="mini-action" :title="t('common.action.next')" :disabled="!player.queue.length" @click.stop="player.next()">
         <span class="wp-icon filled">&#xF574;</span>
       </WpIconButton>
     </footer>
@@ -742,17 +744,17 @@ onBeforeUnmount(() => {
         <!-- 顶部区（横版：左封面 / 右曲名歌手）：此区域内可左右滑动切歌 -->
         <div class="full-top">
           <div class="full-header">
-            <button class="full-icon-button" title="收起" @click="closeFull">
+            <button class="full-icon-button" :title="t('common.action.collapse')" @click="closeFull">
               <span class="wp-icon">&#xF2AB;</span>
             </button>
-            <span class="full-header-title">正在播放</span>
+            <span class="full-header-title">{{ t("layout.nowPlaying.title") }}</span>
             <div class="full-header-actions">
-              <button class="full-icon-button" title="更多" @click="showMore = true">
+              <button class="full-icon-button" :title="t('common.action.more')" @click="showMore = true">
                 <span class="wp-icon">&#xE825;</span>
               </button>
               <button
                 class="full-icon-button"
-                :title="liked ? '取消喜欢' : '添加到我喜欢'"
+                :title="liked ? t('layout.playerBar.unlike') : t('layout.playerBar.like')"
                 @click="toggleLikeCurrent"
                 @pointerdown="onLikePointerDown"
                 @pointermove="likeLongPress.move"
@@ -786,8 +788,8 @@ onBeforeUnmount(() => {
 
         <!-- 歌词：当前行放大高亮，相邻行渐隐，上下边缘渐隐；外观由设置里的「歌词样式」控制 -->
         <div ref="listRef" class="full-lyrics wp-lrc" :class="lyricClasses" :style="lyricVars">
-          <div v-if="player.lyricsLoading" class="lyrics-empty">歌词加载中…</div>
-          <div v-else-if="!lyricRows.length" class="lyrics-empty">暂无歌词</div>
+          <div v-if="player.lyricsLoading" class="lyrics-empty">{{ t("player.lyrics.loading") }}</div>
+          <div v-else-if="!lyricRows.length" class="lyrics-empty">{{ t("player.lyrics.empty") }}</div>
           <template v-else>
             <p
               v-for="(line, index) in lyricRows"
@@ -855,23 +857,23 @@ onBeforeUnmount(() => {
           <button class="full-icon-button" :title="modeLabel" @click="player.cycleMode">
             <span class="wp-icon" :class="{ filled: modeIconFilled }" v-html="modeIcon" />
           </button>
-          <button class="full-icon-button" :disabled="!player.queue.length" title="上一首" @click="player.prev">
+          <button class="full-icon-button" :disabled="!player.queue.length" :title="t('common.action.previous')" @click="player.prev">
             <span class="wp-icon filled">&#xF633;</span>
           </button>
           <button
             class="full-play-button"
-            :title="player.playing ? '暂停' : '播放'"
+            :title="player.playing ? t('common.action.pause') : t('common.action.play')"
             @click="player.togglePlay"
           >
             <span v-if="player.loading" class="wp-icon">&#xF709;</span>
             <span v-else class="wp-icon filled">{{ player.playing ? "&#xF5AC;" : "&#xF610;" }}</span>
           </button>
-          <button class="full-icon-button" :disabled="!player.queue.length" title="下一首" @click="player.next()">
+          <button class="full-icon-button" :disabled="!player.queue.length" :title="t('common.action.next')" @click="player.next()">
             <span class="wp-icon filled">&#xF574;</span>
           </button>
           <button
             class="full-icon-button"
-            title="播放队列"
+            :title="t('layout.playerBar.queue')"
             :disabled="!player.queue.length"
             @click="showQueue = true"
           >
@@ -884,8 +886,8 @@ onBeforeUnmount(() => {
           <div v-if="showMore" class="full-offset" @click.self="showMore = false">
             <div class="offset-panel">
               <div class="offset-header">
-                <span class="offset-title">更多</span>
-                <WpIconButton title="关闭" @click="showMore = false">
+                <span class="offset-title">{{ t("common.action.more") }}</span>
+                <WpIconButton :title="t('common.action.close')" @click="showMore = false">
                   <span class="wp-icon">&#xF36A;</span>
                 </WpIconButton>
               </div>
@@ -896,41 +898,41 @@ onBeforeUnmount(() => {
                   @click="addCurrentToPlaylist"
                 >
                   <span class="wp-icon more-row-icon">&#xF4EE;</span>
-                  <span class="more-row-label">添加到歌单</span>
+                  <span class="more-row-label">{{ t("layout.playerBar.addToPlaylist") }}</span>
                 </button>
                 <button v-if="settings.studioEnabled" class="more-row" @click="openStudio">
                   <span class="wp-icon more-row-icon">&#xE7FA;</span>
-                  <span class="more-row-label">录音棚</span>
-                  <span v-if="recorder.recording" class="more-row-value">录音中</span>
+                  <span class="more-row-label">{{ t("layout.sideNav.studio") }}</span>
+                  <span v-if="recorder.recording" class="more-row-value">{{ t("layout.sideNav.studioRecording") }}</span>
                   <span class="wp-icon more-row-chevron">&#xF2B0;</span>
                 </button>
                 <button class="more-row" @click="showMore = false; showOffset = true">
                   <span class="wp-icon more-row-icon">&#xF588;</span>
-                  <span class="more-row-label">歌词偏移</span>
+                  <span class="more-row-label">{{ t("layout.mobilePlayer.lyricOffset") }}</span>
                   <span class="more-row-value">{{ offsetLabel }}</span>
                   <span class="wp-icon more-row-chevron">&#xF2B0;</span>
                 </button>
                 <button class="more-row" @click="openLyricStyle">
                   <span class="more-row-glyph" aria-hidden="true">Aa</span>
-                  <span class="more-row-label">歌词样式</span>
+                  <span class="more-row-label">{{ t("layout.playerBar.lyricsStyle") }}</span>
                   <span class="wp-icon more-row-chevron">&#xF2B0;</span>
                 </button>
                 <button class="more-row" @click="showMore = false; showRate = true">
                   <span class="wp-icon more-row-icon">&#xF831;</span>
-                  <span class="more-row-label">播放速度</span>
+                  <span class="more-row-label">{{ t("layout.playerBar.playbackRate") }}</span>
                   <span class="more-row-value">{{ formatRate(player.rate) }}</span>
                   <span class="wp-icon more-row-chevron">&#xF2B0;</span>
                 </button>
                 <button class="more-row" @click="showMore = false; showAb = true">
                   <span class="wp-icon more-row-icon">&#xF4F0;</span>
-                  <span class="more-row-label">A-B 循环</span>
+                  <span class="more-row-label">{{ t("layout.playerBar.abLoop") }}</span>
                   <span class="more-row-value">{{ abLabel }}</span>
                   <span class="wp-icon more-row-chevron">&#xF2B0;</span>
                 </button>
                 <button class="more-row" @click="showMore = false; showSleep = true">
                   <span class="wp-icon more-row-icon">&#xF2A1;</span>
-                  <span class="more-row-label">睡眠定时器</span>
-                  <span class="more-row-value">{{ sleepSummary || "未设置" }}</span>
+                  <span class="more-row-label">{{ t("layout.playerBar.sleepTimer") }}</span>
+                  <span class="more-row-value">{{ sleepSummary || t("layout.playerBar.notSet") }}</span>
                   <span class="wp-icon more-row-chevron">&#xF2B0;</span>
                 </button>
                 <button
@@ -939,18 +941,18 @@ onBeforeUnmount(() => {
                   @click="showMore = false; showQuality = true"
                 >
                   <span class="wp-icon more-row-icon">&#xF2CE;</span>
-                  <span class="more-row-label">播放音质</span>
+                  <span class="more-row-label">{{ t("layout.playerBar.audioQuality") }}</span>
                   <span class="more-row-value">{{ qualityLabel }}</span>
                   <span class="wp-icon more-row-chevron">&#xF2B0;</span>
                 </button>
                 <button class="more-row" @click="openHistory">
                   <span class="wp-icon more-row-icon">&#xF2A1;</span>
-                  <span class="more-row-label">最近播放</span>
+                  <span class="more-row-label">{{ t("layout.sideNav.recentlyPlayed") }}</span>
                   <span class="wp-icon more-row-chevron">&#xF2B0;</span>
                 </button>
                 <button class="more-row" @click="openOffline">
                   <span class="wp-icon more-row-icon">&#xF151;</span>
-                  <span class="more-row-label">离线音乐</span>
+                  <span class="more-row-label">{{ t("layout.sideNav.offlineMusic") }}</span>
                   <span class="wp-icon more-row-chevron">&#xF2B0;</span>
                 </button>
               </div>
@@ -963,18 +965,18 @@ onBeforeUnmount(() => {
           <div v-if="showOffset" class="full-offset" @click.self="showOffset = false">
             <div class="offset-panel">
               <div class="offset-header">
-                <span class="offset-title">歌词偏移</span>
-                <WpIconButton title="关闭" @click="showOffset = false">
+                <span class="offset-title">{{ t("layout.mobilePlayer.lyricOffset") }}</span>
+                <WpIconButton :title="t('common.action.close')" @click="showOffset = false">
                   <span class="wp-icon">&#xF36A;</span>
                 </WpIconButton>
               </div>
-              <div class="offset-hint">歌词比音乐早出现时按 + ，整体后移</div>
+              <div class="offset-hint">{{ t("layout.mobilePlayer.lyricOffsetHint") }}</div>
               <div class="offset-row">
                 <button class="offset-step" @click="shiftLyricOffset(-500)">−0.5s</button>
                 <span class="offset-value">{{ offsetLabel }}</span>
                 <button class="offset-step" @click="shiftLyricOffset(500)">+0.5s</button>
               </div>
-              <button class="offset-reset" @click="resetLyricOffset">重置偏移</button>
+              <button class="offset-reset" @click="resetLyricOffset">{{ t("layout.mobilePlayer.resetOffset") }}</button>
             </div>
           </div>
         </transition>
@@ -984,12 +986,12 @@ onBeforeUnmount(() => {
           <div v-if="showRate" class="full-offset" @click.self="showRate = false">
             <div class="offset-panel">
               <div class="offset-header">
-                <span class="offset-title">播放速度</span>
-                <WpIconButton title="关闭" @click="showRate = false">
+                <span class="offset-title">{{ t("layout.playerBar.playbackRate") }}</span>
+                <WpIconButton :title="t('common.action.close')" @click="showRate = false">
                   <span class="wp-icon">&#xF36A;</span>
                 </WpIconButton>
               </div>
-              <div class="offset-hint">保持音调变速，适合播客 / 有声书</div>
+              <div class="offset-hint">{{ t("layout.mobilePlayer.rateHint") }}</div>
               <div class="rate-grid">
                 <button
                   v-for="value in PLAYBACK_RATES"
@@ -1010,30 +1012,30 @@ onBeforeUnmount(() => {
           <div v-if="showAb" class="full-offset" @click.self="showAb = false">
             <div class="offset-panel">
               <div class="offset-header">
-                <span class="offset-title">A-B 循环</span>
-                <WpIconButton title="关闭" @click="showAb = false">
+                <span class="offset-title">{{ t("layout.playerBar.abLoop") }}</span>
+                <WpIconButton :title="t('common.action.close')" @click="showAb = false">
                   <span class="wp-icon">&#xF36A;</span>
                 </WpIconButton>
               </div>
               <div class="offset-hint">
-                {{ player.abEnabled ? "已生效：播到 B 点会跳回 A 点继续循环" : "打满 A、B 两点后即开始循环" }}
+                {{ player.abEnabled ? t("layout.playerBar.abActiveHint") : t("layout.playerBar.abIdleHint") }}
               </div>
               <div class="offset-row">
-                <span class="ab-point">A：{{ player.abPointA === null ? "未打点" : formatTime(player.abPointA) }}</span>
-                <span class="ab-point">B：{{ player.abPointB === null ? "未打点" : formatTime(player.abPointB) }}</span>
+                <span class="ab-point">A：{{ player.abPointA === null ? t("layout.playerBar.abNotMarked") : formatTime(player.abPointA) }}</span>
+                <span class="ab-point">B：{{ player.abPointB === null ? t("layout.playerBar.abNotMarked") : formatTime(player.abPointB) }}</span>
               </div>
               <button class="offset-step ab-action" @click="markAbPoint">
-                {{ player.abPointA === null ? "打 A 点" : player.abEnabled ? "重设 A 点" : "打 B 点" }}
+                {{ player.abPointA === null ? t("layout.playerBar.abMarkAShort") : player.abEnabled ? t("layout.playerBar.abResetAShort") : t("layout.playerBar.abMarkBShort") }}
               </button>
               <button class="offset-step ab-action" @click="player.setAbLoopAroundCurrent(30)">
-                快速循环当前 30 秒
+                {{ t("layout.playerBar.abQuick30") }}
               </button>
               <button
                 class="offset-reset"
                 :disabled="player.abPointA === null"
                 @click="player.clearAbLoop()"
               >
-                清除 A-B 循环
+                {{ t("layout.playerBar.abClear") }}
               </button>
             </div>
           </div>
@@ -1044,12 +1046,12 @@ onBeforeUnmount(() => {
           <div v-if="showSleep" class="full-offset" @click.self="showSleep = false">
             <div class="offset-panel">
               <div class="offset-header">
-                <span class="offset-title">睡眠定时器</span>
-                <WpIconButton title="关闭" @click="showSleep = false">
+                <span class="offset-title">{{ t("layout.playerBar.sleepTimer") }}</span>
+                <WpIconButton :title="t('common.action.close')" @click="showSleep = false">
                   <span class="wp-icon">&#xF36A;</span>
                 </WpIconButton>
               </div>
-              <div class="offset-hint">到点后暂停播放，不会退出应用</div>
+              <div class="offset-hint">{{ t("layout.mobilePlayer.sleepHint") }}</div>
               <SleepTimerPicker tone="dark" @close="showSleep = false" />
             </div>
           </div>
@@ -1060,13 +1062,13 @@ onBeforeUnmount(() => {
           <div v-if="showQuality" class="full-offset" @click.self="showQuality = false">
             <div class="offset-panel">
               <div class="offset-header">
-                <span class="offset-title">播放音质</span>
-                <WpIconButton title="关闭" @click="showQuality = false">
+                <span class="offset-title">{{ t("layout.playerBar.audioQuality") }}</span>
+                <WpIconButton :title="t('common.action.close')" @click="showQuality = false">
                   <span class="wp-icon">&#xF36A;</span>
                 </WpIconButton>
               </div>
               <div class="offset-hint">
-                {{ demoName(quality.support.value?.sourceName) }} · 取不到该档位时自动降级
+                {{ t("layout.mobilePlayer.qualityHint", { source: demoName(quality.support.value?.sourceName) }) }}
               </div>
               <div class="quality-list">
                 <button
@@ -1092,17 +1094,17 @@ onBeforeUnmount(() => {
           <div v-if="showQueue" class="full-queue" @click.self="showQueue = false">
             <div class="queue-sheet">
               <div class="queue-sheet-header">
-                <span class="queue-sheet-title">播放队列</span>
-                <span class="queue-sheet-count">{{ player.queue.length }} 首</span>
+                <span class="queue-sheet-title">{{ t("layout.playerBar.queue") }}</span>
+                <span class="queue-sheet-count">{{ t("common.unit.track", { count: player.queue.length }) }}</span>
                 <button v-if="player.queue.length" class="queue-sheet-clear" @click="player.clearQueue()">
-                  清空
+                  {{ t("layout.playerBar.clearQueue") }}
                 </button>
-                <WpIconButton title="关闭" @click="showQueue = false">
+                <WpIconButton :title="t('common.action.close')" @click="showQueue = false">
                   <span class="wp-icon">&#xF36A;</span>
                 </WpIconButton>
               </div>
               <div ref="queueListRef" class="queue-sheet-body">
-                <div v-if="!player.queue.length" class="queue-sheet-empty">队列为空，去发现音乐吧</div>
+                <div v-if="!player.queue.length" class="queue-sheet-empty">{{ t("layout.playerBar.queueEmpty") }}</div>
                 <ul v-else class="queue-sheet-list">
                   <li
                     v-for="(item, index) in player.queue"
@@ -1122,7 +1124,7 @@ onBeforeUnmount(() => {
                   >
                     <span class="queue-sheet-remove-bg">
                       <span class="wp-icon">&#xF34D;</span>
-                      移除
+                      {{ t("common.action.remove") }}
                     </span>
                     <div class="queue-sheet-row" :style="rowContentStyle(item.uid)">
                       <span class="queue-sheet-index">
@@ -1135,7 +1137,7 @@ onBeforeUnmount(() => {
                       </span>
                       <span
                         class="queue-sheet-handle"
-                        title="拖动排序"
+                        :title="t('layout.mobilePlayer.dragToSort')"
                         @click.stop
                         @pointerdown="onHandleDown($event, index)"
                         @pointermove="onHandleMove"
@@ -1148,7 +1150,7 @@ onBeforeUnmount(() => {
                       </span>
                       <button
                         class="queue-sheet-remove"
-                        title="移除"
+                        :title="t('common.action.remove')"
                         @click.stop="player.removeFromQueue(item.uid)"
                       >
                         <span class="wp-icon">&#xF36A;</span>

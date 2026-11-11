@@ -12,20 +12,26 @@ import {
   useSettingsStore,
 } from "@/stores/settings";
 import { useIsMobile } from "@/composables/useIsMobile";
+import { useI18n } from "@/i18n";
 import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 
 const settings = useSettingsStore();
 const isMobile = useIsMobile();
+const { t } = useI18n();
 
 /** 外观下拉：与 settings.desktopLyricsStyle 一一对应 */
-const LYRICS_STYLE_LABELS = ["纯文字", "歌曲卡片"];
+const LYRICS_STYLE_LABELS = computed(() => [
+  t("settings.playback.desktopLyrics.style.options.plain"),
+  t("settings.playback.desktopLyrics.style.options.card"),
+]);
 
 const lyricsStyleIndex = computed(() => (settings.desktopLyricsStyle === "glass" ? 1 : 0));
 
 function onLyricsStyleChange(_sender: unknown, payload?: { AddedItems?: unknown[] }): void {
   const label = String(payload?.AddedItems?.[0] ?? "");
-  void settings.setDesktopLyricsStyle(label === "歌曲卡片" ? "glass" : "plain");
+  const cardLabel = t("settings.playback.desktopLyrics.style.options.card");
+  void settings.setDesktopLyricsStyle(label === cardLabel ? "glass" : "plain");
 }
 
 function onDesktopLyricsToggle(event: { IsOn: boolean }): void {
@@ -42,12 +48,12 @@ function onLyricsFontInput(value: number): void {
 </script>
 
 <template>
-  <SettingsSection v-if="!isMobile" id="playback-lyrics" title="桌面歌词">
+  <SettingsSection v-if="!isMobile" id="playback-lyrics" :title="t('settings.playback.desktopLyrics.section')">
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">显示桌面歌词</div>
+        <div class="card-header">{{ t("settings.playback.desktopLyrics.enabled.title") }}</div>
         <div class="card-description">
-          在桌面上显示一个置顶歌词窗，可拖动到任意位置（位置会被记住），不占任务栏
+          {{ t("settings.playback.desktopLyrics.enabled.description") }}
         </div>
       </div>
       <ToggleSwitch :IsOn="settings.desktopLyricsEnabled" @Toggled="onDesktopLyricsToggle" />
@@ -56,9 +62,9 @@ function onLyricsFontInput(value: number): void {
     <template v-if="settings.desktopLyricsEnabled">
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">外观</div>
+          <div class="card-header">{{ t("settings.playback.desktopLyrics.style.title") }}</div>
           <div class="card-description">
-            纯文字用描边投影，压在亮壁纸上也看得清；歌曲卡片带歌曲信息与封面模糊底色
+            {{ t("settings.playback.desktopLyrics.style.description") }}
           </div>
         </div>
         <ComboBox
@@ -71,8 +77,8 @@ function onLyricsFontInput(value: number): void {
 
       <WpCard variant="column">
         <div class="card-content">
-          <div class="card-header">字号</div>
-          <div class="card-description">当前行字号，上下句按比例缩小</div>
+          <div class="card-header">{{ t("settings.playback.desktopLyrics.fontSize.title") }}</div>
+          <div class="card-description">{{ t("settings.playback.desktopLyrics.fontSize.description") }}</div>
         </div>
         <div class="lyrics-font-row">
           <Slider
@@ -92,9 +98,9 @@ function onLyricsFontInput(value: number): void {
 
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">锁定（鼠标穿透）</div>
+          <div class="card-header">{{ t("settings.playback.desktopLyrics.lock.title") }}</div>
           <div class="card-description">
-            锁定后点击直接落到下面的窗口，歌词不再挡住操作；解锁请回到这里或播放条「更多」
+            {{ t("settings.playback.desktopLyrics.lock.description") }}
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.desktopLyricsLocked" @Toggled="onLyricsLockToggle" />

@@ -5,6 +5,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { t } from "@/i18n";
 
 /** Rust 侧上报下载进度的事件名 */
 export const UPDATE_PROGRESS_EVENT = "update://progress";
@@ -24,13 +25,13 @@ export type InstallerKind =
 
 /** 安装包类型的中文名 */
 export const INSTALLER_LABELS: Record<InstallerKind, string> = {
-  "windows-nsis": "Windows 安装程序",
-  "windows-msi": "Windows 安装包（MSI）",
-  "macos-dmg": "macOS 磁盘映像",
-  "linux-appimage": "Linux AppImage",
-  "linux-deb": "Linux deb 包",
-  "linux-rpm": "Linux rpm 包",
-  "android-apk": "Android 安装包",
+  "windows-nsis": t("errors.generic.update.installer.windowsNsis"),
+  "windows-msi": t("errors.generic.update.installer.windowsMsi"),
+  "macos-dmg": t("errors.generic.update.installer.macosDmg"),
+  "linux-appimage": t("errors.generic.update.installer.linuxAppImage"),
+  "linux-deb": t("errors.generic.update.installer.linuxDeb"),
+  "linux-rpm": t("errors.generic.update.installer.linuxRpm"),
+  "android-apk": t("errors.generic.update.installer.androidApk"),
 };
 
 export function installerLabel(kind: InstallerKind): string {
@@ -154,5 +155,6 @@ export function formatBytes(bytes: number): string {
 
 /** 判断错误是否来自用户主动取消下载 */
 export function isCanceledError(error: unknown): boolean {
+  // i18n-ignore：比对的是 **Rust 侧**的取消文案（原生层未接 i18n），不是界面文案
   return String(error).includes("已取消");
 }

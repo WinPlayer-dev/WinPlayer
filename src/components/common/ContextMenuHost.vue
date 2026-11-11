@@ -9,6 +9,7 @@
  * 不再维护第二套动作面板；点空白 / 取消 / 返回键都能收起。
  */
 import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { useI18n } from "@/i18n";
 import { ContentDialog } from "@/components/winui";
 import {
   closeContextMenu,
@@ -18,6 +19,7 @@ import {
 import { useIsMobile } from "@/composables/useIsMobile";
 import { registerBackInterceptor } from "@/services/backButton";
 
+const { t } = useI18n();
 const isMobile = useIsMobile();
 const menuRef = ref<HTMLElement | null>(null);
 
@@ -158,7 +160,7 @@ onUnmounted(() => {
     v-if="isMobile"
     ref="sheetRef"
     :Title="contextMenuState.title"
-    CloseButtonText="取消"
+    :CloseButtonText="t('common.action.cancel')"
   >
     <div class="ctx-list">
       <button

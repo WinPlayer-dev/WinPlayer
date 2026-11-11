@@ -43,6 +43,7 @@ import {
 import { setThemeHostContext } from "@/services/themeModules";
 import { toast } from "@/services/toast";
 import { useSettingsStore } from "@/stores/settings";
+import { t } from "@/i18n";
 import {
   THEME_COMPONENT_KEYS,
   type ThemeAppearance,
@@ -56,7 +57,7 @@ import {
 
 /** 官方内置主题市场源：默认值，可在设置中替换或追加 */
 export const OFFICIAL_THEME_MARKET_SOURCE = {
-  name: "官方主题市场",
+  name: t("themes.page.officialSource"),
   url: "https://raw.githubusercontent.com/WinPlayer-dev/plugin-market/main/theme-index.json",
 };
 
@@ -395,11 +396,11 @@ export const useThemesStore = defineStore("themes", () => {
       }
 
       const entry = findInstalled(id);
-      if (!entry) throw new Error(`未找到主题「${id}」，可能已被卸载`);
+      if (!entry) throw new Error(t("themes.theme.notFound", { id }));
 
       const problems = validateManifest(entry.manifest);
       const fatal = problems.filter((p) => !p.includes("高于当前宿主支持"));
-      if (fatal.length) throw new Error(`主题清单有误：${fatal.join("；")}`);
+      if (fatal.length) throw new Error(t("themes.theme.invalidManifest", { problems: fatal.join("；") }));
 
       const theme = await loadTheme(entry);
       teardown();
@@ -428,10 +429,10 @@ export const useThemesStore = defineStore("themes", () => {
 
       const failed = Object.keys(theme.componentErrors);
       if (failed.length) {
-        lastError.value = `以下组件未生效：${failed.join("、")}`;
+        lastError.value = t("themes.theme.componentsFailed", { components: failed.join("、") });
         if (!options.silent) toast(lastError.value, "error");
       } else if (!options.silent) {
-        toast(`已应用主题「${theme.manifest.name}」`, "success");
+        toast(t("themes.theme.applied", { name: theme.manifest.name }), "success");
       }
 
       await persistState();
@@ -443,7 +444,7 @@ export const useThemesStore = defineStore("themes", () => {
       applySurfaceFlags(null);
       activeId.value = DEFAULT_THEME_ID;
       activeTheme.value = null;
-      if (!options.silent) toast(`应用主题失败：${message}`, "error");
+      if (!options.silent) toast(t("themes.theme.applyFailed", { message }), "error");
       await persistState();
       return false;
     } finally {
@@ -459,7 +460,7 @@ export const useThemesStore = defineStore("themes", () => {
       loaded.value = true;
     } catch (error) {
       console.error("加载主题列表失败", error);
-      toast(`加载主题列表失败: ${error}`, "error");
+      toast(t("themes.theme.loadingList", { error: String(error) }), "error");
     }
   }
 
@@ -471,10 +472,10 @@ export const useThemesStore = defineStore("themes", () => {
       await loadInstalled();
       acknowledgedThemes.value = acknowledgedThemes.value.filter((id) => id !== entry.id);
       await applyTheme(entry.id, { silent: true });
-      toast(`主题「${entry.manifest.name}」安装成功`, "success");
+      toast(t("themes.theme.installSuccess", { name: entry.manifest.name }), "success");
       return true;
     } catch (error) {
-      toast(`安装主题失败: ${error}`, "error");
+      toast(t("themes.theme.installFailed", { error: String(error) }), "error");
       return false;
     }
   }
@@ -486,10 +487,10 @@ export const useThemesStore = defineStore("themes", () => {
       await loadInstalled();
       acknowledgedThemes.value = acknowledgedThemes.value.filter((id) => id !== entry.id);
       await applyTheme(entry.id, { silent: true });
-      toast(`主题「${entry.manifest.name}」安装成功`, "success");
+      toast(t("themes.theme.installSuccess", { name: entry.manifest.name }), "success");
       return true;
     } catch (error) {
-      toast(`安装主题失败: ${error}`, "error");
+      toast(t("themes.theme.installFailed", { error: String(error) }), "error");
       return false;
     }
   }
@@ -503,9 +504,9 @@ export const useThemesStore = defineStore("themes", () => {
       await loadInstalled();
       acknowledgedThemes.value = acknowledgedThemes.value.filter((item) => item !== id);
       await persistState();
-      toast(`主题「${entry?.manifest.name ?? id}」已卸载`, "success");
+      toast(t("themes.theme.uninstalled", { name: entry?.manifest.name ?? id }), "success");
     } catch (error) {
-      toast(`卸载主题失败: ${error}`, "error");
+      toast(t("themes.theme.uninstallFailed", { error: String(error) }), "error");
     }
   }
 

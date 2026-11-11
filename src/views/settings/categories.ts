@@ -9,6 +9,8 @@
  * 分类顺序即桌面端左侧导航、移动端分类面板的展示顺序。
  */
 
+import { t, type I18nKey } from "@/i18n";
+
 export type SettingsCategoryKey =
   | "general"
   | "shortcut"
@@ -21,13 +23,14 @@ export type SettingsCategoryKey =
 
 export interface SettingsCategory {
   key: SettingsCategoryKey;
-  label: string;
+  /** i18n key：显示名，模板里 `t()` 取值（词条见 `settings.category.*`） */
+  labelKey: I18nKey;
   /** Fluent UI System Icons 码点（.wp-icon 字体族，24 Regular），模板里 v-html 使用 */
   icon: string;
   /** 移动端隐藏（无物理键盘，快捷键类无意义） */
   mobileHidden?: boolean;
-  /** 移动端分类面板里的一行副标题：分类名太抽象时靠它解释这一栏装什么 */
-  mobileSubtitle: string;
+  /** i18n key：移动端分类面板里的一行副标题（词条见 `settings.categorySubtitle.*`） */
+  mobileSubtitleKey: I18nKey;
   /** 旧版 `?tab=` 值：老书签 / 插件 / 文档里的深链不能断 */
   aliases?: string[];
   /** 旧 tab → 落地分组；缺省时落到分类顶部 */
@@ -37,42 +40,42 @@ export interface SettingsCategory {
 export const CATEGORIES: readonly SettingsCategory[] = [
   {
     key: "general",
-    label: "通用",
+    labelKey: "settings.category.general",
     icon: "&#xF6AA;", // ic_fluent_settings_24_regular
-    mobileSubtitle: "启动、窗口、隐私、更新",
+    mobileSubtitleKey: "settings.categorySubtitle.general",
   },
   {
     key: "shortcut",
-    label: "快捷键",
+    labelKey: "settings.category.shortcut",
     icon: "&#xF4B9;", // ic_fluent_keyboard_24_regular
     mobileHidden: true,
-    mobileSubtitle: "窗口内与应用外热键",
+    mobileSubtitleKey: "settings.categorySubtitle.shortcut",
   },
   {
     key: "appearance",
-    label: "外观",
+    labelKey: "settings.category.appearance",
     icon: "&#xF2F6;", // ic_fluent_color_24_regular
-    mobileSubtitle: "配色、材质、主题、字体",
+    mobileSubtitleKey: "settings.categorySubtitle.appearance",
     aliases: ["style"],
     aliasSections: { style: "appearance-colors" },
   },
   {
     key: "playback",
-    label: "播放",
+    labelKey: "settings.category.playback",
     icon: "&#xE855;", // ic_fluent_music_note_2_24_regular
-    mobileSubtitle: "来源、歌词、输出、音效",
+    mobileSubtitleKey: "settings.categorySubtitle.playback",
   },
   {
     key: "plugins",
-    label: "插件",
+    labelKey: "settings.category.plugins",
     icon: "&#xE9EA;", // ic_fluent_puzzle_piece_24_regular
-    mobileSubtitle: "市场源与下载镜像",
+    mobileSubtitleKey: "settings.categorySubtitle.plugins",
   },
   {
     key: "data",
-    label: "数据",
+    labelKey: "settings.category.data",
     icon: "&#xE467;", // ic_fluent_database_24_regular
-    mobileSubtitle: "存储、下载、备份、同步",
+    mobileSubtitleKey: "settings.categorySubtitle.data",
     // 四个旧分类合并而来：深链要落到各自的分组，而不是笼统地落在分类顶部
     aliases: ["storage", "download", "backup", "cloud"],
     aliasSections: {
@@ -84,15 +87,15 @@ export const CATEGORIES: readonly SettingsCategory[] = [
   },
   {
     key: "experimental",
-    label: "实验性",
+    labelKey: "settings.category.experimental",
     icon: "&#xF1D8;", // ic_fluent_beaker_24_regular
-    mobileSubtitle: "录音棚、自动歌单",
+    mobileSubtitleKey: "settings.categorySubtitle.experimental",
   },
   {
     key: "about",
-    label: "关于",
+    labelKey: "settings.category.about",
     icon: "&#xF4A4;", // ic_fluent_info_24_regular
-    mobileSubtitle: "版本、更新与致谢",
+    mobileSubtitleKey: "settings.categorySubtitle.about",
   },
 ];
 
@@ -100,7 +103,8 @@ const CATEGORY_BY_KEY = new Map(CATEGORIES.map((category) => [category.key, cate
 
 /** 分类 key → 显示名；未知 key 回退空串（搜索索引里不该出现未知分类） */
 export function categoryLabel(key: SettingsCategoryKey): string {
-  return CATEGORY_BY_KEY.get(key)?.label ?? "";
+  const category = CATEGORY_BY_KEY.get(key);
+  return category ? t(category.labelKey) : "";
 }
 
 /** 移动端可见的分类（隐藏无物理键盘的「快捷键」） */

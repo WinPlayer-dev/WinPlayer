@@ -12,6 +12,9 @@
     "build": "vue-tsc --noEmit -p tsconfig.app.json && vite build",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
+    "i18n:scan": "node scripts/i18n-scan.mjs",
+    "i18n:check": "node scripts/i18n-scan.mjs --strict",
+    "i18n:unused": "node scripts/i18n-unused.mjs",
     "android:icons": "node scripts/apply-android-icons.mjs",
     "tauri": "tauri"
   },

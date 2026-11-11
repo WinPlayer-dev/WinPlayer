@@ -3,9 +3,11 @@
 import { useRouter } from "vue-router";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { navigateBack } from "@/services/backButton";
+import { useI18n } from "@/i18n";
 
 withDefaults(defineProps<{ title?: string }>(), { title: "" });
 
+const { t } = useI18n();
 const router = useRouter();
 const isMobile = useIsMobile();
 </script>
@@ -13,7 +15,7 @@ const isMobile = useIsMobile();
 <template>
   <div v-if="isMobile" class="mobile-page-header">
     <!-- 没有历史栈时（通知 / 外链直达、冷启动）回首页，而不是退出应用 -->
-    <button class="back-button" title="返回" @click="navigateBack(router)">
+    <button class="back-button" :title="t('common.action.back')" @click="navigateBack(router)">
       <span class="wp-icon">&#xF2AB;</span>
     </button>
     <span v-if="title" class="header-title ellipsis">{{ title }}</span>

@@ -25,6 +25,7 @@ import {
   type RecordingItem,
 } from "@/services/recorder";
 import { toast } from "@/services/toast";
+import { t } from "@/i18n";
 
 const PREFS_KEY = "winplayer.recorder.prefs";
 
@@ -187,7 +188,7 @@ export const useRecorderStore = defineStore("recorder", () => {
         device: device.value,
         monitor: monitor.value,
         monitorVolume: monitorVolume.value / 100,
-        title: track?.title ?? "清唱录音",
+        title: track?.title ?? t("studio.record.acapellaRecording"),
         artist: track?.artist ?? "",
         cover: track?.cover ?? null,
         source: track?.source ?? null,
@@ -230,7 +231,7 @@ export const useRecorderStore = defineStore("recorder", () => {
     try {
       await deleteRecording(id);
       items.value = items.value.filter((item) => item.id !== id);
-      toast("录音已删除", "success");
+      toast(t("studio.record.deleted"), "success");
     } catch (error) {
       toast(String(error), "error");
     }
@@ -240,7 +241,7 @@ export const useRecorderStore = defineStore("recorder", () => {
     try {
       const updated = await exportMix(id, options);
       items.value = items.value.map((item) => (item.id === id ? updated : item));
-      toast("混音已更新", "success");
+      toast(t("studio.export.updated"), "success");
       return updated;
     } catch (error) {
       toast(String(error), "error");

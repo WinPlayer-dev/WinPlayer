@@ -11,7 +11,9 @@ import { useRouter } from "vue-router";
 import { useDownloadsStore, type DownloadTask } from "@/stores/downloads";
 import { useTrackMetaStore } from "@/stores/trackMeta";
 import { trackArtist, trackTitle } from "@/types/player";
+import { useI18n } from "@/i18n";
 
+const { t } = useI18n();
 const router = useRouter();
 const downloads = useDownloadsStore();
 const trackMeta = useTrackMetaStore();
@@ -28,15 +30,17 @@ function percent(task: DownloadTask): number {
 function statusText(task: DownloadTask): string {
   switch (task.status) {
     case "queued":
-      return "排队中";
+      return t("layout.downloadPanel.queued");
     case "downloading":
-      return task.total > 0 ? `${percent(task)}%` : "正在获取…";
+      return task.total > 0 ? `${percent(task)}%` : t("layout.downloadPanel.fetching");
     case "paused":
-      return "已暂停";
+      return t("layout.downloadPanel.paused");
     case "done":
-      return `已完成 · ${downloads.formatBytes(task.downloaded)}`;
+      return t("layout.downloadPanel.doneWithSize", { size: downloads.formatBytes(task.downloaded) });
     case "error":
-      return task.error ? `失败：${task.error}` : "下载失败";
+      return task.error
+        ? t("layout.downloadPanel.failedWithError", { error: task.error })
+        : t("layout.downloadPanel.failed");
     default:
       return "";
   }
@@ -53,21 +57,21 @@ function openOffline(): void {
   <transition name="panel">
     <div v-if="downloads.panelOpen" class="download-panel" @pointerdown.stop>
       <div class="panel-header">
-        <span class="panel-title">下载管理</span>
+        <span class="panel-title">{{ t("layout.downloadPanel.title") }}</span>
         <span class="panel-count">
-          {{ hasActive ? `${downloads.activeTasks.length} 项进行中` : `已下载 ${downloads.downloadedCount} 首` }}
+          {{ hasActive ? t("layout.downloadPanel.activeCount", { count: downloads.activeTasks.length }) : t("layout.downloadPanel.downloadedCount", { count: downloads.downloadedCount }) }}
         </span>
         <button v-if="hasActive" class="panel-action" @click="downloads.toggleQueuePaused()">
-          {{ downloads.queuePaused ? "继续全部" : "暂停全部" }}
+          {{ downloads.queuePaused ? t("layout.downloadPanel.resumeAll") : t("layout.downloadPanel.pauseAll") }}
         </button>
         <button v-if="downloads.finishedTasks.length" class="panel-action" @click="downloads.clearFinished()">
-          清除已完成
+          {{ t("layout.downloadPanel.clearFinished") }}
         </button>
       </div>
 
       <div class="panel-body">
         <div v-if="!downloads.tasks.length" class="panel-empty">
-          还没有下载任务，在歌曲上右键选择「下载到本地」
+          {{ t("layout.downloadPanel.empty") }}
         </div>
         <ul v-else class="download-list">
           <li v-for="task in downloads.tasks" :key="task.id" class="download-item" :class="task.status">
@@ -94,7 +98,7 @@ function openOffline(): void {
               <button
                 v-if="task.status === 'downloading' || task.status === 'queued'"
                 class="item-action"
-                title="暂停"
+                :title="t('common.action.pause')"
                 @click="downloads.pauseTask(task.id)"
               >
                 <span class="wp-icon filled">&#xF610;</span>
@@ -102,7 +106,7 @@ function openOffline(): void {
               <button
                 v-else-if="task.status === 'paused'"
                 class="item-action"
-                title="继续"
+                :title="t('common.action.continue')"
                 @click="downloads.resumeTask(task.id)"
               >
                 <span class="wp-icon filled">&#xF5AC;</span>
@@ -110,13 +114,13 @@ function openOffline(): void {
               <button
                 v-else-if="task.status === 'error'"
                 class="item-action"
-                title="重试"
+                :title="t('common.action.retry')"
                 @click="downloads.retryTask(task.id)"
               >
                 <span class="wp-icon">&#xF13E;</span>
               </button>
-              <span v-else class="item-done wp-icon" title="已完成">&#xF294;</span>
-              <button class="item-action" title="移除" @click="downloads.removeTask(task.id)">
+              <span v-else class="item-done wp-icon" :title="t('common.state.completed')">&#xF294;</span>
+              <button class="item-action" :title="t('common.action.remove')" @click="downloads.removeTask(task.id)">
                 <span class="wp-icon">&#xF36A;</span>
               </button>
             </div>
@@ -126,9 +130,9 @@ function openOffline(): void {
 
       <button class="panel-footer" @click="openOffline">
         <span class="wp-icon footer-icon">&#xF151;</span>
-        <span class="footer-label">离线音乐</span>
+        <span class="footer-label">{{ t("layout.sideNav.offlineMusic") }}</span>
         <span class="footer-count">
-          {{ downloads.downloadedCount }} 首 · {{ downloads.formatBytes(downloads.totalSize) }}
+          {{ t("layout.downloadPanel.footerCount", { count: downloads.downloadedCount, size: downloads.formatBytes(downloads.totalSize) }) }}
         </span>
         <span class="wp-icon footer-chevron">&#xF2B1;</span>
       </button>

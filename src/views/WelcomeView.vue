@@ -17,8 +17,10 @@ import { useSettingsStore } from "@/stores/settings";
 import WpButton from "@/components/theme/WpButton.vue";
 import AppMark from "@/components/brand/AppMark.vue";
 import { toast } from "@/services/toast";
+import { useI18n } from "@/i18n";
 import type { MarketEntry } from "@/types/plugin";
 
+const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const plugins = usePluginsStore();
@@ -59,7 +61,7 @@ async function loadMarket(): Promise<void> {
   marketError.value = "";
   try {
     entries.value = await plugins.fetchMarketEntries();
-    if (!entries.value.length) marketError.value = "市场索引为空，可在「插件市场」里从 URL 或本地安装";
+    if (!entries.value.length) marketError.value = t("onboarding.plugin.emptyIndex");
   } catch (error) {
     marketError.value = error instanceof Error ? error.message : String(error);
   } finally {
@@ -88,7 +90,7 @@ async function finish(): Promise<void> {
   } catch (error) {
     // 写库失败不该把用户困在引导页
     console.warn("[welcome] 保存引导完成标记失败：", error);
-    toast("引导状态保存失败，下次启动可能还会看到此页", "error");
+    toast(t("onboarding.finish.saveFailed"), "error");
   }
   if (fromSettings.value) {
     await router.replace({ name: "settings", query: { tab: "general" } });
@@ -122,49 +124,61 @@ function retryMarket(): void {
         </div>
 
         <h1 class="brand">WinPlayer</h1>
-        <p class="lead">欢迎使用 WinPlayer</p>
+        <p class="lead">{{ t("onboarding.welcome.lead") }}</p>
         <p class="sub">
-          一个由插件驱动的音乐播放器——音乐来自哪里、怎么播放，全都由你决定。
+          {{ t("onboarding.welcome.subtitle") }}
         </p>
 
         <WpButton class="primary-action" @click="goSource">
-          开始使用<span class="arrow" aria-hidden="true">→</span>
+          {{ t("onboarding.welcome.start") }}<span class="arrow" aria-hidden="true">→</span>
         </WpButton>
 
         <div class="dots" aria-hidden="true">
           <span class="dot active" />
           <span class="dot" />
         </div>
-        <p class="tiny-hint">只需装一个播放源插件，大约 1 分钟</p>
+        <p class="tiny-hint">{{ t("onboarding.welcome.hint") }}</p>
       </section>
 
       <!-- 第 2 步：添加第一个播放源 -->
       <section class="stage-inner source" :class="{ on: step === 'source' }">
-        <span class="step-badge">第 2 步 · 共 2 步</span>
-        <h2 class="source-title">添加你的第一个播放源</h2>
+        <span class="step-badge">{{ t("onboarding.step.badge", { current: 2, total: 2 }) }}</span>
+        <h2 class="source-title">{{ t("onboarding.step.sourceTitle") }}</h2>
         <p class="source-desc">
-          插件决定音乐从哪里来。装一个提供「播放直链」能力的插件，就能搜索、播放与下载。
+          {{ t("onboarding.step.sourceDesc") }}
         </p>
 
         <!-- 内嵌市场：默认展示，装好一个即完成引导 -->
         <div class="source-panel">
           <div class="panel-head">
-            <span class="panel-title">{{ installed ? "已就绪" : "选择播放源" }}</span>
+            <span class="panel-title">
+              {{ installed ? t("common.state.ready") : t("onboarding.plugin.selectSource") }}
+            </span>
             <span class="panel-sub">
-              {{ marketLoading ? "正在加载…" : installed ? "正在进入 WinPlayer…" : `${entries.length} 个可用插件` }}
+              {{
+                marketLoading
+                  ? t("common.state.loading")
+                  : installed
+                    ? t("onboarding.plugin.entering")
+                    : t("onboarding.plugin.availableCount", { count: entries.length })
+              }}
             </span>
             <div class="panel-tools">
               <button class="ghost" type="button" :disabled="marketLoading" @click="loadMarket">
-                刷新
+                {{ t("common.action.refresh") }}
               </button>
             </div>
           </div>
 
-          <div v-if="marketLoading && !entries.length" class="panel-hint">正在获取插件市场索引…</div>
+          <div v-if="marketLoading && !entries.length" class="panel-hint">
+            {{ t("onboarding.plugin.fetchingIndex") }}
+          </div>
 
           <div v-else-if="marketError" class="panel-hint error">
-            <span>加载插件市场失败：{{ marketError }}</span>
-            <button class="ghost" type="button" @click="retryMarket">重试</button>
+            <span>{{ t("onboarding.plugin.loadFailed", { error: marketError }) }}</span>
+            <button class="ghost" type="button" @click="retryMarket">
+              {{ t("common.action.retry") }}
+            </button>
           </div>
 
           <div v-else class="source-list">
@@ -195,7 +209,9 @@ function retryMarket(): void {
                     <span v-if="entry.author" class="source-author">{{ entry.author }}</span>
                   </div>
                   <div class="source-meta">
-                    <span class="source-desc-text">{{ entry.description || "无简介" }}</span>
+                    <span class="source-desc-text">
+                      {{ entry.description || t("onboarding.plugin.noDescription") }}
+                    </span>
                   </div>
                 </div>
               <WpButton
@@ -204,7 +220,7 @@ function retryMarket(): void {
                 variant="standard"
                 :disabled="true"
               >
-                已安装
+                {{ t("onboarding.plugin.installed") }}
               </WpButton>
               <WpButton
                 v-else
@@ -212,24 +228,24 @@ function retryMarket(): void {
                 :disabled="Boolean(installingId) || installed"
                 @click="install(entry)"
               >
-                {{ installingId === entryKey(entry) ? "安装中…" : "安装" }}
+                {{ installingId === entryKey(entry) ? t("onboarding.plugin.installing") : t("onboarding.plugin.install") }}
               </WpButton>
             </div>
           </div>
 
           <p class="panel-foot">
-            列表来自插件市场索引。需要从 URL 或本地文件安装？稍后可在「播放源」里完成。
+            {{ t("onboarding.plugin.footHint") }}
           </p>
         </div>
 
         <!-- 跳过：整宽按钮，是这一步唯一的次级出口 -->
         <div class="source-actions">
           <WpButton class="skip-button" variant="standard" :disabled="installed" @click="finish">
-            跳过
+            {{ t("common.action.skip") }}
           </WpButton>
         </div>
 
-        <p class="tiny-hint">也可以稍后在「播放源」里随时添加或更换播放源</p>
+        <p class="tiny-hint">{{ t("onboarding.plugin.skipHint") }}</p>
       </section>
     </div>
 

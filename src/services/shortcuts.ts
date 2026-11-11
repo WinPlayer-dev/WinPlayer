@@ -5,6 +5,7 @@
  * 便于设置页录制控件与全局处理共用同一套匹配规则。
  */
 
+import { t } from "@/i18n";
 import type { ShortcutBinding } from "@/types/shortcut";
 
 /** 单按修饰键本身不构成有效绑定，需继续等待真实按键 */
@@ -15,7 +16,7 @@ const IGNORED_KEYS = new Set(["", "process", "unidentified", "dead", "compose"])
 
 /** 特殊按键的展示文本 */
 const KEY_LABELS: Record<string, string> = {
-  space: "空格",
+  space: t("shortcuts.key.space"),
   arrowleft: "←",
   arrowright: "→",
   arrowup: "↑",

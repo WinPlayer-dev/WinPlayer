@@ -2,6 +2,7 @@
 
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
+import { t } from "@/i18n";
 import { getAudioEngine } from "@/services/audio";
 import { isThrottled } from "@/services/backgroundMode";
 import { findLyricIndex, mergeTranslation, parseLrc } from "@/services/lrc";
@@ -310,7 +311,7 @@ export const usePlayerStore = defineStore("player", () => {
     playing.value = false;
     flushPlayReport(); // 定时停止也算这首播完，先把播放记录结算掉
     resetPreload(true);
-    toast("睡眠定时器已停止播放", "info");
+    toast(t("player.bar.sleepStopped"), "info");
   }
 
   // 定时器由 services/sleepTimer 持有，这里只注册"到点后做什么"
@@ -404,7 +405,7 @@ export const usePlayerStore = defineStore("player", () => {
     }
     if (retryCount >= MAX_RETRY) {
       retryCount = 0;
-      toast(`${message}（已重试 ${MAX_RETRY} 次，可手动点击播放重试）`, "error");
+      toast(t("errors.audio.retryExhausted", { message, count: MAX_RETRY }), "error");
       return;
     }
     retryCount += 1;
@@ -429,11 +430,11 @@ export const usePlayerStore = defineStore("player", () => {
         }, 800);
       }
       playing.value = true;
-      toast(`播放出错，已自动重试（${retryCount}/${MAX_RETRY}）`, "info");
+      toast(t("errors.audio.autoRetrying", { count: retryCount, total: MAX_RETRY }), "info");
     } catch (error) {
       loading.value = false;
       playing.value = false;
-      toast(`无法播放「${track.name}」: ${error}`, "error");
+      toast(t("errors.audio.cannotPlay", { track: track.name, error: String(error) }), "error");
     }
   }
 
@@ -485,7 +486,7 @@ export const usePlayerStore = defineStore("player", () => {
     } catch (error) {
       loading.value = false;
       playing.value = false;
-      toast(`无法播放「${track.name}」: ${error}`, "error");
+      toast(t("errors.audio.cannotPlay", { track: track.name, error: String(error) }), "error");
     }
   }
 
@@ -525,10 +526,10 @@ export const usePlayerStore = defineStore("player", () => {
       added += 1;
     }
     if (added) {
-      toast(`已添加 ${added} 首到播放队列`, "success");
+      toast(t("player.queue.added", { count: added }), "success");
       persistQueue();
     } else {
-      toast("歌曲已在播放队列中", "info");
+      toast(t("player.queue.alreadyInQueue"), "info");
     }
   }
 
@@ -609,7 +610,7 @@ export const usePlayerStore = defineStore("player", () => {
       try {
         await engine.play();
       } catch (error) {
-        toast(`播放失败: ${error}`, "error");
+        toast(t("errors.audio.playFailed", { error: String(error) }), "error");
       }
     } else {
       engine.pause();
@@ -958,7 +959,7 @@ export const usePlayerStore = defineStore("player", () => {
     } catch (error) {
       loading.value = false;
       playing.value = false;
-      toast(`播放失败: ${error}`, "error");
+      toast(t("errors.audio.playFailed", { error: String(error) }), "error");
       return;
     }
     void fetchLyrics(item.track);

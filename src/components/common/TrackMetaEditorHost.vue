@@ -16,6 +16,7 @@
 import { computed, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
+import { useI18n } from "@/i18n";
 import { ContentDialog } from "@/components/winui";
 import WpButton from "@/components/theme/WpButton.vue";
 import CachedImage from "@/components/common/CachedImage.vue";
@@ -45,6 +46,7 @@ interface ArtistHit {
   source: string;
 }
 
+const { t } = useI18n();
 const plugins = usePluginsStore();
 const meta = useTrackMetaStore();
 
@@ -93,19 +95,19 @@ const previewCover = computed(() => {
 
 const originalArtistText = computed(() => {
   const names = baseTrack.value?.artists ?? [];
-  return names.length ? names.join(" / ") : "未知艺术家";
+  return names.length ? names.join(" / ") : t("components.trackMeta.unknownArtist");
 });
 
 const dialogTitle = computed(() => {
   switch (panel.value) {
     case "template":
-      return "选择模板歌曲";
+      return t("components.trackMeta.titleSelectTemplate");
     case "artist":
-      return "搜索歌手";
+      return t("components.trackMeta.titleSearchArtist");
     case "cover":
-      return "搜索封面";
+      return t("components.trackMeta.titleSearchCover");
     default:
-      return "自定义歌曲信息";
+      return t("components.trackMeta.titleEdit");
   }
 });
 
@@ -173,9 +175,17 @@ async function save(): Promise<void> {
       albumSourceId: keepAlbumId ? albumSourceId.value : undefined,
       cover: coverText.value,
     });
-    toast(saved ? "已更新歌曲信息" : "已恢复原始信息", "success");
+    toast(
+      saved ? t("components.trackMeta.saved") : t("components.trackMeta.restored"),
+      "success",
+    );
   } catch (error) {
-    toast(`保存失败：${error instanceof Error ? error.message : String(error)}`, "error");
+    toast(
+      t("components.trackMeta.saveFailed", {
+        error: error instanceof Error ? error.message : String(error),
+      }),
+      "error",
+    );
   }
 }
 
@@ -184,9 +194,14 @@ async function resetAll(): Promise<void> {
   if (!track) return;
   try {
     await meta.reset(track);
-    toast("已恢复原始信息", "info");
+    toast(t("components.trackMeta.restored"), "info");
   } catch (error) {
-    toast(`恢复失败：${error instanceof Error ? error.message : String(error)}`, "error");
+    toast(
+      t("components.trackMeta.restoreFailed", {
+        error: error instanceof Error ? error.message : String(error),
+      }),
+      "error",
+    );
   }
 }
 
@@ -210,12 +225,14 @@ async function applyCoverUrl(): Promise<void> {
   try {
     coverText.value = await invoke<string>("custom_cover_fetch", { url });
     coverUrlDraft.value = "";
-    toast("封面已保存到本地", "success");
+    toast(t("components.trackMeta.coverSaved"), "success");
   } catch (error) {
     coverText.value = url;
     coverUrlDraft.value = "";
     toast(
-      `封面下载失败，将直接使用该地址：${error instanceof Error ? error.message : String(error)}`,
+      t("components.trackMeta.coverUrlFallback", {
+        error: error instanceof Error ? error.message : String(error),
+      }),
       "info",
     );
   } finally {
@@ -227,16 +244,26 @@ async function pickLocalCover(): Promise<void> {
   const picked = await openFileDialog({
     multiple: false,
     directory: false,
-    title: "选择封面图片",
-    filters: [{ name: "图片", extensions: ["jpg", "jpeg", "png", "webp", "bmp", "gif"] }],
+    title: t("components.trackMeta.pickCoverTitle"),
+    filters: [
+      {
+        name: t("components.trackMeta.pickCoverFilter"),
+        extensions: ["jpg", "jpeg", "png", "webp", "bmp", "gif"],
+      },
+    ],
   });
   if (!picked || Array.isArray(picked)) return;
   coverBusy.value = true;
   try {
     coverText.value = await invoke<string>("custom_cover_import", { path: picked });
-    toast("封面已导入", "success");
+    toast(t("components.trackMeta.coverImported"), "success");
   } catch (error) {
-    toast(`导入封面失败：${error instanceof Error ? error.message : String(error)}`, "error");
+    toast(
+      t("components.trackMeta.coverImportFailed", {
+        error: error instanceof Error ? error.message : String(error),
+      }),
+      "error",
+    );
   } finally {
     coverBusy.value = false;
   }
@@ -277,7 +304,7 @@ async function runSearch(): Promise<void> {
     .filter((record) => plugins.hasCapability(record, "search"))
     .map((record) => record.entry.id);
   if (!ids.length) {
-    searchError.value = "没有可用的搜索源，先在「播放源管理」里装一个";
+    searchError.value = t("components.trackMeta.noSearchSource");
     return;
   }
   searching.value = true;
@@ -303,10 +330,12 @@ async function runSearch(): Promise<void> {
       artistHits.value = [];
     }
     if (!songHits.value.length && !artistHits.value.length) {
-      searchError.value = "没有找到结果，换个关键词试试";
+      searchError.value = t("components.trackMeta.noSearchResult");
     }
   } catch (error) {
-    searchError.value = `搜索失败：${error instanceof Error ? error.message : String(error)}`;
+    searchError.value = t("components.trackMeta.searchFailed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
   } finally {
     searching.value = false;
     searched.value = true;
@@ -334,7 +363,7 @@ function applyTemplate(track: UnifiedTrack): void {
     void pinCover(rawCover);
   }
   panel.value = "form";
-  toast("已套用模板，确认无误后点「保存」", "success");
+  toast(t("components.trackMeta.templateApplied"), "success");
 }
 
 /** 只换歌手（带 id，能跳歌手页） */
@@ -350,7 +379,7 @@ function applyArtist(hit: ArtistHit): void {
 function applyCover(track: UnifiedTrack): void {
   const rawCover = resolveImgUrl(track.cover);
   if (!rawCover) {
-    toast("这首歌没有封面", "error");
+    toast(t("components.trackMeta.noCover"), "error");
     return;
   }
   coverText.value = rawCover;
@@ -376,25 +405,29 @@ const albumLinked = computed(
   <ContentDialog
     ref="dialogRef"
     :Title="dialogTitle"
-    :PrimaryButtonText="isForm ? '保存' : ''"
-    :SecondaryButtonText="isForm && hasOverride ? '恢复原始' : ''"
-    CloseButtonText="取消"
+    :PrimaryButtonText="isForm ? t('common.action.save') : ''"
+    :SecondaryButtonText="isForm && hasOverride ? t('components.trackMeta.restoreOriginal') : ''"
+    :CloseButtonText="t('common.action.cancel')"
   >
     <div class="meta-editor">
       <!-- ------------------------------ 表单 ------------------------------ -->
       <template v-if="isForm">
         <div class="cover-row">
           <div class="cover-box">
-            <CachedImage v-if="previewCover" :src="previewCover" alt="封面预览" />
+            <CachedImage
+              v-if="previewCover"
+              :src="previewCover"
+              :alt="t('components.trackMeta.coverPreview')"
+            />
             <span v-else class="wp-icon cover-empty">&#xE852;</span>
           </div>
           <div class="cover-side">
             <div class="cover-buttons">
               <WpButton variant="standard" size="small" :disabled="coverBusy" @click="pickLocalCover">
-                本地图片
+                {{ t("components.trackMeta.localImage") }}
               </WpButton>
               <WpButton variant="standard" size="small" :disabled="coverBusy" @click="openPanel('cover')">
-                搜索封面
+                {{ t("components.trackMeta.searchCover") }}
               </WpButton>
               <WpButton
                 v-if="coverText"
@@ -403,14 +436,14 @@ const albumLinked = computed(
                 :disabled="coverBusy"
                 @click="coverText = ''"
               >
-                清除
+                {{ t("common.action.clear") }}
               </WpButton>
             </div>
             <div class="cover-url">
               <input
                 v-model="coverUrlDraft"
                 class="field-input"
-                placeholder="粘贴图片地址后回车"
+                :placeholder="t('components.trackMeta.coverUrlPlaceholder')"
                 @keydown.enter.prevent="applyCoverUrl"
               />
             </div>
@@ -418,37 +451,51 @@ const albumLinked = computed(
         </div>
 
         <div class="field">
-          <span class="field-label">歌曲名</span>
-          <input v-model="nameText" class="field-input" :placeholder="baseTrack?.name || '未命名'" />
+          <span class="field-label">{{ t("components.trackMeta.nameLabel") }}</span>
+          <input
+            v-model="nameText"
+            class="field-input"
+            :placeholder="baseTrack?.name || t('components.empty.untitled')"
+          />
         </div>
 
         <div class="field">
           <span class="field-label">
-            歌手
-            <span class="field-hint">多个歌手用「 / 」分隔</span>
+            {{ t("common.column.artist") }}
+            <span class="field-hint">{{ t("components.trackMeta.artistsHint") }}</span>
           </span>
           <div class="field-row">
             <input v-model="artistText" class="field-input" :placeholder="originalArtistText" />
-            <button class="field-search" title="搜索歌手" @click="openPanel('artist')">
+            <button
+              class="field-search"
+              :title="t('components.trackMeta.titleSearchArtist')"
+              @click="openPanel('artist')"
+            >
               <span class="wp-icon">&#xF690;</span>
             </button>
           </div>
-          <span v-if="artistLinked" class="field-note">已关联歌手主页，保存后点歌手名可跳转</span>
+          <span v-if="artistLinked" class="field-note">
+            {{ t("components.trackMeta.artistLinkNote") }}
+          </span>
         </div>
 
         <div class="field">
-          <span class="field-label">专辑</span>
+          <span class="field-label">{{ t("common.column.album") }}</span>
           <input
             v-model="albumText"
             class="field-input"
-            :placeholder="baseTrack?.album || '这张单曲没有专辑'"
+            :placeholder="baseTrack?.album || t('components.trackMeta.albumPlaceholder')"
           />
-          <span v-if="albumLinked" class="field-note">已关联专辑页，保存后点专辑名可跳转</span>
+          <span v-if="albumLinked" class="field-note">
+            {{ t("components.trackMeta.albumLinkNote") }}
+          </span>
         </div>
 
         <div class="template-row">
-          <WpButton variant="standard" size="small" @click="openPanel('template')">以歌曲为模板</WpButton>
-          <span class="template-hint">歌名、歌手、专辑、封面一次套用</span>
+          <WpButton variant="standard" size="small" @click="openPanel('template')">
+            {{ t("components.trackMeta.useTemplate") }}
+          </WpButton>
+          <span class="template-hint">{{ t("components.trackMeta.templateHint") }}</span>
         </div>
       </template>
 
@@ -456,25 +503,37 @@ const albumLinked = computed(
       <template v-else>
         <button class="back-link" @click="panel = 'form'">
           <span class="wp-icon">&#xF2AB;</span>
-          返回
+          {{ t("common.action.back") }}
         </button>
 
         <div class="search-row">
           <input
             v-model="keyword"
             class="field-input"
-            :placeholder="panel === 'artist' ? '歌手名' : '歌名 / 歌手'"
+            :placeholder="
+              panel === 'artist'
+                ? t('components.trackMeta.artistKeywordPlaceholder')
+                : t('components.trackMeta.keywordPlaceholder')
+            "
             @keydown.enter.prevent="runSearch"
           />
           <WpButton variant="accent" size="small" :disabled="searching" @click="runSearch">
-            {{ searching ? "搜索中" : "搜索" }}
+            {{
+              searching ? t("components.trackMeta.searching") : t("common.action.search")
+            }}
           </WpButton>
         </div>
 
-        <div v-if="searching" class="search-hint">正在搜索…</div>
+        <div v-if="searching" class="search-hint">
+          {{ t("components.trackMeta.searchInProgress") }}
+        </div>
         <div v-else-if="searchError" class="search-hint">{{ searchError }}</div>
         <div v-else-if="!searched" class="search-hint">
-          {{ panel === "artist" ? "输入歌手名，挑一个带主页的歌手" : "搜一首歌，用它的信息当模板" }}
+          {{
+            panel === "artist"
+              ? t("components.trackMeta.artistSearchHint")
+              : t("components.trackMeta.templateSearchHint")
+          }}
         </div>
 
         <div v-else class="result-list">
@@ -508,8 +567,10 @@ const albumLinked = computed(
             <span class="result-main">
               <span class="result-name ellipsis">{{ hit.artist.name }}</span>
               <span class="result-meta ellipsis">
-                {{ hit.artist.alias?.join(" / ") || "歌手" }}
-                <template v-if="hit.artist.songCount"> · {{ hit.artist.songCount }} 首</template>
+                {{ hit.artist.alias?.join(" / ") || t("common.column.artist") }}
+                <template v-if="hit.artist.songCount">
+                  · {{ t("common.unit.track", { count: hit.artist.songCount }) }}
+                </template>
               </span>
             </span>
             <span class="result-source ellipsis">{{ hit.source }}</span>

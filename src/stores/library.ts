@@ -2,6 +2,7 @@
 
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
+import { t } from "@/i18n";
 import { getDb } from "@/services/db";
 import { toast } from "@/services/toast";
 import { hapticSuccess, hapticTap } from "@/services/haptics";
@@ -104,7 +105,7 @@ export const useLibraryStore = defineStore("library", () => {
       ]);
       await loadLiked();
       hapticTap();
-      toast("已取消喜欢", "info");
+      toast(t("errors.generic.likeRemoved"), "info");
       return false;
     }
     await db.execute(
@@ -113,14 +114,14 @@ export const useLibraryStore = defineStore("library", () => {
     );
     await loadLiked();
     hapticSuccess();
-    toast("已添加到我喜欢的音乐", "success");
+    toast(t("errors.generic.likeAdded"), "success");
     return true;
   }
 
   async function createPlaylist(name: string, description = ""): Promise<LocalPlaylist | null> {
     const trimmed = name.trim();
     if (!trimmed) {
-      toast("歌单名称不能为空", "error");
+      toast(t("components.playlistImport.nameRequired"), "error");
       return null;
     }
     const db = await getDb();
@@ -130,7 +131,7 @@ export const useLibraryStore = defineStore("library", () => {
       [trimmed, description, now],
     );
     await loadPlaylists();
-    toast(`歌单「${trimmed}」创建成功`, "success");
+    toast(t("errors.generic.playlistCreated", { name: trimmed }), "success");
     const rows = await db.select<Array<{ id: number }>>(
       "select id from playlists where created_at = $1 order by id desc limit 1",
       [now],
@@ -154,7 +155,7 @@ export const useLibraryStore = defineStore("library", () => {
     const db = await getDb();
     await db.execute("delete from playlists where id = $1", [id]);
     await loadPlaylists();
-    toast("歌单已删除", "info");
+    toast(t("errors.generic.playlistDeleted"), "info");
   }
 
   async function getPlaylistTracks(playlistId: number): Promise<UnifiedTrack[]> {

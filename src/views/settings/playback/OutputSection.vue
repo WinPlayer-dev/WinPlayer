@@ -5,20 +5,22 @@ import { ComboBox } from "@/components/winui";
 import { useSettingsStore } from "@/stores/settings";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { getAudioEngine } from "@/services/audio";
+import { useI18n } from "@/i18n";
 import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 
 const settings = useSettingsStore();
 const isMobile = useIsMobile();
+const { t } = useI18n();
 
 /** 「系统默认」伪选项（空串持久化，交由系统选择默认设备） */
-const DEFAULT_OUTPUT_LABEL = "系统默认";
+const DEFAULT_OUTPUT_LABEL = computed(() => t("settings.playback.output.options.systemDefault"));
 
 const outputDevices = ref<string[]>([]);
 const devicesLoading = ref(false);
 
-const outputDeviceLabels = computed(() => [DEFAULT_OUTPUT_LABEL, ...outputDevices.value]);
+const outputDeviceLabels = computed(() => [DEFAULT_OUTPUT_LABEL.value, ...outputDevices.value]);
 
 /** 当前选中项索引：设备已拔出（不在列表中）时回落到「系统默认」 */
 const outputDeviceIndex = computed(() => {
@@ -37,7 +39,7 @@ async function loadOutputDevices(): Promise<void> {
 
 function onOutputDeviceChange(_sender: unknown, payload?: { AddedItems?: unknown[] }): void {
   const label = String(payload?.AddedItems?.[0] ?? "");
-  const value = label === DEFAULT_OUTPUT_LABEL ? "" : label;
+  const value = label === DEFAULT_OUTPUT_LABEL.value ? "" : label;
   if (value !== settings.outputDevice) void settings.setOutputDevice(value);
 }
 
@@ -47,12 +49,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <SettingsSection v-if="!isMobile" id="playback-output" title="输出设备">
+  <SettingsSection v-if="!isMobile" id="playback-output" :title="t('settings.playback.output.section')">
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">音频输出</div>
+        <div class="card-header">{{ t("settings.playback.output.device.title") }}</div>
         <div class="card-description">
-          选择声音输出设备，切换后立即在新设备上继续播放；插入新设备后点「刷新」
+          {{ t("settings.playback.output.device.description") }}
         </div>
       </div>
       <div class="card-control output-device-control">
@@ -67,7 +69,7 @@ onMounted(() => {
           :disabled="devicesLoading"
           @click="loadOutputDevices"
         >
-          {{ devicesLoading ? "刷新中…" : "刷新" }}
+          {{ devicesLoading ? t("settings.playback.output.actions.refreshing") : t("common.action.refresh") }}
         </WpButton>
       </div>
     </WpCard>

@@ -19,6 +19,7 @@ import { useIsMobile } from "@/composables/useIsMobile";
 import { useSongListLayout } from "@/composables/useSongListLayout";
 import { useLongPress } from "@/composables/useLongPress";
 import { useRefreshable } from "@/composables/useRefreshable";
+import { useI18n } from "@/i18n";
 import { openContextMenu, openContextMenuAt, type ContextMenuItem } from "@/services/contextMenu";
 import { openTrackMetaEditor } from "@/services/trackMetaEditor";
 import { copyText } from "@/services/clipboard";
@@ -28,6 +29,7 @@ import type { UnifiedTrack } from "@/types/plugin";
 import WpButton from "@/components/theme/WpButton.vue";
 
 const downloads = useDownloadsStore();
+const { t } = useI18n();
 const player = usePlayerStore();
 const trackMeta = useTrackMetaStore();
 const isMobile = useIsMobile();
@@ -47,30 +49,40 @@ interface OfflineSection {
 function bucketOf(group: DownloadGroup): { key: string; name: string; sub: string; weight: number } {
   switch (group.kind) {
     case "liked":
-      return { key: "liked", name: "我喜欢的音乐", sub: "喜欢", weight: 0 };
+      return {
+        key: "liked",
+        name: t("library.liked.title"),
+        sub: t("library.offline.subLiked"),
+        weight: 0,
+      };
     case "playlist":
       return {
         key: `playlist:${group.sourceId ?? ""}:${group.id ?? ""}`,
-        name: group.name || "歌单",
-        sub: "歌单",
+        name: group.name || t("library.playlist.title"),
+        sub: t("library.playlist.title"),
         weight: 1,
       };
     case "album":
       return {
         key: `album:${group.sourceId ?? ""}:${group.id ?? ""}`,
-        name: group.name || "专辑",
-        sub: "专辑",
+        name: group.name || t("common.column.album"),
+        sub: t("common.column.album"),
         weight: 2,
       };
     case "artist":
       return {
         key: `artist:${group.sourceId ?? ""}:${group.id ?? ""}`,
-        name: group.name || "歌手",
-        sub: "歌手",
+        name: group.name || t("common.column.artist"),
+        sub: t("common.column.artist"),
         weight: 3,
       };
     default:
-      return { key: "single", name: "单曲下载", sub: "单曲", weight: 8 };
+      return {
+        key: "single",
+        name: t("library.offline.singleDownload"),
+        sub: t("library.offline.subSingle"),
+        weight: 8,
+      };
   }
 }
 
@@ -81,7 +93,7 @@ const sections = computed<OfflineSection[]>(() => {
   for (const song of visibleSongs.value) {
     const groups: DownloadGroup[] = song.groups.length
       ? song.groups
-      : [{ kind: "single", name: "未分类" }];
+      : [{ kind: "single", name: t("library.offline.ungrouped") }];
     for (const group of groups) {
       const bucket = bucketOf(group);
       let section = map.get(bucket.key);
@@ -174,38 +186,38 @@ function menuItems(song: OfflineSong): ContextMenuItem[] {
   return [
     {
       key: "play",
-      label: "播放",
+      label: t("common.action.play"),
       icon: "&#xF610;",
       filled: true,
       action: () => void player.playTrack(song.track, downloads.offlineTracks),
     },
     {
       key: "reveal",
-      label: "在文件夹中显示",
+      label: t("library.offline.action.reveal"),
       icon: "&#xF42F;",
       action: () => void reveal(song),
     },
     {
       key: "export",
-      label: "导出到…",
+      label: t("library.offline.action.exportTo"),
       icon: "&#xF680;",
       action: () => void exportSong(song),
     },
     {
       key: "edit-meta",
-      label: "编辑歌曲信息",
+      label: t("components.contextMenu.editTrackMeta"),
       icon: "&#xF3DE;",
       action: () => openTrackMetaEditor(song.track),
     },
     {
       key: "copy-name",
-      label: "复制歌曲名",
+      label: t("components.contextMenu.copyTrackName"),
       icon: "&#xF32C;",
-      action: () => copyText(viewOf(song).name, "歌曲名"),
+      action: () => copyText(viewOf(song).name, t("components.songTable.copyTrackNameLabel")),
     },
     {
       key: "delete",
-      label: "从离线音乐移除",
+      label: t("library.offline.action.remove"),
       icon: "&#xF34D;",
       danger: true,
       action: () => void askDelete(song),
@@ -232,7 +244,12 @@ function onRowPointerDown(event: PointerEvent, song: OfflineSong): void {
 
 async function cleanMissing(): Promise<void> {
   const count = await downloads.cleanMissing();
-  toast(count ? `已清理 ${count} 条失效记录` : "没有可清理的记录", "success");
+  toast(
+    count
+      ? t("library.offline.toast.cleaned", { count })
+      : t("library.offline.toast.nothingToClean"),
+    "success",
+  );
 }
 
 /* ------------------------------ 生命周期 ------------------------------ */
@@ -249,27 +266,32 @@ useRefreshable(() => downloads.refreshMissing());
         <span class="wp-icon">&#xF151;</span>
       </div>
       <div class="header-meta">
-        <h1 class="wp-page-title">离线音乐</h1>
+        <h1 class="wp-page-title">{{ t("library.offline.title") }}</h1>
         <div class="header-sub">
-          {{ downloads.downloadedCount }} 首 · {{ downloads.formatBytes(downloads.totalSize) }}
+          {{
+            t("library.offline.subtitle", {
+              count: downloads.downloadedCount,
+              size: downloads.formatBytes(downloads.totalSize),
+            })
+          }}
           <template v-if="downloads.missingCount">
-            · <span class="missing-hint">{{ downloads.missingCount }} 个文件已丢失</span>
+            · <span class="missing-hint">{{ t("library.offline.missingHint", { count: downloads.missingCount }) }}</span>
           </template>
         </div>
       </div>
       <div class="header-actions">
         <WpButton :disabled="!downloads.offlineTracks.length" @click="playAll" variant="accent">
-          <span class="wp-icon filled">&#xF610;</span>播放全部
+          <span class="wp-icon filled">&#xF610;</span>{{ t("library.shared.playAll") }}
         </WpButton>
         <WpButton :disabled="!downloads.offlineTracks.length" @click="shufflePlay" variant="standard">
-          <span class="wp-icon">&#xEF37;</span>随机播放
+          <span class="wp-icon">&#xEF37;</span>{{ t("common.action.shuffle") }}
         </WpButton>
       </div>
     </div>
 
     <!-- 进行中的下载任务 -->
     <section v-if="activeTasks.length" class="task-section">
-      <h2 class="wp-section-title">正在下载</h2>
+      <h2 class="wp-section-title">{{ t("library.offline.downloading") }}</h2>
       <ul class="task-list">
         <li v-for="task in activeTasks" :key="task.id" class="task-row">
           <span class="task-status wp-icon" :class="{ paused: task.status === 'paused' }">
@@ -289,16 +311,16 @@ useRefreshable(() => downloads.refreshMissing());
           <span class="task-text">
             {{
               task.status === "paused"
-                ? "已暂停"
+                ? t("library.offline.task.paused")
                 : task.total > 0
                   ? `${downloads.formatBytes(task.downloaded)} / ${downloads.formatBytes(task.total)}`
-                  : "排队中"
+                  : t("library.offline.task.queued")
             }}
           </span>
           <button
             v-if="task.status === 'downloading'"
             class="task-action"
-            title="暂停"
+            :title="t('common.action.pause')"
             @click="downloads.pauseTask(task.id)"
           >
             <span class="wp-icon filled">&#xF610;</span>
@@ -306,12 +328,12 @@ useRefreshable(() => downloads.refreshMissing());
           <button
             v-else-if="task.status === 'paused'"
             class="task-action"
-            title="继续"
+            :title="t('common.action.continue')"
             @click="downloads.resumeTask(task.id)"
           >
             <span class="wp-icon filled">&#xF5AC;</span>
           </button>
-          <button class="task-action" title="移除" @click="downloads.removeTask(task.id)">
+          <button class="task-action" :title="t('common.action.remove')" @click="downloads.removeTask(task.id)">
             <span class="wp-icon">&#xF36A;</span>
           </button>
         </li>
@@ -322,9 +344,9 @@ useRefreshable(() => downloads.refreshMissing());
     <div v-if="downloads.missingCount" class="missing-banner">
       <span class="wp-icon missing-icon">&#xE7BA;</span>
       <span class="missing-text">
-        有 {{ downloads.missingCount }} 个已下载文件不在了（可能被移动或删除），它们不会出现在下方列表。
+        {{ t("library.offline.missingBanner", { count: downloads.missingCount }) }}
       </span>
-      <WpButton class="small" @click="cleanMissing" variant="standard">清理记录</WpButton>
+      <WpButton class="small" @click="cleanMissing" variant="standard">{{ t("library.offline.cleanRecords") }}</WpButton>
     </div>
 
     <!-- 云端布局：白色圆角面板（桌面端 / 默认布局时只是个普通容器） -->
@@ -332,7 +354,7 @@ useRefreshable(() => downloads.refreshMissing());
       <section v-for="section in sections" :key="section.key" class="offline-section">
         <h2 class="wp-section-title">
           {{ section.name }}
-          <span class="section-sub">{{ section.sub }} · {{ section.songs.length }} 首</span>
+          <span class="section-sub">{{ section.sub }} · {{ t("common.unit.track", { count: section.songs.length }) }}</span>
         </h2>
 
         <div class="offline-list">
@@ -360,19 +382,19 @@ useRefreshable(() => downloads.refreshMissing());
             </span>
             <span class="col-title">
               <span class="title-text ellipsis">{{ trackTitle(viewOf(song)) }}</span>
-              <span v-if="song.hasLyrics" class="lyric-badge" title="含歌词">LRC</span>
+              <span v-if="song.hasLyrics" class="lyric-badge" :title="t('library.offline.hasLyrics')">LRC</span>
             </span>
             <span class="col-artist ellipsis">{{ trackArtist(viewOf(song)) }}</span>
             <span class="col-size">{{ downloads.formatBytes(song.size) }}</span>
             <span class="col-duration">{{ formatDuration(song.track.duration) }}</span>
             <span class="col-actions">
-              <button class="row-action" title="在文件夹中显示" @click.stop="reveal(song)">
+              <button class="row-action" :title="t('library.offline.action.reveal')" @click.stop="reveal(song)">
                 <span class="wp-icon">&#xF42F;</span>
               </button>
-              <button class="row-action" title="导出到…" @click.stop="exportSong(song)">
+              <button class="row-action" :title="t('library.offline.action.exportTo')" @click.stop="exportSong(song)">
                 <span class="wp-icon">&#xF680;</span>
               </button>
-              <button class="row-action danger" title="从离线音乐移除" @click.stop="askDelete(song)">
+              <button class="row-action danger" :title="t('library.offline.action.remove')" @click.stop="askDelete(song)">
                 <span class="wp-icon">&#xF34D;</span>
               </button>
             </span>
@@ -384,17 +406,17 @@ useRefreshable(() => downloads.refreshMissing());
     <EmptyState
       v-else-if="!activeTasks.length"
       icon="&#xF151;"
-      title="还没有离线音乐"
-      description="在歌曲上右键（移动端长按）选择「下载到本地」，或在歌单 / 专辑 / 我喜欢的音乐页点击「缓存全部」，下载后的歌曲可离线播放。"
+      :title="t('library.offline.empty.title')"
+      :description="t('library.offline.empty.description')"
     />
 
     <ContentDialog
       ref="deleteDialogRef"
-      :Title="`移除「${pendingDelete ? trackTitle(viewOf(pendingDelete)) : ''}」`"
-      PrimaryButtonText="移除"
-      CloseButtonText="取消"
+      :Title="t('library.offline.removeDialog.title', { name: pendingDelete ? trackTitle(viewOf(pendingDelete)) : '' })"
+      :PrimaryButtonText="t('common.action.remove')"
+      :CloseButtonText="t('common.action.cancel')"
     >
-      <p class="delete-tip">将从设备中删除该音频文件（含歌词），此操作不可撤销。</p>
+      <p class="delete-tip">{{ t("library.offline.removeDialog.content") }}</p>
     </ContentDialog>
   </div>
 </template>

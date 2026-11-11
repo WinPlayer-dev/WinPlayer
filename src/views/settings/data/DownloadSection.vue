@@ -17,6 +17,7 @@ import {
 } from "@/stores/settings";
 import { useDownloadsStore } from "@/stores/downloads";
 import { useIsMobile } from "@/composables/useIsMobile";
+import { useI18n } from "@/i18n";
 import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 import WpCard from "@/components/theme/WpCard.vue";
@@ -25,6 +26,7 @@ const settings = useSettingsStore();
 const downloads = useDownloadsStore();
 const router = useRouter();
 const isMobile = useIsMobile();
+const { t } = useI18n();
 
 /* ------------------------------ 下载目录 ------------------------------ */
 
@@ -36,30 +38,30 @@ async function chooseDir(): Promise<void> {
     const result = await open({
       directory: true,
       multiple: false,
-      title: "选择下载目录",
+      title: t("settings.data.download.dir.chooseDialogTitle"),
     });
     if (!result || Array.isArray(result)) return;
     await settings.setDownloadDir(result);
-    toast("下载目录已更新，已下载的文件不会移动", "success");
+    toast(t("settings.data.download.dir.updated"), "success");
   } catch (error) {
-    toast(`选择目录失败: ${error}`, "error");
+    toast(t("settings.data.download.dir.chooseFailed", { error: String(error) }), "error");
   }
 }
 
 async function resetDir(): Promise<void> {
   await settings.setDownloadDir("");
   await downloads.ensureDefaultDir();
-  toast("已恢复默认下载目录", "success");
+  toast(t("settings.data.download.dir.resetDone"), "success");
 }
 
 /* ------------------------------ 文件名模板 ------------------------------ */
 
 /** 预览用示例变量 */
 const SAMPLE_VARS: Record<string, string> = {
-  name: "夜曲",
-  artist: "周杰伦",
-  album: "十一月的萧邦",
-  source: "示例插件",
+  name: t("settings.data.download.template.sample.name"),
+  artist: t("settings.data.download.template.sample.artist"),
+  album: t("settings.data.download.template.sample.album"),
+  source: t("settings.data.download.template.sample.source"),
   id: "123456",
 };
 
@@ -121,41 +123,38 @@ function openOffline(): void {
 </script>
 
 <template>
-  <SettingsSection id="data-download" title="下载与离线">
+  <SettingsSection id="data-download" :title="t('settings.data.download.section')">
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">下载目录</div>
+        <div class="card-header">{{ t("settings.data.download.dir.title") }}</div>
         <div class="card-description">
           <template v-if="isMobile">
-            保存在应用私有目录（<span class="dir-path">{{ resolvedDir }}</span>），
-            可在「离线音乐」页导出。
+            {{ t("settings.data.download.dir.mobileBefore") }}<span class="dir-path">{{ resolvedDir }}</span>{{ t("settings.data.download.dir.mobileAfter") }}
           </template>
           <template v-else>
-            下载的音频与歌词存放位置：<span class="dir-path">{{ resolvedDir }}</span>。
-            修改目录不影响已下载的文件。
+            {{ t("settings.data.download.dir.desktopBefore") }}<span class="dir-path">{{ resolvedDir }}</span>{{ t("settings.data.download.dir.desktopAfter") }}
           </template>
         </div>
       </div>
       <div v-if="!isMobile" class="dir-actions">
         <WpButton variant="standard" class="small" @click="chooseDir">
-          <span class="wp-icon">&#xF42F;</span>选择目录
+          <span class="wp-icon">&#xF42F;</span>{{ t("settings.data.download.dir.choose") }}
         </WpButton>
         <WpButton variant="standard"
           v-if="settings.downloadDir.trim()"
           class="small"
           @click="resetDir"
         >
-          恢复默认
+          {{ t("common.action.restoreDefault") }}
         </WpButton>
       </div>
     </WpCard>
 
     <WpCard variant="column">
       <div class="card-content">
-        <div class="card-header">文件名模板</div>
+        <div class="card-header">{{ t("settings.data.download.template.title") }}</div>
         <div class="card-description">
-          用变量组合文件名，<code>/</code> 可建立子目录（如
-          <code>{artist}/{album}/{name}</code>）；非法字符自动移除。
+          {{ t("settings.data.download.template.beforeSlash") }}<code>/</code>{{ t("settings.data.download.template.afterSlash") }}<code>{artist}/{album}/{name}</code>{{ t("settings.data.download.template.afterExample") }}
         </div>
       </div>
       <div class="template-row">
@@ -165,10 +164,12 @@ function openOffline(): void {
           :PlaceholderText="DEFAULT_DOWNLOAD_NAME_TEMPLATE"
           @update:Text="(value: unknown) => (templateInput = String(value ?? ''))"
         />
-        <WpButton variant="standard" class="small" @click="resetTemplate">恢复默认</WpButton>
+        <WpButton variant="standard" class="small" @click="resetTemplate">
+          {{ t("common.action.restoreDefault") }}
+        </WpButton>
       </div>
       <div class="template-vars">
-        <span class="vars-label">可用变量</span>
+        <span class="vars-label">{{ t("settings.data.download.template.varsLabel") }}</span>
         <button
           v-for="variable in DOWNLOAD_TEMPLATE_VARS"
           :key="variable"
@@ -180,28 +181,28 @@ function openOffline(): void {
         </button>
       </div>
       <div class="template-preview">
-        <span class="preview-label">预览</span>
+        <span class="preview-label">{{ t("settings.data.download.template.previewLabel") }}</span>
         <span class="preview-value">{{ previewName }}</span>
       </div>
     </WpCard>
 
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">写入歌曲标签</div>
+        <div class="card-header">{{ t("settings.data.download.writeTags.title") }}</div>
         <div class="card-description">
-          下载时把标题 / 歌手 / 专辑 / 封面 / 歌词写进音频文件，同时保存同名
-          <code>.lrc</code>。离线曲库直接读文件，换目录、换设备都还在；关闭后元数据只存在数据库里。
+          {{ t("settings.data.download.writeTags.beforeLrc") }}
+          <code>.lrc</code>{{ t("settings.data.download.writeTags.afterLrc") }}
         </div>
       </div>
       <ToggleSwitch :IsOn="settings.downloadWriteTags" @Toggled="onWriteTagsToggle" />
     </WpCard>
     <WpCard variant="row">
       <div class="card-content">
-        <div class="card-header">离线音乐</div>
-        <div class="card-description">查看已下载的曲库、导出文件或定位到文件夹。</div>
+        <div class="card-header">{{ t("settings.data.download.offline.title") }}</div>
+        <div class="card-description">{{ t("settings.data.download.offline.description") }}</div>
       </div>
       <WpButton variant="standard" class="small" @click="openOffline">
-        <span class="wp-icon">&#xF151;</span>打开
+        <span class="wp-icon">&#xF151;</span>{{ t("common.action.open") }}
       </WpButton>
     </WpCard>
   </SettingsSection>

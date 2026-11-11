@@ -10,6 +10,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { t } from "@/i18n";
 
 export interface AudioEngineEvents {
   timeupdate: (currentTime: number, duration: number) => void;
@@ -110,7 +111,7 @@ export class AudioEngine {
         this.emit("advanced", url, index);
       });
       await on("player://error", (payload) => {
-        const message = (payload as { message?: string }).message ?? "播放出错";
+        const message = (payload as { message?: string }).message ?? t("errors.audio.playbackError");
         this._paused = true;
         this.emit("error", message);
       });
@@ -167,7 +168,7 @@ export class AudioEngine {
       return;
     }
     void invoke("player_load", { url: src, headers: headersFor(src) }).catch((error) => {
-      this.emit("error", `加载音频失败: ${error}`);
+      this.emit("error", t("errors.audio.loadFailed", { error: String(error) }));
     });
   }
 
@@ -247,7 +248,7 @@ export class AudioEngine {
       device: name || null,
       position: this._currentTime,
     }).catch((error) => {
-      this.emit("error", `切换输出设备失败: ${error}`);
+      this.emit("error", t("errors.audio.outputDeviceFailed", { error: String(error) }));
     });
   }
 

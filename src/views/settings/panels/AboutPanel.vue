@@ -16,6 +16,7 @@ import { usePluginsStore } from "@/stores/plugins";
 import { useSettingsStore } from "@/stores/settings";
 import { useUpdaterStore } from "@/stores/updater";
 import { toast } from "@/services/toast";
+import { useI18n } from "@/i18n";
 import AppMark from "@/components/brand/AppMark.vue";
 import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpButton from "@/components/theme/WpButton.vue";
@@ -31,6 +32,7 @@ const plugins = usePluginsStore();
 const isMobile = useIsMobile();
 const isWindows = useIsWindows();
 const isAndroid = useIsAndroid();
+const { t } = useI18n();
 
 /** 当前版本号：启动时由 updater.init() 读取；未就绪时回退占位 */
 const versionText = computed(() => updater.currentVersion || "—");
@@ -91,42 +93,44 @@ const pluginCount = computed(() => String(plugins.installedRecords.length));
 
 /** 「检查更新」按钮文案 */
 const checkButtonText = computed(() => {
-  if (updater.phase === "checking") return "检查中…";
-  if (updater.phase === "downloading") return "正在下载…";
-  if (updater.phase === "installing") return "正在安装…";
-  if (updater.hasUpdate) return "查看更新";
-  return "检查更新";
+  if (updater.phase === "checking") return t("settings.about.update.actions.checking");
+  if (updater.phase === "downloading") return t("settings.about.update.actions.downloading");
+  if (updater.phase === "installing") return t("settings.about.update.actions.installing");
+  if (updater.hasUpdate) return t("settings.about.update.actions.view");
+  return t("settings.about.update.actions.check");
 });
 
 /** 更新状态说明 */
 const updateStatusText = computed(() => {
-  if (updater.phase === "checking") return "正在检查更新…";
-  if (updater.phase === "downloading") return "正在下载最新版本…";
-  if (updater.phase === "installing") return "正在安装更新，应用即将重启…";
-  if (updater.phase === "error") return updater.error ?? "检查更新失败";
+  if (updater.phase === "checking") return t("settings.about.update.status.checking");
+  if (updater.phase === "downloading") return t("settings.about.update.status.downloading");
+  if (updater.phase === "installing") return t("settings.about.update.status.installing");
+  if (updater.phase === "error") return updater.error ?? t("settings.about.update.status.failed");
 
   if (updater.hasUpdate && updater.info) {
-    const base = `发现新版本 ${updater.info.version}`;
     return updater.ignoredVersion
-      ? `${base}（已忽略自动提示，可手动更新）`
-      : base;
+      ? t("settings.about.update.status.foundIgnored", { version: updater.info.version })
+      : t("settings.about.update.status.found", { version: updater.info.version });
   }
   if (updater.unsupportedVersion) {
     const target = updater.platform
       ? `${updater.platform.platform}-${updater.platform.arch}`
-      : "当前平台";
-    return `发现新版本 ${updater.unsupportedVersion}，但该版本没有 ${target} 的安装包`;
+      : t("settings.about.update.currentPlatform");
+    return t("settings.about.update.status.unsupported", {
+      version: updater.unsupportedVersion,
+      platform: target,
+    });
   }
-  if (updater.phase === "done") return "更新已完成";
+  if (updater.phase === "done") return t("settings.about.update.status.done");
 
   if (!updater.canAutoUpdate) {
-    return "当前平台不支持自动更新，可前往 Release 页面手动下载";
+    return t("settings.about.update.status.noAutoUpdate");
   }
   if (settings.lastUpdateCheckAt) {
     const at = new Date(settings.lastUpdateCheckAt).toLocaleString();
-    return `当前已是最新版本 · 上次检查：${at}`;
+    return t("settings.about.update.status.upToDate", { time: at });
   }
-  return "尚未检查更新";
+  return t("settings.about.update.status.unchecked");
 });
 
 /** 页脚年份取运行期时间，避免每年回来改一次 */
@@ -160,9 +164,9 @@ async function copyVersion(): Promise<void> {
   const text = `v${versionText.value}`;
   try {
     await navigator.clipboard.writeText(text);
-    toast(`已复制 ${text}`, "success");
+    toast(t("settings.about.update.copySuccess", { version: text }), "success");
   } catch {
-    toast("复制失败，请手动选择版本号", "error");
+    toast(t("settings.about.update.copyFailed"), "error");
   }
 }
 
@@ -183,13 +187,13 @@ function restoreIgnored(): void {
         </div>
 
         <h2 class="hero-name">WinPlayer</h2>
-        <p class="hero-tagline">基于插件的桌面音乐播放器</p>
+        <p class="hero-tagline">{{ t("settings.about.hero.tagline") }}</p>
 
         <div class="hero-chips">
           <button
             class="hero-chip accent chip-action"
             type="button"
-            title="点击复制版本号"
+            :title="t('settings.about.hero.copyVersionTitle')"
             @click="copyVersion"
           >
             v{{ versionText }}
@@ -199,8 +203,8 @@ function restoreIgnored(): void {
         </div>
 
         <div class="hero-actions">
-          <WpButton @click="openRepo">Github 主页</WpButton>
-          <WpButton variant="standard" @click="openIssues">反馈问题</WpButton>
+          <WpButton @click="openRepo">{{ t("settings.about.hero.actions.repo") }}</WpButton>
+          <WpButton variant="standard" @click="openIssues">{{ t("settings.about.hero.actions.feedback") }}</WpButton>
         </div>
 
         <dl class="hero-specs">
@@ -213,7 +217,7 @@ function restoreIgnored(): void {
             <dd class="spec-value">{{ webviewLabel || "—" }}</dd>
           </div>
           <div class="spec">
-            <dt class="spec-label">已装插件</dt>
+            <dt class="spec-label">{{ t("settings.about.hero.specs.plugins") }}</dt>
             <dd class="spec-value">{{ pluginCount }}</dd>
           </div>
         </dl>
@@ -221,36 +225,35 @@ function restoreIgnored(): void {
     </section>
 
     <!-- 自动更新：手动检查入口（自动检查的开关在「通用 › 更新」） -->
-    <SettingsSection id="about-update" title="更新">
+    <SettingsSection id="about-update" :title="t('settings.about.update.section')">
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">软件更新</div>
+          <div class="card-header">{{ t("settings.about.update.software.title") }}</div>
           <div class="card-description">{{ updateStatusText }}</div>
           <div v-if="settings.ignoredUpdateVersion" class="ignored-row">
-            <span>已忽略版本 {{ settings.ignoredUpdateVersion }} 的自动提示</span>
-            <WpButton variant="standard" class="small" @click="restoreIgnored">恢复提示</WpButton>
+            <span>{{ t("settings.about.update.ignored", { version: settings.ignoredUpdateVersion }) }}</span>
+            <WpButton variant="standard" class="small" @click="restoreIgnored">{{ t("settings.about.update.actions.restorePrompt") }}</WpButton>
           </div>
         </div>
         <div class="update-actions">
           <WpButton variant="standard" class="small" :disabled="busy" @click="onCheckUpdate">
             {{ checkButtonText }}
           </WpButton>
-          <WpButton variant="standard" class="small" @click="openReleases">Release 页面</WpButton>
+          <WpButton variant="standard" class="small" @click="openReleases">{{ t("settings.about.update.actions.releasePage") }}</WpButton>
         </div>
       </WpCard>
     </SettingsSection>
 
     <!-- 开源与致谢 -->
-    <SettingsSection id="about-notices" title="开源与致谢">
+    <SettingsSection id="about-notices" :title="t('settings.about.notices.section')">
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">第三方组件</div>
+          <div class="card-header">{{ t("settings.about.notices.thirdParty.title") }}</div>
           <div class="card-description attribution">
-            主要依赖：Tauri（MIT / Apache-2.0）、Vue（MIT）。完整列表与协议信息见仓库中的
-            THIRD_PARTY_NOTICES.md。
+            {{ t("settings.about.notices.thirdParty.description") }}
           </div>
         </div>
-        <WpButton variant="standard" class="small notices-button" @click="openNotices">查看完整声明</WpButton>
+        <WpButton variant="standard" class="small notices-button" @click="openNotices">{{ t("settings.about.notices.thirdParty.action") }}</WpButton>
       </WpCard>
     </SettingsSection>
 

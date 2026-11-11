@@ -8,6 +8,7 @@
  */
 import { computed, ref } from "vue";
 import { ContentDialog, ToggleSwitch } from "@/components/winui";
+import { useI18n } from "@/i18n";
 import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 import WpCard from "@/components/theme/WpCard.vue";
@@ -19,6 +20,8 @@ import {
   runImport,
   type ImportSummary,
 } from "@/services/backup";
+
+const { t } = useI18n();
 
 /** 是否包含插件登录凭证 */
 const includeCredentials = ref(false);
@@ -58,8 +61,12 @@ async function loadCounts(): Promise<void> {
 void loadCounts();
 
 const scopeText = computed(() => {
-  if (countsLoading.value || !counts.value) return "设置、本地曲库与播放队列";
-  return `设置、${counts.value.playlists} 个歌单、${counts.value.liked} 首喜欢的音乐、${counts.value.offline} 条离线索引与播放队列`;
+  if (countsLoading.value || !counts.value) return t("settings.data.backup.export.scopeFallback");
+  return t("settings.data.backup.export.scope", {
+    playlists: counts.value.playlists,
+    liked: counts.value.liked,
+    offline: counts.value.offline,
+  });
 });
 
 function onCredentialsToggle(event: { IsOn: boolean }): void {
@@ -97,29 +104,29 @@ async function doImport(): Promise<void> {
 
 /** 导入后提示需要刷新才能看到的变化 */
 function notifyReload(): void {
-  toast("曲库与队列已更新，重新打开相关页面即可看到", "info");
+  toast(t("settings.data.backup.import.reloaded"), "info");
 }
 </script>
 
 <template>
-  <SettingsSection id="data-backup" title="备份与还原">
+  <SettingsSection id="data-backup" :title="t('settings.data.backup.section')">
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">导出备份</div>
+          <div class="card-header">{{ t("settings.data.backup.export.title") }}</div>
           <div class="card-description">
-            把{{ scopeText }}导出为 JSON。离线音乐只备份索引，音频文件需重新下载。
+            {{ t("settings.data.backup.export.description", { scope: scopeText }) }}
           </div>
         </div>
         <WpButton variant="standard" class="small" :disabled="busy !== null" @click="doExport">
-          {{ busy === "export" ? "导出中…" : "导出备份" }}
+          {{ busy === "export" ? t("settings.data.backup.export.busy") : t("settings.data.backup.export.action") }}
         </WpButton>
       </WpCard>
 
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">包含插件登录凭证</div>
+          <div class="card-header">{{ t("settings.data.backup.credentials.title") }}</div>
           <div class="card-description">
-            勾选后会把插件 Cookie / Token 一并写入备份。备份是明文 JSON，分享前请取消勾选。
+            {{ t("settings.data.backup.credentials.description") }}
           </div>
         </div>
         <ToggleSwitch :IsOn="includeCredentials" @Toggled="onCredentialsToggle" />
@@ -127,28 +134,28 @@ function notifyReload(): void {
 
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">导入备份</div>
+          <div class="card-header">{{ t("settings.data.backup.import.title") }}</div>
           <div class="card-description">
-            按名称合并歌单、按曲目去重；不会删除现有内容，重复导入也不会产生重复数据。
+            {{ t("settings.data.backup.import.description") }}
           </div>
         </div>
         <WpButton variant="standard" class="small" :disabled="busy !== null" @click="doImport">
-          {{ busy === "import" ? "导入中…" : "选择文件导入" }}
+          {{ busy === "import" ? t("settings.data.backup.import.busy") : t("settings.data.backup.import.action") }}
         </WpButton>
       </WpCard>
     <ContentDialog
       ref="confirmDialogRef"
-      Title="导入备份"
-      Content="导入会向当前曲库合并备份里的歌单与曲目，并覆盖同名的设置项。现有内容不会被删除。确定继续吗？"
-      PrimaryButtonText="开始导入"
-      CloseButtonText="取消"
+      :Title="t('settings.data.backup.import.title')"
+      :Content="t('settings.data.backup.import.confirmContent')"
+      :PrimaryButtonText="t('settings.data.backup.import.confirmPrimary')"
+      :CloseButtonText="t('common.action.cancel')"
     />
 
     <ContentDialog
       ref="summaryDialogRef"
-      Title="导入完成"
+      :Title="t('settings.data.backup.import.doneTitle')"
       :Content="summaryText"
-      PrimaryButtonText="知道了"
+      :PrimaryButtonText="t('settings.data.backup.import.donePrimary')"
       DefaultButton="Primary"
     />
   </SettingsSection>

@@ -9,6 +9,7 @@
  */
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import { useI18n } from "@/i18n";
 import { ContentDialog } from "@/components/winui";
 import WpButton from "@/components/theme/WpButton.vue";
 import { toast } from "@/services/toast";
@@ -29,6 +30,7 @@ interface DialogRef {
   Hide: () => void;
 }
 
+const { t } = useI18n();
 const router = useRouter();
 const library = useLibraryStore();
 const plugins = usePluginsStore();
@@ -97,7 +99,7 @@ async function pickFile(): Promise<void> {
   try {
     const result = await importPlaylistFile();
     if (!result) return; // 用户取消
-    if (!result.parsed.tracks.length) throw new Error("文件里没有找到任何歌曲");
+    if (!result.parsed.tracks.length) throw new Error(t("components.playlistImport.fileEmpty"));
     parsed.value = result.parsed;
     // 同名歌单自动加后缀，避免用户无意中把两首歌单建成同一个名字
     newName.value = uniquePlaylistName(result.parsed.name);
@@ -113,7 +115,7 @@ async function doImport(): Promise<void> {
   const source = parsed.value;
   if (!source || busy.value) return;
   if (!targetId.value && !newName.value.trim()) {
-    toast("歌单名称不能为空", "error");
+    toast(t("components.playlistImport.nameRequired"), "error");
     return;
   }
   busy.value = true;
@@ -126,11 +128,28 @@ async function doImport(): Promise<void> {
         progress.value = total ? done / total : 1;
       },
     });
-    const parts = [`新增 ${summary.added} 首`];
-    if (summary.duplicated) parts.push(`跳过重复 ${summary.duplicated} 首`);
-    if (summary.resolve.resolved) parts.push(`重新搜到 ${summary.resolve.resolved} 首`);
-    if (summary.resolve.unresolved) parts.push(`${summary.resolve.unresolved} 首未找到`);
-    toast(`${summary.created ? "已导入到新歌单" : "已合并到歌单"}：${parts.join("，")}`, "success");
+    const parts = [t("components.playlistImport.summaryAdded", { count: summary.added })];
+    if (summary.duplicated) {
+      parts.push(t("components.playlistImport.summaryDuplicated", { count: summary.duplicated }));
+    }
+    if (summary.resolve.resolved) {
+      parts.push(
+        t("components.playlistImport.summaryResolved", { count: summary.resolve.resolved }),
+      );
+    }
+    if (summary.resolve.unresolved) {
+      parts.push(
+        t("components.playlistImport.summaryUnresolved", { count: summary.resolve.unresolved }),
+      );
+    }
+    toast(
+      `${t(
+        summary.created
+          ? "components.playlistImport.summaryToNew"
+          : "components.playlistImport.summaryToExisting",
+      )}：${parts.join("，")}`,
+      "success",
+    );
     closeImportDialog();
     if (summary.playlist) {
       void router.push({ name: "playlist", params: { id: summary.playlist.id } });
@@ -151,21 +170,20 @@ async function doImport(): Promise<void> {
   -->
   <ContentDialog
     ref="dialogRef"
-    Title="导入歌单"
-    CloseButtonText="取消"
+    :Title="t('components.playlistImport.title')"
+    :CloseButtonText="t('common.action.cancel')"
     DefaultButton="Close"
   >
     <div class="import">
       <!-- 第一步：说明 + 选文件 -->
       <template v-if="!parsed">
         <p class="import-hint">
-          支持 WinPlayer 歌单（.json）与标准播放列表（.m3u / .m3u8）。导入时按曲目去重，
-          缺少来源信息的歌曲会自动跨插件重新搜索。
+          {{ t("components.playlistImport.hint") }}
         </p>
         <WpButton class="pick-button" :disabled="busy" @click="pickFile">
           <!-- arrow_import_24_regular (F15A)：F3B3 实际是 desktop_sync_16_regular，不是导入图标 -->
           <span class="wp-icon">&#xF15A;</span>
-          {{ busy ? "正在读取…" : "选择歌单文件…" }}
+          {{ busy ? t("components.playlistImport.reading") : t("components.playlistImport.pickFile") }}
         </WpButton>
       </template>
 
@@ -174,16 +192,22 @@ async function doImport(): Promise<void> {
         <div class="preview">
           <div class="preview-title ellipsis">{{ parsed.name }}</div>
           <div class="preview-meta">
-            {{ parsed.format === "json" ? "WinPlayer 歌单" : "M3U 播放列表" }} ·
-            {{ parsed.tracks.length }} 首
-            <template v-if="needsResolve"> · 其中 {{ needsResolve }} 首需重新搜索</template>
+            {{
+              parsed.format === "json"
+                ? t("components.playlistImport.formatJson")
+                : t("components.playlistImport.formatM3u")
+            }}
+            · {{ t("common.unit.track", { count: parsed.tracks.length }) }}
+            <template v-if="needsResolve">
+              · {{ t("components.playlistImport.needsResolve", { count: needsResolve }) }}
+            </template>
           </div>
         </div>
 
         <div class="target-list">
           <label class="target-item" :class="{ active: targetId === 0 }">
             <input v-model.number="targetId" type="radio" :value="0" />
-            <span class="target-name">新建歌单</span>
+            <span class="target-name">{{ t("components.playlistImport.newPlaylist") }}</span>
           </label>
           <input
             v-if="targetId === 0"
@@ -191,7 +215,7 @@ async function doImport(): Promise<void> {
             class="target-input"
             type="text"
             maxlength="50"
-            placeholder="歌单名称"
+            :placeholder="t('components.playlistImport.namePlaceholder')"
             :disabled="busy"
           />
           <template v-if="library.playlists.length">
@@ -203,7 +227,9 @@ async function doImport(): Promise<void> {
             >
               <input v-model.number="targetId" type="radio" :value="playlist.id" />
               <span class="target-name ellipsis">{{ playlist.name }}</span>
-              <span class="target-count">{{ playlist.trackCount ?? 0 }} 首</span>
+              <span class="target-count">
+                {{ t("common.unit.track", { count: playlist.trackCount ?? 0 }) }}
+              </span>
             </label>
           </template>
         </div>
@@ -212,14 +238,18 @@ async function doImport(): Promise<void> {
           <div class="progress-bar">
             <div class="progress-fill" :style="{ width: `${Math.round(progress * 100)}%` }" />
           </div>
-          <span class="progress-text">正在重新搜索歌曲…{{ Math.round(progress * 100) }}%</span>
+          <span class="progress-text">
+            {{ t("components.playlistImport.searching", { percent: Math.round(progress * 100) }) }}
+          </span>
         </div>
 
         <!-- 操作区：导入 / 重新选择 -->
         <div class="import-actions">
-          <WpButton variant="standard" :disabled="busy" @click="pickFile">重新选择</WpButton>
+          <WpButton variant="standard" :disabled="busy" @click="pickFile">
+            {{ t("components.playlistImport.reselect") }}
+          </WpButton>
           <WpButton variant="accent" :disabled="busy" @click="doImport">
-            {{ busy ? "正在导入…" : "导入" }}
+            {{ busy ? t("components.playlistImport.importing") : t("common.action.import") }}
           </WpButton>
         </div>
       </template>

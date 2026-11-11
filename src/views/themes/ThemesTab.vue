@@ -23,9 +23,11 @@ import {
   type ThemeEntry,
   type ThemeMarketEntry,
 } from "@/types/theme";
+import { useI18n } from "@/i18n";
 
 const themes = useThemesStore();
 const isMobile = useIsMobile();
+const { t } = useI18n();
 
 /** ContentDialog 通过 ShowAsync() 打开 */
 interface DialogRef {
@@ -89,7 +91,7 @@ function isActive(id: string): boolean {
 /** 主题覆盖了哪些内置组件（展示用） */
 function componentSummary(entry: ThemeEntry): string {
   const keys = Object.keys(entry.manifest.components ?? {}) as ThemeComponentKey[];
-  if (!keys.length) return "仅样式";
+  if (!keys.length) return t("themes.theme.styleOnly");
   return keys.map((key) => THEME_COMPONENT_LABELS[key]).join(" / ");
 }
 
@@ -108,7 +110,7 @@ const newSourceUrl = ref("");
 function addSource(): void {
   const url = newSourceUrl.value.trim();
   if (!url) {
-    toast("请输入市场源地址", "error");
+    toast(t("themes.page.sourceDialog.urlRequired"), "error");
     return;
   }
   void themes.setMarketSources([
@@ -136,7 +138,7 @@ async function refreshMarket(): Promise<void> {
   try {
     await themes.fetchMarketEntries();
   } catch (error) {
-    toast(`加载主题市场失败：${error}`, "error");
+    toast(t("themes.page.loadFailed", { error: String(error) }), "error");
   }
 }
 
@@ -152,23 +154,27 @@ onMounted(async () => {
     <div class="theme-toolbar">
       <WpButton class="small" :disabled="themes.marketLoading" @click="refreshMarket" variant="standard">
         <span class="wp-icon">&#xF13E;</span>
-        {{ themes.marketLoading ? "加载中…" : "刷新市场" }}
+        {{ themes.marketLoading ? t("common.state.loading") : t("themes.page.refresh") }}
       </WpButton>
       <WpButton class="small" @click="installFromFile" variant="standard">
-        <span class="wp-icon">&#xF42F;</span>从本地安装
+        <span class="wp-icon">&#xF42F;</span>{{ t("themes.page.installFromFile") }}
       </WpButton>
       <WpButton class="small" @click="openSourceDialog" variant="standard">
-        <span class="wp-icon">&#xF13D;</span>市场源
+        <span class="wp-icon">&#xF13D;</span>{{ t("themes.page.marketSource") }}
       </WpButton>
       <span class="toolbar-spacer" />
-      <span class="theme-count">{{ themes.installed.length }} 个主题</span>
+      <span class="theme-count">{{
+        t("themes.page.count", { count: themes.installed.length })
+      }}</span>
     </div>
 
     <!-- 已安装 -->
     <section class="theme-section">
-      <h2 class="theme-section-title">已安装</h2>
-      <div v-if="themes.applying" class="hint">正在应用主题…</div>
-      <div v-if="!themes.installed.length && !themes.applying" class="hint">还没有安装任何主题</div>
+      <h2 class="theme-section-title">{{ t("themes.tab.installed") }}</h2>
+      <div v-if="themes.applying" class="hint">{{ t("themes.page.applying") }}</div>
+      <div v-if="!themes.installed.length && !themes.applying" class="hint">
+        {{ t("themes.page.emptyInstalled") }}
+      </div>
 
       <div v-else class="installed-grid">
         <article
@@ -180,8 +186,12 @@ onMounted(async () => {
           <div class="theme-preview">
             <img v-if="entry.manifest.preview" :src="themes.resolveAsset(entry.manifest.preview)" alt="" />
             <span v-else class="wp-icon preview-fallback">&#xF2F6;</span>
-            <span v-if="isActive(entry.id)" class="active-badge">使用中</span>
-            <span v-if="supportsComponents(entry)" class="component-badge">含组件</span>
+            <span v-if="isActive(entry.id)" class="active-badge">{{
+              t("themes.theme.using")
+            }}</span>
+            <span v-if="supportsComponents(entry)" class="component-badge">{{
+              t("themes.theme.hasComponents")
+            }}</span>
           </div>
           <div class="theme-body">
             <div class="theme-title-row">
@@ -189,10 +199,12 @@ onMounted(async () => {
               <span class="theme-version">v{{ entry.manifest.version }}</span>
             </div>
             <div class="theme-author">
-              {{ entry.manifest.author || "未知作者" }}
-              <template v-if="!entry.path"> · 内置</template>
+              {{ entry.manifest.author || t("themes.theme.unknownAuthor") }}
+              <template v-if="!entry.path"> · {{ t("themes.theme.builtin") }}</template>
             </div>
-            <div class="theme-desc">{{ entry.manifest.description || "无简介" }}</div>
+            <div class="theme-desc">
+              {{ entry.manifest.description || t("themes.theme.noDescription") }}
+            </div>
             <div class="theme-meta">{{ componentSummary(entry) }}</div>
 
             <div v-if="themes.activeId === entry.id && themes.lastError" class="theme-error">
@@ -205,20 +217,20 @@ onMounted(async () => {
                 :disabled="themes.applying"
                 @click="applyTheme(entry)"
                variant="accent">
-                应用
+                {{ t("themes.action.apply") }}
               </WpButton>
               <WpButton
                 v-else class="small"
                 :disabled="themes.applying"
                 @click="themes.applyTheme('')"
                variant="standard">
-                恢复默认
+                {{ t("common.action.restoreDefault") }}
               </WpButton>
               <WpButton
                 v-if="entry.manifest.homepage" class="small"
                 @click="openHomepage(entry.manifest.homepage)"
                variant="standard">
-                主页
+                {{ t("themes.action.homepage") }}
               </WpButton>
               <WpButton
                 v-if="removableThemes.some((item) => item.id === entry.id)"
@@ -226,7 +238,7 @@ onMounted(async () => {
                 class="small danger"
                 @click="uninstall(entry)"
               >
-                卸载
+                {{ t("themes.action.uninstall") }}
               </WpButton>
             </div>
           </div>
@@ -236,9 +248,13 @@ onMounted(async () => {
 
     <!-- 市场 -->
     <section class="theme-section">
-      <h2 class="theme-section-title">主题市场</h2>
+      <h2 class="theme-section-title">{{ t("themes.tab.market") }}</h2>
       <div v-if="!themes.marketEntries.length" class="hint">
-        {{ themes.marketLoading ? "正在加载市场索引…" : "市场索引为空或加载失败" }}
+        {{
+          themes.marketLoading
+            ? t("themes.page.marketLoadingIndex")
+            : t("themes.page.marketIndexEmpty")
+        }}
       </div>
       <div v-else class="market-grid">
         <article
@@ -256,8 +272,12 @@ onMounted(async () => {
               <span class="theme-name">{{ entry.name }}</span>
               <span v-if="entry.version" class="theme-version">v{{ entry.version }}</span>
             </div>
-            <div class="theme-author">{{ entry.author || "未知作者" }}</div>
-            <div class="theme-desc">{{ entry.description || "无简介" }}</div>
+            <div class="theme-author">
+              {{ entry.author || t("themes.theme.unknownAuthor") }}
+            </div>
+            <div class="theme-desc">
+              {{ entry.description || t("themes.theme.noDescription") }}
+            </div>
             <div v-if="entry.tags?.length" class="theme-tags">
               <span v-for="tag in entry.tags" :key="tag" class="theme-tag">{{ tag }}</span>
             </div>
@@ -267,21 +287,21 @@ onMounted(async () => {
                 :disabled="installingId === entry.id"
                 @click="installFromMarket(entry)"
                variant="accent">
-                {{ installingId === entry.id ? "安装中…" : "安装" }}
+                {{ installingId === entry.id ? t("themes.action.installing") : t("themes.action.install") }}
               </WpButton>
               <WpButton
                 v-else-if="marketStatus(entry) === 'updatable'" class="small"
                 :disabled="installingId === entry.id"
                 @click="installFromMarket(entry)"
                variant="accent">
-                {{ installingId === entry.id ? "更新中…" : "更新" }}
+                {{ installingId === entry.id ? t("themes.action.updating") : t("themes.action.update") }}
               </WpButton>
-              <span v-else class="installed-hint">已安装</span>
+              <span v-else class="installed-hint">{{ t("themes.theme.installedHint") }}</span>
               <WpButton
                 v-if="entry.homepage" class="small"
                 @click="openHomepage(entry.homepage)"
                variant="standard">
-                来源
+                {{ t("themes.action.source") }}
               </WpButton>
             </div>
           </div>
@@ -292,28 +312,31 @@ onMounted(async () => {
     <!-- 安全提示：主题含可执行组件 -->
     <ContentDialog
       ref="trustedDialogRef"
-      Title="该主题包含可执行代码"
-      PrimaryButtonText="仍要启用"
-      CloseButtonText="取消"
+      :Title="t('themes.theme.securityTitle')"
+      :PrimaryButtonText="t('themes.theme.securityConfirm')"
+      :CloseButtonText="t('common.action.cancel')"
     >
       <div class="dialog-hint">
-        这个主题重写了内置界面组件（Vue 单文件组件）。启用后，主题代码将以完整权限运行在主界面中，
-        可以读取你的曲库、设置与登录凭证。请只启用你信任来源的主题。
+        {{ t("themes.theme.securityBody") }}
       </div>
     </ContentDialog>
 
     <!-- 卸载确认 -->
     <ContentDialog
       ref="confirmDialogRef"
-      Title="卸载主题"
-      PrimaryButtonText="卸载"
-      CloseButtonText="取消"
+      :Title="t('themes.theme.uninstallTitle')"
+      :PrimaryButtonText="t('themes.action.uninstall')"
+      :CloseButtonText="t('common.action.cancel')"
     >
-      <div class="dialog-hint">卸载后主题文件会被删除，若正在使用会先切回默认外观。</div>
+      <div class="dialog-hint">{{ t("themes.theme.uninstallConfirm") }}</div>
     </ContentDialog>
 
     <!-- 市场源管理 -->
-    <ContentDialog ref="sourceDialogRef" Title="主题市场源" CloseButtonText="关闭">
+    <ContentDialog
+      ref="sourceDialogRef"
+      :Title="t('themes.page.sourceDialog.title')"
+      :CloseButtonText="t('common.action.close')"
+    >
       <div class="source-dialog">
         <ul class="source-list">
           <li v-for="source in themes.allMarketSources()" :key="source.url" class="source-item">
@@ -321,7 +344,7 @@ onMounted(async () => {
               <div class="source-name">
                 {{ source.name }}
                 <span v-if="!themes.marketSources.some((s) => s.url === source.url)" class="builtin-badge">
-                  内置
+                  {{ t("themes.theme.builtin") }}
                 </span>
               </div>
               <div class="source-url ellipsis">{{ source.url }}</div>
@@ -332,15 +355,21 @@ onMounted(async () => {
               class="small danger"
               @click="removeSource(themes.marketSources.findIndex((s) => s.url === source.url))"
             >
-              移除
+              {{ t("common.action.remove") }}
             </WpButton>
           </li>
         </ul>
 
         <div class="source-add">
-          <input v-model="newSourceName" class="wp-input" placeholder="名称（可选）" />
+          <input
+            v-model="newSourceName"
+            class="wp-input"
+            :placeholder="t('themes.page.sourceDialog.namePlaceholder')"
+          />
           <input v-model="newSourceUrl" class="wp-input grow" placeholder="https://example.com/theme-index.json" />
-          <WpButton class="small" @click="addSource" variant="standard">添加</WpButton>
+          <WpButton class="small" @click="addSource" variant="standard">{{
+            t("common.action.add")
+          }}</WpButton>
         </div>
       </div>
     </ContentDialog>

@@ -9,7 +9,9 @@ import { openPlaylistPicker, useCanAddToPlaylist } from "@/services/playlistPick
 import { copyText } from "@/services/clipboard";
 import { formatDuration, trackArtist, trackTitle } from "@/types/player";
 import type { UnifiedTrack } from "@/types/plugin";
+import { useI18n } from "@/i18n";
 
+const { t } = useI18n();
 const player = usePlayerStore();
 const library = useLibraryStore();
 const trackMeta = useTrackMetaStore();
@@ -34,44 +36,44 @@ function openItemMenu(track: UnifiedTrack, uid: string, event: MouseEvent) {
   if (canAddToPlaylist.value) {
     items.push({
       key: "playlist",
-      label: "添加到歌单",
+      label: t("layout.playerBar.addToPlaylist"),
       icon: "&#xF4EE;",
       action: () => openPlaylistPicker(track),
     });
   }
   items.push({
     key: "like",
-    label: liked ? "取消喜欢" : "添加到我喜欢",
+    label: liked ? t("layout.playerBar.unlike") : t("layout.playerBar.like"),
     icon: liked ? "&#xF47E;" : "&#xF47A;",
     filled: liked,
     action: () => library.toggleLike(track),
   });
   items.push({
     key: "queue",
-    label: "添加到播放队列",
+    label: t("layout.playerBar.addToQueue"),
     icon: "&#xF10A;",
     action: () => player.addToQueue([track]),
   });
   items.push({
     key: "remove",
-    label: "移除",
+    label: t("common.action.remove"),
     icon: "&#xF34D;",
     danger: true,
     action: () => player.removeFromQueue(uid),
   });
   items.push({
     key: "copy-name",
-    label: "复制歌曲名",
+    label: t("layout.playerBar.copyTrackName"),
     icon: "&#xF32C;",
-    action: () => copyText(trackMeta.decorate(track).name, "歌曲名"),
+    action: () => copyText(trackMeta.decorate(track).name, t("layout.playerBar.trackNameLabel")),
   });
   const alias = track.alias;
   if (alias) {
     items.push({
       key: "copy-alias",
-      label: "复制歌曲别名",
+      label: t("layout.playerBar.copyTrackAlias"),
       icon: "&#xF32C;",
-      action: () => copyText(alias, "歌曲别名"),
+      action: () => copyText(alias, t("layout.playerBar.trackAliasLabel")),
     });
   }
   openContextMenu(event, items);
@@ -82,13 +84,13 @@ function openItemMenu(track: UnifiedTrack, uid: string, event: MouseEvent) {
   <transition name="panel">
     <div v-if="player.showQueue" class="queue-panel" @pointerdown.stop>
       <div class="panel-header">
-        <span class="panel-title">播放队列</span>
-        <span class="panel-count">{{ player.queue.length }} 首</span>
-        <button v-if="player.queue.length" class="panel-action" @click="player.clearQueue">清空</button>
+        <span class="panel-title">{{ t("layout.playerBar.queue") }}</span>
+        <span class="panel-count">{{ t("common.unit.track", { count: player.queue.length }) }}</span>
+        <button v-if="player.queue.length" class="panel-action" @click="player.clearQueue">{{ t("layout.playerBar.clearQueue") }}</button>
       </div>
 
       <div ref="bodyRef" class="panel-body">
-        <div v-if="!player.queue.length" class="panel-empty">队列为空，去发现音乐吧</div>
+        <div v-if="!player.queue.length" class="panel-empty">{{ t("layout.playerBar.queueEmpty") }}</div>
         <ul v-else class="queue-list">
           <li
             v-for="(item, index) in player.queue"
@@ -109,7 +111,7 @@ function openItemMenu(track: UnifiedTrack, uid: string, event: MouseEvent) {
               <div class="queue-artist ellipsis">{{ trackArtist(trackMeta.decorate(item.track)) }}</div>
             </div>
             <span class="queue-duration">{{ formatDuration(item.track.duration) }}</span>
-            <button class="queue-remove" title="移除" @click.stop="player.removeFromQueue(item.uid)">
+            <button class="queue-remove" :title="t('common.action.remove')" @click.stop="player.removeFromQueue(item.uid)">
               <span class="wp-icon">&#xF36A;</span>
             </button>
           </li>

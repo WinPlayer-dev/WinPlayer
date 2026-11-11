@@ -6,17 +6,20 @@ import {
   useSettingsStore,
   STARTUP_PAGE_OPTIONS,
   type CloseBehavior,
+  type StartupPage,
   type UpdateCheckFrequency,
 } from "@/stores/settings";
 import { useIsAndroid, useIsMobile, useIsWindows } from "@/composables/useIsMobile";
 import { resetWindowState } from "@/services/windowState";
 import { toast } from "@/services/toast";
+import { LOCALES, useI18n, type I18nKey } from "@/i18n";
 import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 import WpButton from "@/components/theme/WpButton.vue";
 
 const settings = useSettingsStore();
 const router = useRouter();
+const { t } = useI18n();
 // SMTC 是 Windows 专属能力，其他平台隐藏该设置项
 const isWindows = useIsWindows();
 // 车载模式依赖媒体控件：Windows 走 SMTC，安卓走媒体通知
@@ -25,27 +28,60 @@ const isAndroid = useIsAndroid();
 const isMobile = useIsMobile();
 
 /** 检查频率选项（顺序与 ComboBox 的 SelectedIndex 一致） */
-const FREQUENCIES: { value: UpdateCheckFrequency; label: string }[] = [
-  { value: "startup", label: "每次启动" },
-  { value: "daily", label: "每 24 小时" },
-  { value: "manual", label: "仅手动" },
+const FREQUENCIES: { value: UpdateCheckFrequency; labelKey: I18nKey }[] = [
+  { value: "startup", labelKey: "settings.general.update.frequency.options.startup" },
+  { value: "daily", labelKey: "settings.general.update.frequency.options.daily" },
+  { value: "manual", labelKey: "settings.general.update.frequency.options.manual" },
 ];
 
 /** 关闭按钮行为选项（仅 Windows 托盘场景生效） */
-const CLOSE_BEHAVIORS: { value: CloseBehavior; label: string }[] = [
-  { value: "tray", label: "关闭到系统托盘" },
-  { value: "minimize", label: "最小化到任务栏" },
-  { value: "quit", label: "直接退出" },
+const CLOSE_BEHAVIORS: { value: CloseBehavior; labelKey: I18nKey }[] = [
+  { value: "tray", labelKey: "settings.general.window.closeBehavior.options.tray" },
+  { value: "minimize", labelKey: "settings.general.window.closeBehavior.options.minimize" },
+  { value: "quit", labelKey: "settings.general.window.closeBehavior.options.quit" },
 ];
 
-const frequencyLabels = FREQUENCIES.map((item) => item.label);
+/**
+ * 「打开时页面」候选项的显示名。
+ *
+ * `STARTUP_PAGE_OPTIONS` 只提供代码值（store 层不放界面文案），这里按值映射到词条。
+ */
+const STARTUP_PAGE_LABEL_KEYS: Record<StartupPage, I18nKey> = {
+  recommend: "settings.general.startup.page.options.recommend",
+  liked: "settings.general.startup.page.options.liked",
+  offline: "settings.general.startup.page.options.offline",
+  mine: "settings.general.startup.page.options.mine",
+};
+
+/** 界面语言选项：直接来自 i18n 的已注册语种表（新增语种无需改这里） */
+const languageLabels = LOCALES.map((item) => item.label);
+const languageIndex = computed(() =>
+  LOCALES.findIndex((item) => item.value === settings.language),
+);
+
+function onLanguageChange(_sender: unknown, payload: unknown): void {
+  const label = (payload as { AddedItems?: unknown[] } | undefined)?.AddedItems?.[0];
+  const option = LOCALES.find((item) => item.label === String(label ?? ""));
+  if (option) void settings.setLanguage(option.value);
+}
+
+const frequencyLabels = computed(() => FREQUENCIES.map((item) => t(item.labelKey)));
 const frequencyIndex = computed(() =>
   FREQUENCIES.findIndex((item) => item.value === settings.updateCheckFrequency),
 );
 
-const closeBehaviorLabels = CLOSE_BEHAVIORS.map((item) => item.label);
+const closeBehaviorLabels = computed(() => CLOSE_BEHAVIORS.map((item) => t(item.labelKey)));
 const closeBehaviorIndex = computed(() =>
   CLOSE_BEHAVIORS.findIndex((item) => item.value === settings.closeBehavior),
+);
+
+/** 「自动检查频率」的说明：选项名从词条取，避免与下拉选项各写一份 */
+const frequencyDescription = computed(() =>
+  t("settings.general.update.frequency.description", {
+    startup: t("settings.general.update.frequency.options.startup"),
+    daily: t("settings.general.update.frequency.options.daily"),
+    manual: t("settings.general.update.frequency.options.manual"),
+  }),
 );
 
 /**
@@ -55,15 +91,21 @@ const closeBehaviorIndex = computed(() =>
 const startupOptions = computed(() =>
   STARTUP_PAGE_OPTIONS.filter((item) => isMobile || !item.mobileOnly),
 );
-const startupLabels = computed(() => startupOptions.value.map((item) => item.label));
+const startupLabels = computed(() =>
+  startupOptions.value.map((item) => t(STARTUP_PAGE_LABEL_KEYS[item.value])),
+);
 const startupIndex = computed(() =>
   startupOptions.value.findIndex((item) => item.value === settings.startupPage),
 );
-const startupPlaceholder = computed(() => (isMobile ? "" : "仅移动端可选"));
+const startupPlaceholder = computed(() =>
+  isMobile ? "" : t("settings.general.startup.page.placeholderMobileOnly"),
+);
 
 function onStartupPageChange(_sender: unknown, payload: unknown): void {
   const label = (payload as { AddedItems?: unknown[] } | undefined)?.AddedItems?.[0];
-  const option = STARTUP_PAGE_OPTIONS.find((item) => item.label === String(label ?? ""));
+  const option = STARTUP_PAGE_OPTIONS.find(
+    (item) => t(STARTUP_PAGE_LABEL_KEYS[item.value]) === String(label ?? ""),
+  );
   if (option) void settings.setStartupPage(option.value);
 }
 
@@ -89,13 +131,13 @@ function onPrereleaseToggle(event: { IsOn: boolean }): void {
 
 function onFrequencyChange(_sender: unknown, payload: unknown): void {
   const label = (payload as { AddedItems?: unknown[] } | undefined)?.AddedItems?.[0];
-  const option = FREQUENCIES.find((item) => item.label === String(label ?? ""));
+  const option = FREQUENCIES.find((item) => t(item.labelKey) === String(label ?? ""));
   if (option) void settings.setUpdateCheckFrequency(option.value);
 }
 
 function onCloseBehaviorChange(_sender: unknown, payload: unknown): void {
   const label = (payload as { AddedItems?: unknown[] } | undefined)?.AddedItems?.[0];
-  const option = CLOSE_BEHAVIORS.find((item) => item.label === String(label ?? ""));
+  const option = CLOSE_BEHAVIORS.find((item) => t(item.labelKey) === String(label ?? ""));
   if (option) void settings.setCloseBehavior(option.value);
 }
 
@@ -119,9 +161,9 @@ function onRememberWindowToggle(event: { IsOn: boolean }): void {
 async function resetWindow(): Promise<void> {
   try {
     await resetWindowState();
-    toast("窗口已恢复默认大小并居中", "success");
+    toast(t("settings.general.window.remember.resetSuccess"), "success");
   } catch (error) {
-    toast(`重置失败: ${error}`, "error");
+    toast(t("settings.general.window.remember.resetFailed", { error: String(error) }), "error");
   }
 }
 
@@ -146,14 +188,35 @@ function onDemoModeToggle(event: { IsOn: boolean }): void {
 
 <template>
   <div>
-    <!-- 启动与引导：冷启动后进哪个页面 + 重看欢迎引导 -->
-    <SettingsSection id="general-startup" title="启动与引导">
+    <!-- 语言：切换即时生效，选项来自 i18n 的已注册语种表 -->
+    <SettingsSection id="general-language" :title="t('settings.general.language.section')">
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">打开时页面</div>
+          <div class="card-header">{{ t("settings.general.language.interface.title") }}</div>
           <div class="card-description">
-            每次启动应用后直接进入所选页面
-            <template v-if="!isMobile">。桌面端不提供「我的」</template>
+            {{ t("settings.general.language.interface.description") }}
+          </div>
+        </div>
+        <ComboBox
+          class="card-control"
+          :ItemsSource="languageLabels"
+          :SelectedIndex="languageIndex"
+          @SelectionChanged="
+            (_sender: unknown, payload: unknown) => onLanguageChange(_sender, payload)
+          "
+        />
+      </WpCard>
+    </SettingsSection>
+
+    <!-- 启动与引导：冷启动后进哪个页面 + 重看欢迎引导 -->
+    <SettingsSection id="general-startup" :title="t('settings.general.startup.section')">
+      <WpCard variant="row">
+        <div class="card-content">
+          <div class="card-header">{{ t("settings.general.startup.page.title") }}</div>
+          <div class="card-description">
+            {{ t("settings.general.startup.page.description") }}<template v-if="!isMobile">{{
+              t("settings.general.startup.page.descriptionDesktopSuffix")
+            }}</template>
           </div>
         </div>
         <ComboBox
@@ -169,22 +232,24 @@ function onDemoModeToggle(event: { IsOn: boolean }): void {
 
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">欢迎引导</div>
+          <div class="card-header">{{ t("settings.general.startup.onboarding.title") }}</div>
           <div class="card-description">
-            重新查看欢迎页与添加播放源引导，不影响已装插件与现有设置
+            {{ t("settings.general.startup.onboarding.description") }}
           </div>
         </div>
-        <WpButton variant="standard" class="small" @click="replayOnboarding">重新查看</WpButton>
+        <WpButton variant="standard" class="small" @click="replayOnboarding">{{
+          t("settings.general.startup.onboarding.action")
+        }}</WpButton>
       </WpCard>
     </SettingsSection>
 
     <!-- 触感反馈（仅移动端） -->
-    <SettingsSection v-if="isMobile" id="general-feedback" title="触感反馈">
+    <SettingsSection v-if="isMobile" id="general-feedback" :title="t('settings.general.feedback.section')">
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">震动反馈</div>
+          <div class="card-header">{{ t("settings.general.feedback.vibration.title") }}</div>
           <div class="card-description">
-            长按菜单、下拉刷新、收藏等操作时轻微震动
+            {{ t("settings.general.feedback.vibration.description") }}
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.hapticsEnabled" @Toggled="onHapticsToggle" />
@@ -195,26 +260,28 @@ function onDemoModeToggle(event: { IsOn: boolean }): void {
     <SettingsSection
       v-if="!isMobile || isWindows"
       id="general-window"
-      title="窗口与系统"
+      :title="t('settings.general.window.section')"
     >
       <WpCard v-if="!isMobile" variant="row">
         <div class="card-content">
-          <div class="card-header">记住窗口大小与位置</div>
+          <div class="card-header">{{ t("settings.general.window.remember.title") }}</div>
           <div class="card-description">
-            退出时记住窗口尺寸、位置与最大化状态，下次启动还原
+            {{ t("settings.general.window.remember.description") }}
           </div>
         </div>
         <div class="card-control window-state-control">
-          <WpButton variant="standard" class="small" @click="resetWindow">重置</WpButton>
+          <WpButton variant="standard" class="small" @click="resetWindow">{{
+            t("common.action.reset")
+          }}</WpButton>
           <ToggleSwitch :IsOn="settings.rememberWindowState" @Toggled="onRememberWindowToggle" />
         </div>
       </WpCard>
 
       <WpCard v-if="isWindows" variant="row">
         <div class="card-content">
-          <div class="card-header">关闭按钮行为</div>
+          <div class="card-header">{{ t("settings.general.window.closeBehavior.title") }}</div>
           <div class="card-description">
-            关闭窗口时收进托盘继续播放、最小化到任务栏或直接退出
+            {{ t("settings.general.window.closeBehavior.description") }}
           </div>
         </div>
         <ComboBox
@@ -229,9 +296,9 @@ function onDemoModeToggle(event: { IsOn: boolean }): void {
 
       <WpCard v-if="isWindows" variant="row">
         <div class="card-content">
-          <div class="card-header">后台优化</div>
+          <div class="card-header">{{ t("settings.general.window.background.title") }}</div>
           <div class="card-description">
-            窗口隐藏时暂停动画与轮询以降低占用，播放不受影响
+            {{ t("settings.general.window.background.description") }}
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.backgroundOptimize" @Toggled="onOptimizeToggle" />
@@ -239,9 +306,9 @@ function onDemoModeToggle(event: { IsOn: boolean }): void {
 
       <WpCard v-if="isWindows" variant="row">
         <div class="card-content">
-          <div class="card-header">系统媒体传输控件（SMTC）</div>
+          <div class="card-header">{{ t("settings.general.window.smtc.title") }}</div>
           <div class="card-description">
-            在系统媒体浮出窗、锁屏与蓝牙设备上显示曲目和进度，并响应系统播放控制
+            {{ t("settings.general.window.smtc.description") }}
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.smtcEnabled" @Toggled="onSmtcToggle" />
@@ -249,12 +316,12 @@ function onDemoModeToggle(event: { IsOn: boolean }): void {
     </SettingsSection>
 
     <!-- 车载模式：依赖媒体控件（Windows 的 SMTC / 安卓的媒体通知） -->
-    <SettingsSection v-if="isWindows || isAndroid" id="general-car" title="车载模式">
+    <SettingsSection v-if="isWindows || isAndroid" id="general-car" :title="t('settings.general.car.section')">
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">歌词显示在媒体控件上</div>
+          <div class="card-header">{{ t("settings.general.car.lyrics.title") }}</div>
           <div class="card-description">
-            媒体控件标题显示当前歌词行，没有歌词时显示歌名；需开启系统媒体控件
+            {{ t("settings.general.car.lyrics.description") }}
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.carMode" @Toggled="onCarModeToggle" />
@@ -262,12 +329,12 @@ function onDemoModeToggle(event: { IsOn: boolean }): void {
     </SettingsSection>
 
     <!-- 搜索 -->
-    <SettingsSection id="general-search" title="搜索">
+    <SettingsSection id="general-search" :title="t('settings.general.search.section')">
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">聚合搜索</div>
+          <div class="card-header">{{ t("settings.general.search.aggregate.title") }}</div>
           <div class="card-description">
-            搜索页多出一个「全部」Tab，聚合所有插件的结果
+            {{ t("settings.general.search.aggregate.description") }}
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.aggregateSearch" @Toggled="onAggregateSearchToggle" />
@@ -275,12 +342,12 @@ function onDemoModeToggle(event: { IsOn: boolean }): void {
     </SettingsSection>
 
     <!-- 隐私：播放历史 + 演示模式（录屏/截图时隐藏来源名与歌单） -->
-    <SettingsSection id="general-privacy" title="隐私">
+    <SettingsSection id="general-privacy" :title="t('settings.general.privacy.section')">
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">记录播放历史</div>
+          <div class="card-header">{{ t("settings.general.privacy.history.title") }}</div>
           <div class="card-description">
-            记录播放次数与最近播放时间；关闭后不再记录，已有数据保留
+            {{ t("settings.general.privacy.history.description") }}
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.historyEnabled" @Toggled="onHistoryToggle" />
@@ -288,10 +355,9 @@ function onDemoModeToggle(event: { IsOn: boolean }): void {
 
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">隐藏来源名与歌单</div>
+          <div class="card-header">{{ t("settings.general.privacy.demoMode.title") }}</div>
           <div class="card-description">
-            录屏 / 截图时使用：播放源名称统一显示为「在线音乐」，侧边栏与「我的」页里的歌单、平台歌单入口一并隐藏。
-            只影响显示，不会删除歌单，也不改变插件的启用状态
+            {{ t("settings.general.privacy.demoMode.description") }}
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.demoMode" @Toggled="onDemoModeToggle" />
@@ -299,14 +365,16 @@ function onDemoModeToggle(event: { IsOn: boolean }): void {
     </SettingsSection>
 
     <!-- 更新：只放「自动检查」相关，手动检查在「关于」页 -->
-    <SettingsSection id="general-update" title="更新">
+    <SettingsSection id="general-update" :title="t('settings.general.update.section')">
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">自动检查更新</div>
+          <div class="card-header">{{ t("settings.general.update.auto.title") }}</div>
           <div class="card-description">
-            启动时静默检查新版本，有更新时提示；关闭后仍可在
-            <button class="inline-link" type="button" @click="goAboutUpdate">「关于」页</button>
-            手动检查
+            {{ t("settings.general.update.auto.description") }}
+            <button class="inline-link" type="button" @click="goAboutUpdate">
+              {{ t("settings.general.update.auto.link") }}
+            </button>
+            {{ t("settings.general.update.auto.descriptionAfterLink") }}
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.autoCheckUpdate" @Toggled="onAutoCheckToggle" />
@@ -314,10 +382,8 @@ function onDemoModeToggle(event: { IsOn: boolean }): void {
 
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">自动检查频率</div>
-          <div class="card-description">
-            「每次启动」每次打开都检查，「每 24 小时」每天只检查一次，「仅手动」只在「关于」页检查
-          </div>
+          <div class="card-header">{{ t("settings.general.update.frequency.title") }}</div>
+          <div class="card-description">{{ frequencyDescription }}</div>
         </div>
         <ComboBox
           class="card-control"
@@ -332,9 +398,9 @@ function onDemoModeToggle(event: { IsOn: boolean }): void {
 
       <WpCard variant="row">
         <div class="card-content">
-          <div class="card-header">接收预览版本（Beta）</div>
+          <div class="card-header">{{ t("settings.general.update.prerelease.title") }}</div>
           <div class="card-description">
-            同时检查预发布版本，可提前体验新功能，但可能不够稳定
+            {{ t("settings.general.update.prerelease.description") }}
           </div>
         </div>
         <ToggleSwitch :IsOn="settings.updateIncludePrerelease" @Toggled="onPrereleaseToggle" />

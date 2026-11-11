@@ -15,6 +15,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Compon
 import { useRoute, useRouter } from "vue-router";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { toast } from "@/services/toast";
+import { useI18n } from "@/i18n";
 import {
   CATEGORIES,
   MOBILE_CATEGORIES,
@@ -42,6 +43,7 @@ import CategoryPickerSheet from "@/views/settings/components/CategoryPickerSheet
 const route = useRoute();
 const router = useRouter();
 const isMobile = useIsMobile();
+const { t } = useI18n();
 
 /** 页面根节点（也是滚动容器），锚点跳转与 scroll-spy 都以它为基准 */
 const pageRef = ref<HTMLElement | null>(null);
@@ -185,7 +187,7 @@ watch(
     await nextTick();
     await nextTick();
     const found = await scrollToSection(sectionId, true);
-    if (!found) toast("该项在当前平台不可用，已跳到分类顶部", "info");
+    if (!found) toast(t("settings.shell.focusUnavailable"), "info");
     void router.replace({ query: { ...route.query, focus: undefined } });
   },
 );
@@ -306,13 +308,13 @@ watch(
 <template>
   <div ref="pageRef" class="wp-page settings-page" :class="{ mobile: isMobile }">
     <div class="wp-page-header settings-header">
-      <h1 class="wp-page-title">设置</h1>
+      <h1 class="wp-page-title">{{ t("settings.shell.title") }}</h1>
       <SettingsSearchBox :mobile="isMobile" @select="onSearchSelect" />
     </div>
 
     <div class="settings-layout">
       <!-- 桌面端：左侧竖向分类导航 -->
-      <nav v-if="!isMobile" class="settings-nav" aria-label="设置分类">
+      <nav v-if="!isMobile" class="settings-nav" :aria-label="t('settings.shell.navLabel')">
         <span class="nav-pill" :style="pillStyle()" aria-hidden="true" />
         <span class="nav-accent" :style="pillStyle(10)" aria-hidden="true" />
         <button
@@ -324,7 +326,7 @@ watch(
           @click="selectTab(category.key)"
         >
           <span class="wp-icon nav-icon" v-html="category.icon" />
-          <span>{{ category.label }}</span>
+          <span>{{ t(category.labelKey) }}</span>
         </button>
       </nav>
 
@@ -334,12 +336,12 @@ watch(
           v-if="isMobile"
           type="button"
           class="settings-category-button"
-          aria-label="切换设置分类"
+          :aria-label="t('settings.shell.categorySwitch')"
           @click="openCategoryPicker"
         >
           <span class="wp-icon category-icon" v-html="activeCategory.icon" aria-hidden="true" />
-          <span class="category-label">{{ activeCategory.label }}</span>
-          <span class="category-sub ellipsis">{{ activeCategory.mobileSubtitle }}</span>
+          <span class="category-label">{{ t(activeCategory.labelKey) }}</span>
+          <span class="category-sub ellipsis">{{ t(activeCategory.mobileSubtitleKey) }}</span>
           <span class="category-arrow" aria-hidden="true" />
         </button>
 

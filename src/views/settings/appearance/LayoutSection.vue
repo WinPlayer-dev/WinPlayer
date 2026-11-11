@@ -10,10 +10,12 @@
  * 因此整个分组在桌面端不渲染，由 AppearancePanel 控制。
  */
 import { useSettingsStore, type SongListLayout } from "@/stores/settings";
+import { useI18n } from "@/i18n";
 import SettingsSection from "@/views/settings/components/SettingsSection.vue";
 import WpCard from "@/components/theme/WpCard.vue";
 
 const settings = useSettingsStore();
+const { t } = useI18n();
 
 interface LayoutOption {
   key: SongListLayout;
@@ -23,8 +25,16 @@ interface LayoutOption {
 
 /** 已有布局：卡片顺序即展示顺序 */
 const OPTIONS: readonly LayoutOption[] = [
-  { key: "default", name: "默认", hint: "封面与标题居中，列表平铺" },
-  { key: "cloud", name: "云端", hint: "封面主色渐变头部，白色圆角面板包住列表" },
+  {
+    key: "default",
+    name: t("settings.appearance.layout.options.default.name"),
+    hint: t("settings.appearance.layout.options.default.hint"),
+  },
+  {
+    key: "cloud",
+    name: t("settings.appearance.layout.options.cloud.name"),
+    hint: t("settings.appearance.layout.options.cloud.hint"),
+  },
 ];
 
 async function choose(key: SongListLayout): Promise<void> {
@@ -34,12 +44,12 @@ async function choose(key: SongListLayout): Promise<void> {
 </script>
 
 <template>
-  <SettingsSection id="appearance-layout" title="布局">
+  <SettingsSection id="appearance-layout" :title="t('settings.appearance.layout.section')">
     <WpCard variant="column">
       <div class="card-content">
-        <div class="card-header">歌曲列表布局</div>
+        <div class="card-header">{{ t("settings.appearance.layout.songList.title") }}</div>
         <div class="card-description">
-          歌单、专辑、歌手、我的喜欢、本地音乐等列表页在手机端的排版方式；点一下立即生效，桌面端不受影响
+          {{ t("settings.appearance.layout.songList.description") }}
         </div>
       </div>
 
@@ -100,8 +110,8 @@ async function choose(key: SongListLayout): Promise<void> {
             <span class="plus-mark" />
           </span>
           <span class="card-label">
-            敬请期待
-            <span class="card-hint">后续布局会出现在这里</span>
+            {{ t("settings.appearance.layout.placeholder.name") }}
+            <span class="card-hint">{{ t("settings.appearance.layout.placeholder.hint") }}</span>
           </span>
         </div>
       </div>

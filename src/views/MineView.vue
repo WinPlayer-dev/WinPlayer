@@ -17,10 +17,12 @@ import { openContextMenuAt } from "@/services/contextMenu";
 import { openImportDialog } from "@/services/playlistIO";
 import { useRefreshable } from "@/composables/useRefreshable";
 import { useLongPress } from "@/composables/useLongPress";
+import { useI18n } from "@/i18n";
 import type { UnifiedPlaylist } from "@/types/plugin";
 import CachedImage from "@/components/common/CachedImage.vue";
 
 const router = useRouter();
+const { t } = useI18n();
 const library = useLibraryStore();
 const player = usePlayerStore();
 const plugins = usePluginsStore();
@@ -34,10 +36,10 @@ const avatar = ref<AppAvatar | null>(null);
 
 const avatarUrl = computed(() => avatar.value?.image ?? "");
 const avatarTitle = computed(() => {
-  if (!avatar.value) return "未登录任何插件账户";
+  if (!avatar.value) return t("library.mine.avatarNotLoggedIn");
   const name = pluginDisplayName(plugins.records, avatar.value.sourceId);
   const label = avatar.value.label?.trim();
-  return [label, name].filter(Boolean).join(" · ") || "账户";
+  return [label, name].filter(Boolean).join(" · ") || t("library.mine.accountFallback");
 });
 
 async function loadAvatar() {
@@ -179,20 +181,20 @@ function openPlaylistMenu(x: number, y: number, playlist: LocalPlaylist) {
     [
       {
         key: "play",
-        label: "播放全部",
+        label: t("library.shared.playAll"),
         icon: "&#xF610;",
         filled: true,
         action: () => playPlaylist(playlist),
       },
       {
         key: "rename",
-        label: "重命名",
+        label: t("common.action.rename"),
         icon: "&#xF3DE;",
         action: () => openRenameDialog(playlist),
       },
       {
         key: "delete",
-        label: "删除歌单",
+        label: t("library.shared.deletePlaylist"),
         icon: "&#xF34D;",
         danger: true,
         action: () => openDeleteDialog(playlist),
@@ -236,14 +238,14 @@ function onPlaylistClick(playlist: LocalPlaylist) {
       </div>
       <div class="profile-meta">
         <div class="profile-title">{{ avatarTitle }}</div>
-        <div class="profile-sub">头像由已登录的插件提供</div>
+        <div class="profile-sub">{{ t("library.mine.avatarHint") }}</div>
       </div>
     </div>
 
     <!-- 我喜欢的音乐 -->
     <button class="liked-entry" @click="router.push({ name: 'liked' })">
       <span class="wp-icon liked-icon">&#xF47A;</span>
-      <span class="liked-label">我喜欢的音乐</span>
+      <span class="liked-label">{{ t("library.liked.title") }}</span>
       <span v-if="library.liked.length" class="liked-badge">{{ library.liked.length }}</span>
       <span class="wp-icon liked-chevron">&#xF2B1;</span>
     </button>
@@ -251,9 +253,9 @@ function onPlaylistClick(playlist: LocalPlaylist) {
     <!-- 最近播放 -->
     <button class="liked-entry history-entry" @click="router.push({ name: 'history' })">
       <span class="wp-icon liked-icon">&#xF2A1;</span>
-      <span class="liked-label">最近播放</span>
+      <span class="liked-label">{{ t("library.history.title") }}</span>
       <span v-if="history.entries.length" class="liked-badge">
-        {{ history.entries.length }} 首
+        {{ t("common.unit.track", { count: history.entries.length }) }}
       </span>
       <span class="wp-icon liked-chevron">&#xF2B1;</span>
     </button>
@@ -261,20 +263,20 @@ function onPlaylistClick(playlist: LocalPlaylist) {
     <!-- 离线音乐 -->
     <button class="liked-entry offline-entry" @click="router.push({ name: 'offline' })">
       <span class="wp-icon liked-icon">&#xF151;</span>
-      <span class="liked-label">离线音乐</span>
-      <span v-if="downloads.downloadedCount" class="liked-badge">{{ downloads.downloadedCount }} 首</span>
+      <span class="liked-label">{{ t("library.offline.title") }}</span>
+      <span v-if="downloads.downloadedCount" class="liked-badge">{{ t("common.unit.track", { count: downloads.downloadedCount }) }}</span>
       <span class="wp-icon liked-chevron">&#xF2B1;</span>
     </button>
 
     <!-- 本地歌单（演示模式下与平台歌单一起隐藏入口） -->
     <div v-if="!settings.demoMode" class="section-header">
-      <span class="section-title">歌单</span>
+      <span class="section-title">{{ t("library.playlist.title") }}</span>
       <span v-if="library.playlists.length" class="section-count">{{ library.playlists.length }}</span>
       <span class="add-buttons">
-        <button class="add-button" title="导入歌单（.json / .m3u8）" @click="openImportDialog">
+        <button class="add-button" :title="t('library.mine.importTooltip')" @click="openImportDialog">
           <span class="wp-icon">&#xF15A;</span>
         </button>
-        <button class="add-button" title="新建歌单" @click="openCreateDialog">
+        <button class="add-button" :title="t('library.mine.newPlaylist')" @click="openCreateDialog">
           <span class="wp-icon">&#xF10A;</span>
         </button>
       </span>
@@ -299,17 +301,17 @@ function onPlaylistClick(playlist: LocalPlaylist) {
           <span v-if="playlist.trackCount" class="playlist-badge">{{ playlist.trackCount }}</span>
         </button>
       </li>
-      <li v-if="!library.playlists.length" class="list-empty">还没有歌单，点击 + 创建</li>
+      <li v-if="!library.playlists.length" class="list-empty">{{ t("library.mine.noPlaylists") }}</li>
     </ul>
 
     <!-- 平台歌单 -->
     <template v-if="hasMyPlaylistsPlugin && !settings.demoMode">
       <div class="section-header">
-        <span class="section-title">平台歌单</span>
+        <span class="section-title">{{ t("library.mine.platformPlaylists") }}</span>
         <button
           class="add-button"
           :class="{ spinning: platformLoading }"
-          title="同步平台歌单"
+          :title="t('library.mine.syncPlatform')"
           @click="loadPlatformPlaylists"
         >
           <span class="wp-icon">&#xF191;</span>
@@ -340,22 +342,27 @@ function onPlaylistClick(playlist: LocalPlaylist) {
           {{ group.record.entry.manifest.name }}：{{ group.error }}
         </li>
         <li v-if="!platformItems.length && !platformErrors.length" class="list-empty">
-          {{ platformLoading ? "正在同步…" : "暂无平台歌单" }}
+          {{ platformLoading ? t("library.mine.syncing") : t("library.mine.noPlatformPlaylists") }}
         </li>
       </ul>
     </template>
 
-    <ContentDialog ref="createDialogRef" Title="新建歌单" PrimaryButtonText="创建" CloseButtonText="取消">
+    <ContentDialog
+      ref="createDialogRef"
+      :Title="t('library.mine.newPlaylist')"
+      :PrimaryButtonText="t('library.mine.create')"
+      :CloseButtonText="t('common.action.cancel')"
+    >
       <div class="dialog-form">
         <TextBox
           :Text="newPlaylistName"
-          PlaceholderText="歌单名称"
+          :PlaceholderText="t('library.playlist.namePlaceholder')"
           :MaxLength="50"
           @update:Text="newPlaylistName = String($event ?? '')"
         />
         <TextBox
           :Text="newPlaylistDescription"
-          PlaceholderText="歌单简介（可选）"
+          :PlaceholderText="t('library.playlist.descriptionPlaceholder')"
           :MaxLength="200"
           @update:Text="newPlaylistDescription = String($event ?? '')"
         />
@@ -364,14 +371,14 @@ function onPlaylistClick(playlist: LocalPlaylist) {
 
     <ContentDialog
       ref="renameDialogRef"
-      Title="重命名歌单"
-      PrimaryButtonText="确定"
-      CloseButtonText="取消"
+      :Title="t('library.playlist.renameDialog.title')"
+      :PrimaryButtonText="t('common.action.confirm')"
+      :CloseButtonText="t('common.action.cancel')"
     >
       <div class="dialog-form">
         <TextBox
           :Text="renameValue"
-          PlaceholderText="歌单名称"
+          :PlaceholderText="t('library.playlist.namePlaceholder')"
           :MaxLength="50"
           @update:Text="renameValue = String($event ?? '')"
         />
@@ -380,11 +387,11 @@ function onPlaylistClick(playlist: LocalPlaylist) {
 
     <ContentDialog
       ref="deleteDialogRef"
-      :Title="`删除歌单「${deleteTarget?.name ?? ''}」`"
-      PrimaryButtonText="删除"
-      CloseButtonText="取消"
+      :Title="t('library.mine.deleteDialogTitle', { name: deleteTarget?.name ?? '' })"
+      :PrimaryButtonText="t('common.action.delete')"
+      :CloseButtonText="t('common.action.cancel')"
     >
-      <p class="delete-tip">歌单内的歌曲记录将一并删除，此操作不可撤销。</p>
+      <p class="delete-tip">{{ t("library.mine.deleteDialogContent") }}</p>
     </ContentDialog>
   </div>
 </template>

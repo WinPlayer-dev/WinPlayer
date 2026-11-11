@@ -18,6 +18,7 @@ import {
   findEqPreset,
 } from "@/constants/eqPresets";
 import type { MarketSource } from "@/types/plugin";
+import { DEFAULT_LOCALE, normalizeLocale, setLocale, type Locale } from "@/i18n";
 
 export type ThemePreference = "system" | "light" | "dark";
 
@@ -52,15 +53,13 @@ export type AutoPlaylistMode = "fixed" | "auto";
 export type AutoPlaylistLanguage = "english" | "chinese" | "japanese" | "korean" | "other";
 
 /** 语种选项（设置页展示顺序即此顺序） */
-export const AUTO_PLAYLIST_LANGUAGES: ReadonlyArray<{
-  value: AutoPlaylistLanguage;
-  label: string;
-}> = [
-  { value: "english", label: "英语" },
-  { value: "chinese", label: "华语" },
-  { value: "japanese", label: "日语" },
-  { value: "korean", label: "韩语" },
-  { value: "other", label: "其他" },
+/** 语种选项（设置页展示顺序即此顺序）；显示名在 settings/experimental.ts 的词条里 */
+export const AUTO_PLAYLIST_LANGUAGES: readonly AutoPlaylistLanguage[] = [
+  "english",
+  "chinese",
+  "japanese",
+  "korean",
+  "other",
 ];
 
 /**
@@ -285,11 +284,8 @@ export const LYRICS_STYLE_RANGES = {
 /** 当前行垂直位置的可选值（顺序即设置页按钮顺序） */
 export const LYRIC_ANCHORS: readonly LyricAnchor[] = ["top", "center", "bottom"];
 
-/** 缓动曲线的可选值与文案 */
-export const LYRIC_EASINGS: readonly { value: LyricEasing; label: string }[] = [
-  { value: "out", label: "缓出" },
-  { value: "inout", label: "缓入缓出" },
-];
+/** 缓动曲线的可选值（文案见 settings/appearance.ts 的 lyrics.scroll.easingOptions） */
+export const LYRIC_EASINGS: readonly LyricEasing[] = ["out", "inout"];
 
 /** 可选字重（细 / 常规 / 中等 / 半粗 / 粗） */
 export const LYRICS_FONT_WEIGHTS: readonly number[] = [300, 400, 500, 600, 700];
@@ -408,18 +404,17 @@ export type StartupPage = "recommend" | "liked" | "offline" | "mine";
 /** 启动页候选项：`mobileOnly` 的项仅在移动端出现在设置下拉中（桌面端路由仍可达） */
 export interface StartupPageOption {
   value: StartupPage;
-  label: string;
   /** 目标路由名 */
   route: string;
   mobileOnly?: boolean;
 }
 
 export const STARTUP_PAGE_OPTIONS: readonly StartupPageOption[] = [
-  { value: "recommend", label: "推荐", route: "recommend" },
-  { value: "liked", label: "我喜欢的音乐", route: "liked" },
-  { value: "offline", label: "离线音乐", route: "offline" },
+  { value: "recommend", route: "recommend" },
+  { value: "liked", route: "liked" },
+  { value: "offline", route: "offline" },
   // 「我的」页是移动端底部导航的入口，桌面端侧边栏没有它，故不在桌面端设置里出现
-  { value: "mine", label: "我的", route: "mine", mobileOnly: true },
+  { value: "mine", route: "mine", mobileOnly: true },
 ];
 
 /** 校验持久化值是否仍是合法页面（老版本 / 手改数据库时回退到推荐页） */
@@ -448,6 +443,14 @@ export const DOWNLOAD_TEMPLATE_VARS = [
 
 export const useSettingsStore = defineStore("settings", () => {
   const theme = ref<ThemePreference>("system");
+  /**
+   * 界面语种。
+   *
+   * 状态本体在 `@/i18n`（模块级 ref），这里只是持久化的一份投影：读库后调
+   * `setLocale()` 推给运行时，切换时先改运行时再落库。之所以不让 i18n 模块
+   * 自己读数据库，是因为桌面歌词窗口没有 Pinia / 数据库连接，也得能显示文案。
+   */
+  const language = ref<Locale>(DEFAULT_LOCALE);
   /**
    * 首次引导是否已完成：false 时启动会进入欢迎页（且当前没有任何插件）。
    * 老用户升级上来时由 App 初始化阶段自动置为 true，不会被打扰；
@@ -629,15 +632,24 @@ export const useSettingsStore = defineStore("settings", () => {
     root.style.setProperty("--spring-ease-y", String(springStrength.value));
   }
 
+  /** 把语种同步给 i18n 运行时（顺带更新 `<html lang>`，影响断行与字体回退） */
+  function applyLocale(): void {
+    setLocale(language.value);
+  }
+
   // 首次创建即应用（设置尚未从数据库加载时的默认值）
   applyTheme();
   applyFont();
   applyHaptics();
   applyCoverNaturalRatio();
   applySpringMotion();
+  applyLocale();
 
   async function load(): Promise<void> {
     theme.value = await getSetting<ThemePreference>("settings.theme", "system");
+    language.value = normalizeLocale(
+      await getSetting<string>("settings.language", DEFAULT_LOCALE),
+    );
     onboardingDone.value = await getSetting<boolean>("settings.onboardingDone", false);
     studioEnabled.value = await getSetting<boolean>("settings.studioEnabled", false);
     autoPlaylist.value = normalizeAutoPlaylist(
@@ -731,6 +743,7 @@ export const useSettingsStore = defineStore("settings", () => {
     applyHaptics();
     applyCoverNaturalRatio();
     applySpringMotion();
+    applyLocale();
     // 窗口材质按持久化偏好应用（仅 Windows 桌面实际生效）
     void applyWindowMaterial(windowMaterial.value);
     // 启动时把均衡器配置应用到原生引擎
@@ -742,6 +755,18 @@ export const useSettingsStore = defineStore("settings", () => {
     theme.value = value;
     applyTheme();
     await setSetting("settings.theme", value);
+  }
+
+  /**
+   * 切换语种：先推给运行时（界面立刻换），再落库。
+   *
+   * 不需要重启，也不需要重建组件：模板里 `t()` 的调用都发生在渲染副作用里，
+   * 读到了 `locale` 这个 ref，改它就会整体重渲染。
+   */
+  async function setLanguage(value: Locale): Promise<void> {
+    language.value = normalizeLocale(value);
+    applyLocale();
+    await setSetting("settings.language", language.value);
   }
 
   async function setFontFamily(value: string): Promise<void> {
@@ -1095,6 +1120,7 @@ export const useSettingsStore = defineStore("settings", () => {
 
   return {
     theme,
+    language,
     fontFamily,
     windowMaterial,
     rememberWindowState,
@@ -1144,6 +1170,7 @@ export const useSettingsStore = defineStore("settings", () => {
     loaded,
     load,
     setTheme,
+    setLanguage,
     setFontFamily,
     setWindowMaterial,
     setRememberWindowState,

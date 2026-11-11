@@ -7,6 +7,7 @@
  * 各写一套、日后修一处漏一处。
  */
 
+import { t } from "@/i18n";
 import type { UnifiedAlbum, UnifiedArtist, UnifiedTrack } from "@/types/plugin";
 
 /** 曲库里的一行（本地 music / WebDAV 共用） */
@@ -59,8 +60,8 @@ export interface LibraryArtistGroup {
 const ALBUM_ID_SEP = "\u0001";
 
 /** 未知歌手 / 未知专辑的展示名（也作为分组键） */
-export const UNKNOWN_ARTIST = "未知艺术家";
-export const UNKNOWN_ALBUM = "未知专辑";
+export const UNKNOWN_ARTIST = t("common.state.unknownArtist");
+export const UNKNOWN_ALBUM = t("common.state.unknownAlbum");
 
 export function stripExtension(name: string): string {
   const dot = name.lastIndexOf(".");

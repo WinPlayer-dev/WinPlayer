@@ -14,6 +14,7 @@
  */
 
 import { reactive } from "vue";
+import { t } from "@/i18n";
 import { getDb } from "@/services/db";
 import { dismissToast, toast, toastSticky } from "@/services/toast";
 import { useLibraryStore, trackKey, type LocalPlaylist } from "@/stores/library";
@@ -135,19 +136,19 @@ export async function exportPlaylist(
   format: PlaylistFileFormat,
 ): Promise<boolean> {
   if (!tracks.length) {
-    toast("这个歌单还没有歌曲", "info");
+    toast(t("errors.file.playlist.noTracksInPlaylist"), "info");
     return false;
   }
   const { save } = await import("@tauri-apps/plugin-dialog");
   const { invoke } = await import("@tauri-apps/api/core");
   const extension = format === "json" ? "json" : "m3u8";
   const target = await save({
-    title: "导出歌单",
+    title: t("errors.file.playlist.saveTitle"),
     defaultPath: `${safeFileName(name)}.${extension}`,
     filters:
       format === "json"
-        ? [{ name: "WinPlayer 歌单", extensions: ["json"] }]
-        : [{ name: "M3U8 播放列表", extensions: ["m3u8", "m3u"] }],
+        ? [{ name: t("errors.file.playlist.filterWinPlayer"), extensions: ["json"] }]
+        : [{ name: t("errors.file.playlist.filterM3u"), extensions: ["m3u8", "m3u"] }],
   });
   if (!target) return false;
   const content =
@@ -170,16 +171,21 @@ function parsePlaylistJson(text: string, fallbackName: string): ParsedPlaylist {
   try {
     payload = JSON.parse(text);
   } catch {
-    throw new Error("不是合法的 JSON 文件");
+    throw new Error(t("errors.file.invalidJson"));
   }
-  if (!payload || typeof payload !== "object") throw new Error("文件内容为空");
+  if (!payload || typeof payload !== "object") throw new Error(t("errors.file.playlist.emptyContent"));
   const data = payload as Partial<PlaylistFile>;
   if (data.app !== FILE_APP || data.kind !== FILE_KIND) {
-    throw new Error("这不是 WinPlayer 的歌单文件（整库备份请在设置 → 备份与还原里导入）");
+    throw new Error(t("errors.file.playlist.notWinPlayer"));
   }
-  if (typeof data.version !== "number") throw new Error("歌单文件缺少版本号");
+  if (typeof data.version !== "number") throw new Error(t("errors.file.playlist.missingVersion"));
   if (data.version > FILE_VERSION) {
-    throw new Error(`歌单文件版本 ${data.version} 高于当前应用支持的 ${FILE_VERSION}，请先升级`);
+    throw new Error(
+      t("errors.file.playlist.versionTooNew", {
+        version: data.version,
+        supported: FILE_VERSION,
+      }),
+    );
   }
   const tracks = Array.isArray(data.tracks)
     ? data.tracks.filter((track): track is UnifiedTrack => Boolean(track) && typeof track === "object")
@@ -265,7 +271,7 @@ function splitTitle(title: string): { name: string; artists: string[] } {
 export function parsePlaylistFile(text: string, path: string): ParsedPlaylist {
   const name = fileNameOf(path);
   const trimmed = text.trim();
-  if (!trimmed) throw new Error("文件是空的");
+  if (!trimmed) throw new Error(t("errors.file.playlist.emptyFile"));
   // JSON 用首字符判断：m3u8 里不会出现以 { 开头的合法内容
   if (trimmed.startsWith("{")) return parsePlaylistJson(text, name);
   return parseM3u(text, name);
@@ -278,14 +284,14 @@ export async function pickPlaylistFile(): Promise<{ path: string; text: string }
   const { open } = await import("@tauri-apps/plugin-dialog");
   const { invoke } = await import("@tauri-apps/api/core");
   const picked = await open({
-    title: "导入歌单",
+    title: t("errors.file.playlist.openTitle"),
     multiple: false,
     directory: false,
-    filters: [{ name: "歌单文件", extensions: ["json", "m3u", "m3u8", "txt"] }],
+    filters: [{ name: t("errors.file.playlist.filterAll"), extensions: ["json", "m3u", "m3u8", "txt"] }],
   });
   if (!picked || Array.isArray(picked)) return null;
   const text = await invoke<string | null>("download_read_text", { path: picked });
-  if (!text) throw new Error("无法读取这个文件（可能不是文本文件）");
+  if (!text) throw new Error(t("errors.file.playlist.unreadable"));
   return { path: picked, text };
 }
 
@@ -353,8 +359,8 @@ export async function importIntoPlaylist(
   const library = useLibraryStore();
   const playlist = options.targetId
     ? (library.playlists.find((item) => item.id === options.targetId) ?? null)
-    : await library.createPlaylist(options.name ?? "导入的歌单", options.description ?? "");
-  if (!playlist) throw new Error("目标歌单不存在");
+    : await library.createPlaylist(options.name ?? t("errors.file.playlist.defaultName"), options.description ?? "");
+  if (!playlist) throw new Error(t("errors.file.playlist.targetMissing"));
 
   // 去重：同一份文件里可能有重复曲目，先在内存里按曲目键收敛一次
   const seen = new Set<string>();
@@ -405,7 +411,7 @@ export function closeImportDialog(): void {
 /** 给用户的默认歌单名：同名时自动加「(2)」「(3)」 */
 export function uniquePlaylistName(base: string): string {
   const library = useLibraryStore();
-  const name = base.trim() || "导入的歌单";
+  const name = base.trim() || t("errors.file.playlist.defaultName");
   const taken = new Set(library.playlists.map((item) => item.name));
   if (!taken.has(name)) return name;
   for (let index = 2; index < 999; index += 1) {
@@ -443,10 +449,10 @@ export async function runImport(
   parsed: ParsedPlaylist,
   options: ImportOptions,
 ): Promise<ImportSummary> {
-  if (!parsed.tracks.length) throw new Error("文件里没有找到任何歌曲");
+  if (!parsed.tracks.length) throw new Error(t("errors.file.playlist.noTracksInFile"));
 
   // 1. 补身份（可能耗时：逐个插件搜索），用常驻 Toast 告知进度
-  const pendingToast = toastSticky("正在准备歌曲信息…", "info");
+  const pendingToast = toastSticky(t("errors.file.playlist.preparing"), "info");
   let resolved: { tracks: UnifiedTrack[]; summary: ResolveSummary };
   try {
     resolved = await resolveTracks(parsed.tracks, (done, total) => {

@@ -19,6 +19,7 @@ import { getCachedData, setCachedData } from "@/services/cache";
 import { demoName } from "@/services/demoMode";
 import { useIsMobile } from "@/composables/useIsMobile";
 import { useRefreshable } from "@/composables/useRefreshable";
+import { useI18n } from "@/i18n";
 import PlaylistCard from "@/components/common/PlaylistCard.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import CachedImage from "@/components/common/CachedImage.vue";
@@ -26,6 +27,7 @@ import { ProgressRing } from "@/components/winui";
 import WpButton from "@/components/theme/WpButton.vue";
 
 const router = useRouter();
+const { t } = useI18n();
 const plugins = usePluginsStore();
 const player = usePlayerStore();
 const library = useLibraryStore();
@@ -107,47 +109,53 @@ function songMenuItems(song: UnifiedTrack): ContextMenuItem[] {
   if (canAddToPlaylist.value) {
     items.push({
       key: "playlist",
-      label: "添加到歌单",
+      label: t("components.contextMenu.addToPlaylist"),
       icon: "&#xF4EE;",
       action: () => openPlaylistPicker(song),
     });
   }
   items.push({
     key: "like",
-    label: liked ? "取消喜欢" : "添加到喜欢",
+    label: liked ? t("components.contextMenu.unlike") : t("components.contextMenu.like"),
     icon: liked ? "&#xF47E;" : "&#xF47A;",
     filled: liked,
     action: () => library.toggleLike(song),
   });
   if (downloads.isDownloaded(song)) {
-    items.push({ key: "download", label: "已下载", icon: "&#xF151;", disabled: true, action: () => {} });
+    items.push({
+      key: "download",
+      label: t("common.state.downloaded"),
+      icon: "&#xF151;",
+      disabled: true,
+      action: () => {},
+    });
   } else {
     items.push({
       key: "download",
-      label: "下载到本地",
+      label: t("components.contextMenu.downloadToLocal"),
       icon: "&#xF151;",
       action: () => void downloads.downloadTrack(song),
     });
   }
   items.push({
     key: "edit-meta",
-    label: "编辑歌曲信息",
+    label: t("components.contextMenu.editTrackMeta"),
     icon: "&#xF3DE;",
     action: () => openTrackMetaEditor(song),
   });
   items.push({
     key: "copy-name",
-    label: "复制歌曲名",
+    label: t("components.contextMenu.copyTrackName"),
     icon: "&#xF32C;",
-    action: () => copyText(trackMeta.decorate(song).name, "歌曲名"),
+    action: () => copyText(trackMeta.decorate(song).name, t("components.songTable.copyTrackNameLabel")),
   });
   const alias = song.alias;
   if (alias) {
     items.push({
       key: "copy-alias",
-      label: "复制歌曲别名",
+      label: t("components.contextMenu.copyTrackAlias"),
       icon: "&#xF32C;",
-      action: () => copyText(alias, "歌曲别名"),
+      action: () => copyText(alias, t("components.songTable.copyTrackAliasLabel")),
     });
   }
   return items;
@@ -194,53 +202,58 @@ onMounted(loadWithCache);
 <template>
   <div class="wp-page recommend-page" :class="{ 'is-mobile': isMobile }">
     <div class="wp-page-header">
-      <h1 class="wp-page-title">推荐</h1>
+      <h1 class="wp-page-title">{{ t("library.recommend.title") }}</h1>
       <WpButton :disabled="loading" @click="load" variant="standard">
-        <span class="wp-icon">&#xF13E;</span>刷新
+        <span class="wp-icon">&#xF13E;</span>{{ t("common.action.refresh") }}
       </WpButton>
     </div>
 
     <!-- 移动端搜索入口：点击进入整页搜索（桌面端搜索在标题栏） -->
     <div v-if="isMobile" class="mobile-search" @click="router.push({ name: 'search' })">
       <span class="wp-icon mobile-search-icon">&#xF690;</span>
-      <span class="mobile-search-placeholder">搜索音乐、歌单</span>
+      <span class="mobile-search-placeholder">{{ t("library.recommend.searchPlaceholder") }}</span>
     </div>
 
     <!-- 无可用插件 -->
     <EmptyState
       v-if="!plugins.enabledRecords.length"
       icon="&#xF137;"
-      title="还没有可用的播放源"
-      description="WinPlayer 的音乐完全来自播放源。可以先去播放源管理添加本地音乐文件夹，或安装一个在线播放源插件。"
+      :title="t('library.shared.noSourceTitle')"
+      :description="t('library.shared.noSourceDescription')"
     >
-      <WpButton @click="router.push('/plugins')" variant="accent">前往播放源管理</WpButton>
+      <WpButton @click="router.push('/plugins')" variant="accent">{{ t("library.shared.goToSourceManagement") }}</WpButton>
     </EmptyState>
 
     <div v-else-if="loading" class="loading-wrap">
       <ProgressRing :IsActive="true" :IsIndeterminate="true" :Width="36" :Height="36" />
-      <span class="loading-text">正在获取各来源的推荐…</span>
+      <span class="loading-text">{{ t("library.recommend.loading") }}</span>
     </div>
 
     <template v-else>
-      <p v-if="fromCache" class="cache-hint">以下为缓存内容，正在更新为最新…</p>
+      <p v-if="fromCache" class="cache-hint">{{ t("library.recommend.cacheHint") }}</p>
 
       <div v-if="errors.length" class="error-list">
         <p v-for="item in errors" :key="item.record.entry.id" class="error-item">
-          「{{ demoName(item.record.entry.manifest.name) }}」加载失败：{{ item.error }}
+          {{
+            t("library.recommend.sourceFailed", {
+              source: demoName(item.record.entry.manifest.name),
+              error: item.error,
+            })
+          }}
         </p>
       </div>
 
       <EmptyState
         v-if="!sections.length && !errors.length"
         icon="&#xE852;"
-        title="暂无推荐内容"
-        description="已启用的插件没有提供推荐，试试搜索或稍后再来。"
+        :title="t('library.recommend.empty.title')"
+        :description="t('library.recommend.empty.description')"
       />
 
       <section v-for="section in sections" :key="section.sourceId" class="source-section">
         <h2 class="wp-section-title">
           {{ demoName(section.name) }}
-          <span class="section-sub">的推荐</span>
+          <span class="section-sub">{{ t("library.recommend.sectionSub") }}</span>
         </h2>
 
         <div v-if="section.result.playlists?.length" class="card-row">
@@ -275,7 +288,7 @@ onMounted(loadWithCache);
               />
               <CachedImage v-if="song.cover" :src="song.cover" class="cover-img" />
               <span v-else class="wp-icon cover-placeholder">&#xE852;</span>
-              <button class="song-play" title="播放" @click.stop="playFromSource(section, index)">
+              <button class="song-play" :title="t('common.action.play')" @click.stop="playFromSource(section, index)">
                 <span class="wp-icon filled">&#xF610;</span>
               </button>
             </div>

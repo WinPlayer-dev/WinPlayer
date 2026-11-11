@@ -18,8 +18,10 @@ import WpCard from "@/components/theme/WpCard.vue";
 import { useCloudStore } from "@/stores/cloud";
 import { lastSyncAt, resetSyncState, runSync, syncState } from "@/services/cloudSync";
 import { toast } from "@/services/toast";
+import { useI18n } from "@/i18n";
 
 const cloud = useCloudStore();
+const { t } = useI18n();
 
 const urlInput = ref("");
 const usernameInput = ref("");
@@ -43,7 +45,7 @@ const usedText = computed(() => {
 });
 
 const syncTimeText = computed(() =>
-  syncAt.value ? new Date(syncAt.value).toLocaleString() : "尚未同步",
+  syncAt.value ? new Date(syncAt.value).toLocaleString() : t("settings.data.cloud.sync.never"),
 );
 
 async function probe(): Promise<void> {
@@ -51,13 +53,18 @@ async function probe(): Promise<void> {
   try {
     const info = await cloud.loadServerInfo(urlInput.value);
     if (info.needsFirstUser) {
-      toast("这台服务器还没有账号，注册的第一个用户会成为管理员", "info");
+      toast(t("settings.data.cloud.server.firstUser"), "info");
       mode.value = "register";
     } else {
-      toast(`已连接：${info.name}`, "success");
+      toast(t("settings.data.cloud.server.probeConnected", { name: info.name }), "success");
     }
   } catch (error) {
-    toast(`连接失败：${error instanceof Error ? error.message : String(error)}`, "error");
+    toast(
+      t("settings.data.cloud.server.probeFailed", {
+        error: error instanceof Error ? error.message : String(error),
+      }),
+      "error",
+    );
   } finally {
     busy.value = "";
   }
@@ -65,21 +72,21 @@ async function probe(): Promise<void> {
 
 async function submit(): Promise<void> {
   if (!urlInput.value.trim()) {
-    toast("请先填写服务器地址", "error");
+    toast(t("settings.data.cloud.account.urlRequired"), "error");
     return;
   }
   if (!usernameInput.value.trim() || passwordInput.value.length < 6) {
-    toast("用户名不能为空，密码至少 6 位", "error");
+    toast(t("settings.data.cloud.account.invalidInput"), "error");
     return;
   }
   busy.value = mode.value;
   try {
     if (mode.value === "login") {
       await cloud.login(urlInput.value, usernameInput.value, passwordInput.value);
-      toast("登录成功", "success");
+      toast(t("settings.data.cloud.account.loginSuccess"), "success");
     } else {
       await cloud.register(urlInput.value, usernameInput.value, passwordInput.value, inviteInput.value);
-      toast("注册成功，已自动登录", "success");
+      toast(t("settings.data.cloud.account.registerSuccess"), "success");
     }
     passwordInput.value = "";
     inviteInput.value = "";
@@ -101,17 +108,22 @@ async function doLogout(): Promise<void> {
   account.value = null;
   summary.value = "";
   syncAt.value = 0;
-  toast("已退出同频服务器", "info");
+  toast(t("settings.data.cloud.account.loggedOut"), "info");
 }
 
 /** 选本地文件上传（初始化曲库最省事的路径） */
 async function pickUpload(): Promise<void> {
   const { open } = await import("@tauri-apps/plugin-dialog");
   const picked = await open({
-    title: "选择要上传到同频服务器的音频",
+    title: t("settings.data.cloud.library.uploadDialogTitle"),
     multiple: true,
     directory: false,
-    filters: [{ name: "音频", extensions: ["mp3", "flac", "m4a", "aac", "ogg", "wav"] }],
+    filters: [
+      {
+        name: t("settings.data.cloud.library.audioFilter"),
+        extensions: ["mp3", "flac", "m4a", "aac", "ogg", "wav"],
+      },
+    ],
   });
   const paths = Array.isArray(picked) ? picked : picked ? [picked] : [];
   if (!paths.length) return;
@@ -124,12 +136,18 @@ async function pickUpload(): Promise<void> {
       await cloud.upload({ filename, source: { kind: "path", path } });
       ok += 1;
     } catch (error) {
-      toast(`${filename}: ${error instanceof Error ? error.message : String(error)}`, "error");
+      toast(
+        t("settings.data.cloud.library.uploadFailed", {
+          filename,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+        "error",
+      );
     }
   }
   busy.value = "";
   if (ok) {
-    toast(`已上传 ${ok} 首`, "success");
+    toast(t("settings.data.cloud.library.uploadDone", { count: ok }), "success");
     await cloud.refresh();
   }
 }
@@ -138,7 +156,7 @@ async function doRefresh(): Promise<void> {
   busy.value = "refresh";
   try {
     await cloud.refresh();
-    toast(`曲库已更新：${cloud.trackCount} 首`, "success");
+    toast(t("settings.data.cloud.library.refreshed", { count: cloud.trackCount }), "success");
   } finally {
     busy.value = "";
   }
@@ -149,14 +167,22 @@ async function doSync(): Promise<void> {
   try {
     const result = await runSync();
     if (!result) {
-      toast("同步未执行（未登录或未配置服务器）", "error");
+      toast(t("settings.data.cloud.sync.notRun"), "error");
       return;
     }
-    summary.value = `推送 ${result.pushed} 条 · 拉取 ${result.pulled} 条`;
+    summary.value = t("settings.data.cloud.sync.summary", {
+      pushed: result.pushed,
+      pulled: result.pulled,
+    });
     syncAt.value = result.at;
-    toast("同步完成", "success");
+    toast(t("settings.data.cloud.sync.done"), "success");
   } catch (error) {
-    toast(`同步失败：${error instanceof Error ? error.message : String(error)}`, "error");
+    toast(
+      t("settings.data.cloud.sync.failed", {
+        error: error instanceof Error ? error.message : String(error),
+      }),
+      "error",
+    );
   } finally {
     busy.value = "";
   }
@@ -173,11 +199,11 @@ async function doReset(): Promise<void> {
   await resetSyncState();
   syncAt.value = 0;
   summary.value = "";
-  toast("同步状态已重置，下次同步会重新合并", "info");
+  toast(t("settings.data.cloud.sync.resetDone"), "info");
 }
 
 function progressText(item: { transferred: number; total: number }): string {
-  if (!item.total) return "准备中…";
+  if (!item.total) return t("settings.data.cloud.library.preparing");
   return `${Math.min(100, Math.round((item.transferred / item.total) * 100))}%`;
 }
 
@@ -189,21 +215,24 @@ onMounted(async () => {
   await refreshAccount();
   if (syncState().last) {
     const last = syncState().last!;
-    summary.value = `推送 ${last.pushed} 条 · 拉取 ${last.pulled} 条`;
+    summary.value = t("settings.data.cloud.sync.summary", {
+      pushed: last.pushed,
+      pulled: last.pulled,
+    });
   }
 });
 </script>
 
 <template>
-  <SettingsSection id="data-cloud" title="同步">
+  <SettingsSection id="data-cloud" :title="t('settings.data.cloud.section')">
 
     <!-- 服务器 -->
     <WpCard class="settings-card column cloud-card">
       <div class="card-content">
-        <div class="card-header">服务器地址</div>
+        <div class="card-header">{{ t("settings.data.cloud.server.title") }}</div>
         <div class="card-description">
-          填你自建服务器（Docker 部署后就是 <code>http://IP:3456</code>）。
-          地址存在本机，换服务器只需改这里重新登录。
+          {{ t("settings.data.cloud.server.descriptionBefore") }}
+          <code>http://IP:3456</code>{{ t("settings.data.cloud.server.descriptionAfter") }}
         </div>
       </div>
       <div class="cloud-row">
@@ -214,27 +243,29 @@ onMounted(async () => {
           @update:Text="urlInput = String($event ?? '')"
         />
         <WpButton variant="standard" size="small" :disabled="busy === 'probe'" @click="probe">
-          {{ busy === "probe" ? "检测中…" : "检测连接" }}
+          {{ busy === "probe" ? t("settings.data.cloud.server.probing") : t("settings.data.cloud.server.probe") }}
         </WpButton>
       </div>
       <div v-if="cloud.serverInfo" class="cloud-hint">
-        已连接 <strong>{{ cloud.serverInfo.name }}</strong>
-        · 注册{{ registeredOpen ? "开放" : "关闭" }}
-        <span v-if="needsInvite">· 需要邀请码</span>
+        {{ t("settings.data.cloud.server.connected") }} <strong>{{ cloud.serverInfo.name }}</strong>
+        · {{ registeredOpen ? t("settings.data.cloud.server.registrationOpen") : t("settings.data.cloud.server.registrationClosed") }}
+        <span v-if="needsInvite">· {{ t("settings.data.cloud.server.needsInvite") }}</span>
       </div>
     </WpCard>
 
     <!-- 账号 -->
     <WpCard class="settings-card column cloud-card">
       <div class="card-content">
-        <div class="card-header">{{ cloud.configured ? "账号" : mode === "login" ? "登录" : "注册" }}</div>
+        <div class="card-header">
+          {{ cloud.configured ? t("settings.data.cloud.account.title") : mode === "login" ? t("settings.data.cloud.account.login") : t("settings.data.cloud.account.register") }}
+        </div>
         <div class="card-description">
           <template v-if="cloud.configured">
             {{ account?.username ?? cloud.config.username }}
-            <span v-if="account?.role === 'admin'"> · 管理员</span>
+            <span v-if="account?.role === 'admin'"> · {{ t("settings.data.cloud.account.admin") }}</span>
           </template>
           <template v-else>
-            同一个账号在多台设备登录后，喜欢、歌单、播放历史与歌曲自定义信息会互相同步。
+            {{ t("settings.data.cloud.account.description") }}
           </template>
         </div>
       </div>
@@ -242,7 +273,7 @@ onMounted(async () => {
       <template v-if="cloud.configured">
         <div class="cloud-row">
           <WpButton variant="standard" size="small" :disabled="busy !== ''" @click="doLogout">
-            退出登录
+            {{ t("settings.data.cloud.account.logout") }}
           </WpButton>
         </div>
       </template>
@@ -252,7 +283,7 @@ onMounted(async () => {
           <TextBox
             class="cloud-input"
             :Text="usernameInput"
-            PlaceholderText="用户名"
+            :PlaceholderText="t('settings.data.cloud.account.usernamePlaceholder')"
             @update:Text="usernameInput = String($event ?? '')"
           />
         </div>
@@ -260,7 +291,7 @@ onMounted(async () => {
           <TextBox
             class="cloud-input"
             :Text="passwordInput"
-            PlaceholderText="密码（至少 6 位）"
+            :PlaceholderText="t('settings.data.cloud.account.passwordPlaceholder')"
             InputType="password"
             @update:Text="passwordInput = String($event ?? '')"
           />
@@ -269,7 +300,7 @@ onMounted(async () => {
           <TextBox
             class="cloud-input"
             :Text="inviteInput"
-            PlaceholderText="邀请码"
+            :PlaceholderText="t('settings.data.cloud.account.invitePlaceholder')"
             @update:Text="inviteInput = String($event ?? '')"
           />
         </div>
@@ -280,7 +311,7 @@ onMounted(async () => {
             :disabled="busy === 'login' || busy === 'register'"
             @click="submit"
           >
-            {{ busy === "login" || busy === "register" ? "处理中…" : mode === "login" ? "登录" : "注册" }}
+            {{ busy === "login" || busy === "register" ? t("common.state.processing") : mode === "login" ? t("settings.data.cloud.account.login") : t("settings.data.cloud.account.register") }}
           </WpButton>
           <WpButton
             variant="standard"
@@ -288,11 +319,11 @@ onMounted(async () => {
             :disabled="busy !== ''"
             @click="mode = mode === 'login' ? 'register' : 'login'"
           >
-            {{ mode === "login" ? "去注册" : "去登录" }}
+            {{ mode === "login" ? t("settings.data.cloud.account.toRegister") : t("settings.data.cloud.account.toLogin") }}
           </WpButton>
         </div>
         <div v-if="mode === 'register' && !registeredOpen && !cloud.serverInfo?.needsFirstUser" class="cloud-hint">
-          这台服务器没有开放注册，需要管理员在后台建号或打开注册开关。
+          {{ t("settings.data.cloud.account.registrationClosed") }}
         </div>
       </template>
     </WpCard>
@@ -300,27 +331,27 @@ onMounted(async () => {
     <!-- 曲库 -->
     <WpCard v-if="cloud.configured" class="settings-card column cloud-card">
       <div class="card-content">
-        <div class="card-header">曲库</div>
+        <div class="card-header">{{ t("settings.data.cloud.library.title") }}</div>
         <div class="card-description">
-          {{ cloud.trackCount }} 首 · {{ cloud.albumCount }} 张专辑 · 已用 {{ usedText }}
+          {{ t("settings.data.cloud.library.description", { tracks: cloud.trackCount, albums: cloud.albumCount, used: usedText }) }}
         </div>
       </div>
       <div class="cloud-row">
         <WpButton variant="accent" size="small" :disabled="busy !== ''" @click="pickUpload">
-          {{ busy === "upload" ? "上传中…" : "上传本地文件" }}
+          {{ busy === "upload" ? t("settings.data.cloud.library.uploading") : t("settings.data.cloud.library.upload") }}
         </WpButton>
         <WpButton variant="standard" size="small" :disabled="busy !== ''" @click="doRefresh">
-          {{ busy === "refresh" ? "刷新中…" : "刷新曲库" }}
+          {{ busy === "refresh" ? t("settings.data.cloud.library.refreshing") : t("settings.data.cloud.library.refresh") }}
         </WpButton>
       </div>
       <div v-if="cloud.uploads.length" class="cloud-uploads">
         <div v-for="item in cloud.uploads.slice(0, 4)" :key="item.taskId" class="cloud-upload-item">
           <span class="ellipsis">{{ item.filename }}</span>
           <span class="cloud-upload-state">
-            <template v-if="item.phase === 'done'">完成</template>
-            <template v-else-if="item.phase === 'failed'">失败</template>
-            <template v-else-if="item.phase === 'downloading'">拉取音频 {{ progressText(item) }}</template>
-            <template v-else>上传中 {{ progressText(item) }}</template>
+            <template v-if="item.phase === 'done'">{{ t("common.action.done") }}</template>
+            <template v-else-if="item.phase === 'failed'">{{ t("common.state.failed") }}</template>
+            <template v-else-if="item.phase === 'downloading'">{{ t("settings.data.cloud.library.fetchingProgress", { progress: progressText(item) }) }}</template>
+            <template v-else>{{ t("settings.data.cloud.library.uploadingProgress", { progress: progressText(item) }) }}</template>
           </span>
         </div>
       </div>
@@ -329,35 +360,33 @@ onMounted(async () => {
     <!-- 同步 -->
     <WpCard v-if="cloud.configured" class="settings-card column cloud-card">
       <div class="card-content">
-        <div class="card-header">账号数据同步</div>
+        <div class="card-header">{{ t("settings.data.cloud.sync.title") }}</div>
         <div class="card-description">
-          同步喜欢、歌单（含顺序）、播放历史与歌曲自定义信息。上次同步：{{ syncTimeText }}
+          {{ t("settings.data.cloud.sync.description", { time: syncTimeText }) }}
           <span v-if="summary"> · {{ summary }}</span>
         </div>
       </div>
       <div class="cloud-row">
         <WpButton variant="accent" size="small" :disabled="busy !== ''" @click="doSync">
-          {{ busy === "sync" ? "同步中…" : "立即同步" }}
+          {{ busy === "sync" ? t("settings.data.cloud.sync.syncing") : t("settings.data.cloud.sync.action") }}
         </WpButton>
         <WpButton variant="standard" size="small" :disabled="busy !== ''" @click="doReset">
-          重置同步状态
+          {{ t("settings.data.cloud.sync.reset") }}
         </WpButton>
       </div>
       <div class="cloud-hint">
-        登录后自动同步每 2 分钟跑一次；「重置同步状态」只清本机的同步游标与快照，
-        不会删除任何音乐或云端数据。
+        {{ t("settings.data.cloud.sync.hint") }}
       </div>
     </WpCard>
 
     <ContentDialog
       ref="confirmDialogRef"
-      Title="重置同步状态"
+      :Title="t('settings.data.cloud.sync.resetConfirmTitle')"
       PrimaryButtonText="reset"
-      CloseButtonText="取消"
+      :CloseButtonText="t('common.action.cancel')"
     >
       <p style="margin: 0">
-        本机的同步游标与快照会被清空，下次同步会重新做一次全量合并（并集 + 服务器较新者胜）。
-        你的喜欢、歌单与云端曲库都不会被删除。
+        {{ t("settings.data.cloud.sync.resetConfirmContent") }}
       </p>
     </ContentDialog>
   </SettingsSection>

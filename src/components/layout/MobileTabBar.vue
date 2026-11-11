@@ -3,7 +3,9 @@
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { hapticTap } from "@/services/haptics";
+import { useI18n } from "@/i18n";
 
+const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 
@@ -15,10 +17,10 @@ interface TabItem {
 }
 
 const tabs: TabItem[] = [
-  { name: "recommend", routeName: "recommend", icon: "&#xF481;", label: "首页" },
-  { name: "mine", routeName: "mine", icon: "&#xF5BE;", label: "我的" },
-  { name: "plugins", routeName: "plugins", icon: "&#xF137;", label: "插件" },
-  { name: "settings", routeName: "settings", icon: "&#xF6AA;", label: "设置" },
+  { name: "recommend", routeName: "recommend", icon: "&#xF481;", label: t("layout.mobileTabBar.home") },
+  { name: "mine", routeName: "mine", icon: "&#xF5BE;", label: t("layout.mobileTabBar.mine") },
+  { name: "plugins", routeName: "plugins", icon: "&#xF137;", label: t("layout.mobileTabBar.plugins") },
+  { name: "settings", routeName: "settings", icon: "&#xF6AA;", label: t("layout.sideNav.settings") },
 ];
 
 /**

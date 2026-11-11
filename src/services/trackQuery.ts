@@ -6,6 +6,7 @@
  * 保证各处行为（大小写、全半角、缺字段兜底）完全一致。
  */
 
+import { t } from "@/i18n";
 import { trackArtist } from "@/types/player";
 import type { UnifiedTrack } from "@/types/plugin";
 
@@ -14,12 +15,12 @@ export type TrackSortKey = "default" | "name" | "artist" | "album" | "duration" 
 
 /** 排序菜单项（顺序即下拉框顺序） */
 export const TRACK_SORT_OPTIONS: Array<{ key: TrackSortKey; label: string }> = [
-  { key: "default", label: "默认顺序" },
-  { key: "name", label: "歌曲名" },
-  { key: "artist", label: "歌手" },
-  { key: "album", label: "专辑" },
-  { key: "duration", label: "时长" },
-  { key: "added", label: "添加时间" },
+  { key: "default", label: t("errors.generic.trackSortDefault") },
+  { key: "name", label: t("errors.generic.trackSortName") },
+  { key: "artist", label: t("common.column.artist") },
+  { key: "album", label: t("common.column.album") },
+  { key: "duration", label: t("common.column.duration") },
+  { key: "added", label: t("common.column.addedAt") },
 ];
 
 /** 曲目唯一键（与 library.trackKey 一致，用于关联外部元数据） */
